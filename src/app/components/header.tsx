@@ -27,7 +27,7 @@ const TikTokIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 // Komponen untuk Top Header
 const TopHeader = () => (
-  <div className="bg-emerald-800 text-white text-sm py-2">
+  <div className="bg-primary-dark text-white text-sm py-2">
     <div className="container mx-auto px-6 flex justify-between items-center">
       <div className="hidden md:flex items-center space-x-6">
         <div className="flex items-center space-x-2">
@@ -79,7 +79,6 @@ export default function Header() {
     { href: "/layanan", label: "Layanan" },
     { href: "/dokter", label: "Dokter" },
     { href: "/tentang", label: "Tentang Kami" },
-    { href: "/karir", label: "Karir" },
   ];
 
   const socialLinks = [
@@ -93,22 +92,18 @@ export default function Header() {
       <TopHeader />
       <div className="bg-white/80 backdrop-blur-lg shadow-sm">
         <div className="container mx-auto px-6 flex justify-between items-center h-24">
-          {" "}
-          {/* Menambah tinggi header */}
-          {/* Logo di Kiri */}
           <div className="flex-shrink-0">
             <Link href="/">
               <Image
                 src="/brand-avisena.png"
                 alt="Logo RSU Avisena"
-                width={75} // Ukuran disesuaikan
-                height={75} // Ukuran disesuaikan
+                width={75}
+                height={75}
                 priority
                 className="object-contain"
               />
             </Link>
           </div>
-          {/* Navigasi Tengah (Desktop) */}
           <nav className="hidden md:flex items-center space-x-8">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
@@ -118,8 +113,8 @@ export default function Header() {
                   href={link.href}
                   className={`transition-colors duration-300 ${
                     isActive
-                      ? "text-emerald-600 font-semibold"
-                      : "text-gray-600 font-medium hover:text-emerald-600"
+                      ? "text-primary font-semibold"
+                      : "text-gray-600 font-medium hover:text-primary"
                   }`}
                 >
                   {link.label}
@@ -127,7 +122,6 @@ export default function Header() {
               );
             })}
           </nav>
-          {/* Ikon Sosial & Tombol Janji (Desktop) */}
           <div className="hidden md:flex items-center space-x-6">
             <div className="flex items-center space-x-4">
               {socialLinks.map((social) => (
@@ -137,7 +131,7 @@ export default function Header() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={social.label}
-                  className="text-gray-500 hover:text-emerald-600 transition-all duration-300 hover:scale-110"
+                  className="text-gray-500 hover:text-primary transition-all duration-300 hover:scale-110"
                 >
                   <social.icon className="h-5 w-5" />
                 </a>
@@ -145,12 +139,11 @@ export default function Header() {
             </div>
             <Link
               href="/buat-janji"
-              className="bg-emerald-600 text-white px-6 py-2 rounded-full hover:bg-emerald-700 transition-transform duration-300 ease-in-out transform hover:scale-105 text-sm font-semibold"
+              className="bg-primary text-white px-6 py-2 rounded-full hover:bg-secondary transition-all duration-300 transform hover:scale-105 text-sm font-semibold"
             >
               Buat Janji
             </Link>
           </div>
-          {/* Tombol Menu (Mobile) */}
           <div className="md:hidden">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -160,8 +153,6 @@ export default function Header() {
             </button>
           </div>
         </div>
-
-        {/* Menu Overlay (Mobile) */}
         <div
           className={`md:hidden fixed inset-0 z-40 transition-opacity duration-300 ${
             isMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -187,7 +178,7 @@ export default function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-gray-700 hover:text-emerald-600 text-lg"
+                  className="text-gray-700 hover:text-primary text-lg"
                 >
                   {link.label}
                 </Link>
@@ -202,7 +193,7 @@ export default function Header() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={social.label}
-                  className="text-gray-500 hover:text-emerald-600 transition-colors"
+                  className="text-gray-500 hover:text-primary transition-colors"
                 >
                   <social.icon className="h-6 w-6" />
                 </a>
