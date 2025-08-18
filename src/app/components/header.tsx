@@ -7,24 +7,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Menu, X, Globe, Mail, Instagram, Facebook } from "lucide-react";
 
-// Komponen Ikon TikTok SVG kustom
-const TikTokIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M12.528 8.755A3.834 3.834 0 0 1 15.32 6.1h1.434v3.837a1.43 1.43 0 0 0 1.43 1.43h2.382V14a7.61 7.61 0 0 1-5.717 5.717v2.855a.571.571 0 0 1-.571.572h-2.858a.571.571 0 0 1-.571-.572v-9.143a3.834 3.834 0 0 1-3.263-3.803 3.834 3.834 0 0 1 3.804-3.834Z" />
-  </svg>
-);
-
 // Komponen untuk Top Header
 const TopHeader = () => (
   <div className="bg-primary-dark text-white text-sm py-2">
@@ -84,7 +66,6 @@ export default function Header() {
   const socialLinks = [
     { href: "https://instagram.com", icon: Instagram, label: "Instagram" },
     { href: "https://facebook.com", icon: Facebook, label: "Facebook" },
-    { href: "https://tiktok.com", icon: TikTokIcon, label: "TikTok" },
   ];
 
   return (
