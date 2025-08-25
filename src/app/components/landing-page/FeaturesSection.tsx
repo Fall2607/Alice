@@ -1,6 +1,10 @@
 // File: app/components/landing-page/FeaturesSection.tsx
+"use client"; // Diperlukan untuk import gambar statis di App Router
+
 import Image from "next/image";
 import { ShieldCheck, Clock, Award } from "lucide-react";
+// Impor gambar dari folder src/assets menggunakan path alias yang benar
+import landingImage from "@/app/assets/image/landing-2.jpg";
 
 // Data Fitur
 const features = [
@@ -30,10 +34,11 @@ export default function FeaturesSection() {
         <div className="grid md:grid-cols-2 gap-16 items-center">
           <div>
             <Image
-              src="/img/landing-2.jpg"
+              src={landingImage} // Gunakan gambar yang sudah diimpor
               alt="Tim Dokter Profesional RS Avisena"
               width={500}
               height={550}
+              placeholder="blur" // Menambahkan efek blur saat gambar dimuat
               className="rounded-xl shadow-lg w-full h-auto object-cover"
             />
           </div>

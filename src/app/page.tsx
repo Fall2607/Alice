@@ -6,7 +6,8 @@ import ServicesSection from "./components/landing-page/ServicesSection";
 import FeaturesSection from "./components/landing-page/FeaturesSection";
 import DoctorsSection from "./components/landing-page/DoctorsSection";
 import ArticlesSection from "./components/landing-page/ArticlesSection";
-import HealthCalculatorSection from "./components/landing-page/HealthCalculatorSection"; // Impor section baru
+import HealthCalculatorSection from "./components/landing-page/HealthCalculatorSection";
+import CareerSection from "./components/landing-page/CareerSection";
 import TestimonialsSection from "./components/landing-page/TestimonialsSection";
 
 export default function LandingPage() {
@@ -17,7 +18,8 @@ export default function LandingPage() {
       <FeaturesSection />
       <DoctorsSection />
       <ArticlesSection />
-      <HealthCalculatorSection /> {/* Tambahkan section baru di sini */}
+      <HealthCalculatorSection />
+      <CareerSection />
       <TestimonialsSection />
     </>
   );

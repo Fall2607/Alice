@@ -61,6 +61,7 @@ export default function Header() {
     { href: "/layanan", label: "Layanan" },
     { href: "/dokter", label: "Dokter" },
     { href: "/tentang", label: "Tentang Kami" },
+    { href: "/karir", label: "Karir" },
   ];
 
   const socialLinks = [
@@ -69,120 +70,124 @@ export default function Header() {
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
-      <TopHeader />
-      <div className="bg-white/80 backdrop-blur-lg shadow-sm">
-        <div className="container mx-auto px-6 flex justify-between items-center h-24">
-          <div className="flex-shrink-0">
-            <Link href="/">
-              <Image
-                src="/brand-avisena.png"
-                alt="Logo RSU Avisena"
-                width={75}
-                height={75}
-                priority
-                className="object-contain"
-              />
-            </Link>
-          </div>
-          <nav className="hidden md:flex items-center space-x-8">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`transition-colors duration-300 ${
-                    isActive
-                      ? "text-primary font-semibold"
-                      : "text-gray-600 font-medium hover:text-primary"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="hidden md:flex items-center space-x-6">
-            <div className="flex items-center space-x-4">
-              {socialLinks.map((social) => (
-                <a
-                  key={social.label}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={social.label}
-                  className="text-gray-500 hover:text-primary transition-all duration-300 hover:scale-110"
-                >
-                  <social.icon className="h-5 w-5" />
-                </a>
-              ))}
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50">
+        <TopHeader />
+        <div className="bg-white/80 backdrop-blur-lg shadow-sm">
+          <div className="container mx-auto px-6 flex justify-between items-center h-24">
+            <div className="flex-shrink-0">
+              <Link href="/">
+                <Image
+                  src="/brand-avisena.png"
+                  alt="Logo RSU Avisena"
+                  width={75}
+                  height={75}
+                  priority
+                  className="object-contain"
+                />
+              </Link>
             </div>
-            <Link
-              href="/buat-janji"
-              className="bg-primary text-white px-6 py-2 rounded-full hover:bg-secondary transition-all duration-300 transform hover:scale-105 text-sm font-semibold"
-            >
-              Buat Janji
-            </Link>
-          </div>
-          <div className="md:hidden">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              aria-label="Toggle Menu"
-            >
-              <Menu className="h-7 w-7 text-gray-700" />
-            </button>
-          </div>
-        </div>
-        <div
-          className={`md:hidden fixed inset-0 z-40 transition-opacity duration-300 ${
-            isMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-        >
-          <div
-            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setIsMenuOpen(false)}
-          ></div>
-          <div
-            className={`fixed top-0 left-0 h-full w-72 bg-white shadow-xl z-50 p-6 transform transition-transform duration-300 ease-in-out ${
-              isMenuOpen ? "translate-x-0" : "-translate-x-full"
-            }`}
-          >
-            <div className="flex justify-between items-center mb-8">
-              <span className="font-bold text-lg">Menu</span>
-              <button onClick={() => setIsMenuOpen(false)}>
-                <X className="h-6 w-6" />
+            <nav className="hidden md:flex items-center space-x-8">
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`transition-colors duration-300 ${
+                      isActive
+                        ? "text-primary font-semibold"
+                        : "text-gray-600 font-medium hover:text-primary"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="hidden md:flex items-center space-x-6">
+              <div className="flex items-center space-x-4">
+                {socialLinks.map((social) => (
+                  <a
+                    key={social.label}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={social.label}
+                    className="text-gray-500 hover:text-primary transition-all duration-300 hover:scale-110"
+                  >
+                    <social.icon className="h-5 w-5" />
+                  </a>
+                ))}
+              </div>
+              <Link
+                href="/buat-janji"
+                className="bg-primary text-white px-6 py-2 rounded-full hover:bg-secondary transition-all duration-300 transform hover:scale-105 text-sm font-semibold"
+              >
+                Buat Janji
+              </Link>
+            </div>
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsMenuOpen(true)}
+                aria-label="Toggle Menu"
+              >
+                <Menu className="h-7 w-7 text-gray-700" />
               </button>
             </div>
-            <nav className="flex flex-col space-y-5">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-gray-700 hover:text-primary text-lg"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="border-t my-6"></div>
-            <div className="flex space-x-5">
-              {socialLinks.map((social) => (
-                <a
-                  key={social.label}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={social.label}
-                  className="text-gray-500 hover:text-primary transition-colors"
-                >
-                  <social.icon className="h-6 w-6" />
-                </a>
-              ))}
-            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Menu Overlay (Mobile) - DIPERBARUI */}
+      <div
+        className={`md:hidden fixed inset-0 z-[99] transition-opacity duration-300 ${
+          isMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+          onClick={() => setIsMenuOpen(false)}
+        ></div>
+        <div
+          className={`fixed top-0 left-0 h-full w-72 bg-white shadow-xl p-6 transform transition-transform duration-300 ease-in-out ${
+            isMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="flex justify-between items-center mb-8">
+            <span className="font-bold text-lg">Menu</span>
+            <button onClick={() => setIsMenuOpen(false)}>
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          <nav className="flex flex-col space-y-5">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-gray-700 hover:text-primary text-lg"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="border-t my-6"></div>
+          <div className="flex space-x-5">
+            {socialLinks.map((social) => (
+              <a
+                key={social.label}
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={social.label}
+                className="text-gray-500 hover:text-primary transition-colors"
+              >
+                <social.icon className="h-6 w-6" />
+              </a>
+            ))}
           </div>
         </div>
       </div>
-    </header>
+    </>
   );
 }
