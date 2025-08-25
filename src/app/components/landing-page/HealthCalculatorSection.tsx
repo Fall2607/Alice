@@ -1,72 +1,111 @@
+// File: app/components/landing-page/HealthCalculatorSection.tsx
 "use client";
 
-import Link from "next/link";
-import { Baby, Scale, Flame, GlassWater } from "lucide-react";
+import { useState } from "react";
+import { Baby, Scale, Flame, GlassWater, ChevronDown, CalendarHeart } from "lucide-react";
 
-// Data untuk kalkulator
-const calculators = [
+// Impor komponen kalkulator fungsional menggunakan path relatif
+import PregnancyCalculator from "@/app/components/calculators/PregnancyCalculator";
+import BmiCalculator from "@/app/components/calculators/BmiCalculator";
+import CalorieCalculator from "@/app/components/calculators/CalorieCalculator";
+import WaterCalculator from "@/app/components/calculators/WaterCalculator";
+import OvulationCalculator from "@/app/components/calculators/OvulationCalculator";
+
+// Tipe data untuk setiap kalkulator
+interface Calculator {
+  id: string;
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  content: React.ReactNode;
+}
+
+// Data untuk kalkulator diperbarui dengan komponen fungsional
+const calculators: Calculator[] = [
   {
+    id: "kehamilan",
     icon: Baby,
     title: "Kalkulator Kehamilan",
     description: "Perkirakan tanggal lahir buah hati Anda.",
-    link: "/kalkulator/kehamilan",
-    color: "bg-pink-100 text-pink-600",
+    content: <PregnancyCalculator />,
   },
   {
+    id: "ovulasi",
+    icon: CalendarHeart,
+    title: "Kalkulator Masa Subur",
+    description: "Temukan jendela ovulasi Anda.",
+    content: <OvulationCalculator />,
+  },
+  {
+    id: "imt",
     icon: Scale,
-    title: "Kalkulator Indeks Massa Tubuh",
+    title: "Indeks Massa Tubuh (IMT)",
     description: "Ketahui status berat badan ideal Anda.",
-    link: "/kalkulator/imt",
-    color: "bg-blue-100 text-blue-600",
+    content: <BmiCalculator />,
   },
   {
+    id: "kalori",
     icon: Flame,
-    title: "Kalkulator Kebutuhan Kalori",
+    title: "Kebutuhan Kalori Harian",
     description: "Hitung kebutuhan kalori harian Anda.",
-    link: "/kalkulator/kalori",
-    color: "bg-orange-100 text-orange-600",
+    content: <CalorieCalculator />,
   },
   {
+    id: "air",
     icon: GlassWater,
-    title: "Kalkulator Kebutuhan Air",
+    title: "Kebutuhan Air Harian",
     description: "Pastikan tubuh Anda terhidrasi dengan baik.",
-    link: "/kalkulator/air",
-    color: "bg-sky-100 text-sky-600",
+    content: <WaterCalculator />,
   },
 ];
 
 export default function HealthCalculatorSection() {
+  const [activeCalculator, setActiveCalculator] = useState<string>(calculators[0].id);
+
+  const selectedCalculator = calculators.find(c => c.id === activeCalculator);
+
   return (
-    <section id="health-calculator" className="py-20 bg-white">
+    <section id="health-calculator" className="py-20 bg-primary">
       <div className="container mx-auto px-6">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-slate-800">
-            Kalkulator Kesehatan
-          </h2>
-          <p className="text-slate-600 mt-2 max-w-2xl mx-auto">
-            Gunakan alat bantu kami untuk memantau kesehatan Anda dan keluarga
-            dengan lebih mudah.
+          <h2 className="text-3xl font-bold text-white">Kalkulator Kesehatan</h2>
+          <p className="text-slate-200 mt-2 max-w-2xl mx-auto">
+            Gunakan alat bantu interaktif kami untuk memantau kesehatan Anda.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {calculators.map((calc) => (
-            <Link
-              href={calc.link}
-              key={calc.title}
-              className="block p-8 bg-background rounded-xl shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 text-center group"
-            >
-              <div
-                className={`rounded-full p-4 inline-block mb-4 transition-colors duration-300 ${calc.color}`}
-              >
-                <calc.icon className="h-10 w-10" />
-              </div>
-              <h3 className="text-xl font-semibold text-primary-dark mb-2 group-hover:text-primary transition-colors">
-                {calc.title}
-              </h3>
-              <p className="text-text-muted text-sm">{calc.description}</p>
-            </Link>
-          ))}
+        <div className="bg-white rounded-xl shadow-2xl overflow-hidden md:flex md:items-start">
+          {/* Kolom Kiri: Akordeon */}
+          <div className="md:w-1/3 border-r border-slate-200">
+            {calculators.map((calc) => {
+              const isActive = activeCalculator === calc.id;
+              return (
+                <button
+                  key={calc.id}
+                  onClick={() => setActiveCalculator(calc.id)}
+                  className={`w-full text-left p-6 border-b border-slate-200 transition-colors duration-300 ${isActive ? 'bg-background' : 'hover:bg-slate-50'}`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className={`rounded-full p-3 mr-4 ${isActive ? 'bg-primary text-white' : 'bg-background-soft text-primary-dark'}`}>
+                        <calc.icon className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h4 className={`font-semibold ${isActive ? 'text-primary' : 'text-slate-800'}`}>{calc.title}</h4>
+                        <p className="text-sm text-slate-500">{calc.description}</p>
+                      </div>
+                    </div>
+                    <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform duration-300 ${isActive ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Kolom Kanan: Konten Kalkulator */}
+          <div className="md:w-2/3 p-8 md:p-12">
+            {selectedCalculator && selectedCalculator.content}
+          </div>
         </div>
       </div>
     </section>
