@@ -33,7 +33,7 @@ export default function HeroSection() {
         </div>
         <div>
           <Image
-            src="/img/front-rs.jpg"
+            src="/img/banner/banner-kami.jpg"
             alt="Gedung Rumah Sakit Avisena"
             width={600}
             height={450}
