@@ -6,7 +6,7 @@ import { allServices } from "@/app/data/services"; // Path diubah menjadi alias 
 
 export default function LayananPage() {
   return (
-    <div className="bg-background pt-20">
+    <div className="bg-background">
       <PageBanner
         title="Layanan & Fasilitas Kami"
         description="RS Avisena menyediakan beragam layanan poliklinik spesialis dan fasilitas penunjang medis modern untuk memenuhi segala kebutuhan kesehatan Anda."

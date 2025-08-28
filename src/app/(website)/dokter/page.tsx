@@ -38,7 +38,7 @@ export default function DoctorPage() {
 
   return (
     <>
-      <div className="bg-background pt-20">
+      <div className="bg-background">
         <PageBanner
           title="Tim Dokter Profesional Kami"
           description="Temukan dokter spesialis yang tepat untuk kebutuhan kesehatan Anda. Kami siap melayani dengan keahlian dan dedikasi tinggi."

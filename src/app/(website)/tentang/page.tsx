@@ -35,7 +35,7 @@ const values = [
 
 export default function TentangPage() {
   return (
-    <div className="bg-background pt-20">
+    <div className="bg-background">
       <PageBanner
         title="Tentang RSU Avisena"
         description="Mengenal lebih dekat komitmen kami dalam memberikan pelayanan kesehatan yang unggul dan terpercaya bagi masyarakat."

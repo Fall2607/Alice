@@ -5,8 +5,8 @@ import { useState, useMemo } from "react";
 import { Briefcase, MapPin, Clock } from "lucide-react";
 import { jobOpenings } from "@/app/data/careers"; // Path diubah menjadi relatif
 import Link from "next/link";
-import PageBanner from "../components/PageBanner"; // Path diubah menjadi relatif
-import CareerFilter from "../components/CareerFilter"; // Path diubah menjadi relatif
+import PageBanner from "@/app/components/PageBanner"; // Path diubah menjadi relatif
+import CareerFilter from "@/app/components/CareerFilter"; // Path diubah menjadi relatif
 
 export default function CareerPage() {
   const [filters, setFilters] = useState({
@@ -25,7 +25,7 @@ export default function CareerPage() {
   }, [filters]);
 
   return (
-    <div className="bg-background pt-20">
+    <div className="bg-background">
       <PageBanner
         title="Kembangkan Karir Anda Bersama Kami"
         description="Jadilah bagian dari tim profesional yang berdedikasi untuk memberikan pelayanan kesehatan terbaik. Temukan posisi yang tepat untuk Anda di RS Avisena."
