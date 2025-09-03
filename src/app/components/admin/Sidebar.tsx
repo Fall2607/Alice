@@ -18,8 +18,9 @@ import {
   KeyRound,
   ChevronDown,
   ClipboardList,
+  Building2,
 } from "lucide-react";
-import Modal from "@/app/components/modal";
+import Modal from "@/app/components/modal"; // Path diubah menjadi relatif
 
 export const menuItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
@@ -38,6 +39,7 @@ export const menuItems = [
     icon: Briefcase,
     subItems: [
       { href: "/admin/job-positions", icon: FileText, label: "Job Positions" },
+      { href: "/admin/departemen", icon: Building2, label: "Departemen" },
       { href: "/admin/password-test", icon: KeyRound, label: "Password Test" },
     ],
   },
@@ -121,7 +123,7 @@ export default function Sidebar({
             }`}
         >
           <Image
-            src="/img/potrait/man.jpg"
+            src="/img/potrait/woman.jpg"
             alt="Foto Profil Admin"
             width={40}
             height={40}
