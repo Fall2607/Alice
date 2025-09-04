@@ -33,7 +33,11 @@ export default function DepartmentManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  // jika di browser
+  const baseUrl =
+    window.location.hostname === "localhost"
+      ? process.env.NEXT_PUBLIC_API_BASE_URL
+      : process.env.NEXT_PUBLIC_API_BASE_URL_LAN;
 
   const fetchDepartments = async () => {
     try {

@@ -15,10 +15,9 @@ export async function GET(request: Request, context: RouteContext) {
   try {
     const params = await context.params;
     const id = params.id;
-    const result = await pool.query(
-      "SELECT * FROM departemen WHERE id = $1",
-      [id]
-    );
+    const result = await pool.query("SELECT * FROM departemen WHERE id = $1", [
+      id,
+    ]);
 
     if (result.rows.length === 0) {
       return NextResponse.json(
@@ -30,14 +29,14 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json(result.rows[0]);
   } catch (error) {
     console.error(`API Error - Gagal mengambil departemen ID:`, error);
-    let errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
+    let errorMessage =
+      error instanceof Error ? error.message : "Terjadi kesalahan";
     return NextResponse.json(
       { message: "Gagal mengambil data departemen", error: errorMessage },
       { status: 500 }
     );
   }
 }
-
 
 export async function PUT(request: Request, context: RouteContext) {
   try {
@@ -69,7 +68,8 @@ export async function PUT(request: Request, context: RouteContext) {
     return NextResponse.json(result.rows[0]);
   } catch (error) {
     console.error(`API Error - Gagal memperbarui departemen ID:`, error);
-    const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan pada server.";
+    const errorMessage =
+      error instanceof Error ? error.message : "Terjadi kesalahan pada server.";
     return NextResponse.json(
       { message: "Gagal memperbarui departemen", error: errorMessage },
       { status: 500 }
@@ -103,11 +103,11 @@ export async function DELETE(request: Request, context: RouteContext) {
     });
   } catch (error) {
     console.error(`API Error - Gagal menghapus departemen ID:`, error);
-    const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan pada server.";
+    const errorMessage =
+      error instanceof Error ? error.message : "Terjadi kesalahan pada server.";
     return NextResponse.json(
       { message: "Gagal menghapus departemen", error: errorMessage },
       { status: 500 }
     );
   }
 }
-
