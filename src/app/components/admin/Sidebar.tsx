@@ -19,13 +19,17 @@ import {
   ChevronDown,
   ClipboardList,
   Building2,
-  User,
+  Award,
+  Send,
+  Users,
 } from "lucide-react";
-import Modal from "@/app/components/modal"; // Path diubah menjadi relatif
+import Modal from "@/app/components/modal";
 
+// Ekspor menuItems agar bisa digunakan di komponen lain
 export const menuItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/admin/request-pegawai", icon: User, label: "Request Pegawai" },
+  { href: "/admin/pegawai", icon: Users, label: "Pegawai" },
+  { href: "/admin/request-pegawai", icon: Send, label: "Request Pegawai" },
   { href: "/admin/lowongan", icon: ClipboardList, label: "Lowongan" },
   {
     label: "Setting Web",
@@ -40,11 +44,8 @@ export const menuItems = [
     label: "Setting HRIS",
     icon: Briefcase,
     subItems: [
-      {
-        href: "/admin/job-positions",
-        icon: FileText,
-        label: "Posisi Pekerjaan",
-      },
+      { href: "/admin/job-positions", icon: FileText, label: "Posisi Pekerjaan" },
+      { href: "/admin/jabatan", icon: Award, label: "Jabatan" }, // Tambahkan menu baru
       { href: "/admin/departemen", icon: Building2, label: "Departemen" },
       { href: "/admin/password-test", icon: KeyRound, label: "Password Test" },
     ],
@@ -56,6 +57,7 @@ interface SidebarProps {
   openLogoutModal: () => void;
   closeLogoutModal: () => void;
   isLogoutModalOpen: boolean;
+  pendingRequestCount: number;
 }
 
 export default function Sidebar({
@@ -63,20 +65,21 @@ export default function Sidebar({
   openLogoutModal,
   closeLogoutModal,
   isLogoutModalOpen,
+  pendingRequestCount,
 }: SidebarProps) {
   const pathname = usePathname();
   const [searchTerm, setSearchTerm] = useState("");
   const [openMenu, setOpenMenu] = useState<string | null>(() => {
-    const activeParent = menuItems.find((item) =>
-      item.subItems?.some((sub) => pathname.startsWith(sub.href))
+    const activeParent = menuItems.find(item =>
+      item.subItems?.some(sub => pathname.startsWith(sub.href))
     );
     return activeParent?.label || null;
   });
 
   useEffect(() => {
     if (searchTerm.trim() !== "") {
-      const firstMatchingParent = menuItems.find((item) =>
-        item.subItems?.some((subItem) =>
+      const firstMatchingParent = menuItems.find(item =>
+        item.subItems?.some(subItem =>
           subItem.label.toLowerCase().includes(searchTerm.toLowerCase())
         )
       );
@@ -90,51 +93,43 @@ export default function Sidebar({
     setOpenMenu(openMenu === label ? null : label);
   };
 
-  const filteredMenuItems = menuItems
-    .map((item) => {
-      if (!item.subItems) {
-        return item.label.toLowerCase().includes(searchTerm.toLowerCase())
-          ? item
-          : null;
-      }
-      const filteredSubItems = item.subItems.filter((subItem) =>
-        subItem.label.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      if (filteredSubItems.length > 0) {
-        return { ...item, subItems: filteredSubItems };
-      }
-      if (item.label.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return { ...item, subItems: item.subItems };
-      }
-      return null;
-    })
-    .filter(Boolean as unknown as <T>(x: T | null) => x is T);
+  const filteredMenuItems = menuItems.map(item => {
+    if (!item.subItems) {
+      return item.label.toLowerCase().includes(searchTerm.toLowerCase()) ? item : null;
+    }
+    const filteredSubItems = item.subItems.filter(subItem =>
+      subItem.label.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (filteredSubItems.length > 0) {
+      return { ...item, subItems: filteredSubItems };
+    }
+    if (item.label.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return { ...item, subItems: item.subItems };
+    }
+    return null;
+  }).filter(Boolean as unknown as <T>(x: T | null) => x is T);
 
   return (
     <>
       <aside
-        className={`flex h-screen flex-col overflow-y-auto shadow-lg bg-white py-8 transition-all duration-300 ${
-          isCollapsed ? "w-20 px-2" : "w-64 px-5"
-        }`}
+        className={`flex h-screen flex-col overflow-y-auto shadow-lg bg-white py-8 transition-all duration-300 ${isCollapsed ? "w-20 px-2" : "w-64 px-5"
+          }`}
       >
         <div
-          className={`mb-4 text-center transition-all duration-300 ${
-            isCollapsed ? "h-10" : ""
-          }`}
+          className={`mb-4 text-center transition-all duration-300 ${isCollapsed ? "h-10" : ""
+            }`}
         >
           <h2
-            className={`text-2xl font-bold text-primary-dark tracking-wider transition-opacity duration-200 ${
-              isCollapsed ? "opacity-0 h-0" : "opacity-100"
-            }`}
+            className={`text-2xl font-bold text-primary-dark tracking-wider transition-opacity duration-200 ${isCollapsed ? "opacity-0 h-0" : "opacity-100"
+              }`}
           >
             Admin Side
           </h2>
         </div>
 
         <div
-          className={`border-y border-slate-200 py-4 my-4 flex items-center gap-3 transition-all duration-300 ${
-            isCollapsed ? "justify-center" : "px-1"
-          }`}
+          className={`border-y border-slate-200 py-4 my-4 flex items-center gap-3 transition-all duration-300 ${isCollapsed ? "justify-center" : "px-1"
+            }`}
         >
           <Image
             src="/img/potrait/woman.jpg"
@@ -150,9 +145,8 @@ export default function Sidebar({
         </div>
 
         <div
-          className={`relative mb-2 transition-all duration-300 ${
-            isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
-          }`}
+          className={`relative mb-2 transition-all duration-300 ${isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
+            }`}
         >
           <input
             type="text"
@@ -168,64 +162,34 @@ export default function Sidebar({
           <nav className="-mx-1 space-y-1">
             {filteredMenuItems.map((item) => {
               if (item.subItems) {
-                const isParentActive = item.subItems.some((sub) =>
-                  pathname.startsWith(sub.href)
-                );
+                const isParentActive = item.subItems.some(sub => pathname.startsWith(sub.href));
                 const isOpen = openMenu === item.label;
                 return (
                   <div key={item.label}>
                     <button
                       onClick={() => handleMenuClick(item.label)}
-                      className={`flex w-full transform items-center justify-between rounded-lg px-3 py-2 transition-colors duration-300 hover:bg-slate-100 ${
-                        isParentActive
-                          ? "font-bold text-primary-dark"
-                          : "text-slate-600"
-                      } ${isCollapsed ? "justify-center" : ""}`}
+                      className={`flex w-full transform items-center justify-between rounded-lg px-3 py-2 transition-colors duration-300 hover:bg-slate-100 ${isParentActive ? "font-bold text-primary-dark" : "text-slate-600"} ${isCollapsed ? "justify-center" : ""}`}
                     >
                       <div className="flex items-center">
-                        <item.icon
-                          className="h-[18px] w-[18px] flex-shrink-0"
-                          aria-hidden="true"
-                        />
-                        <span
-                          className={`mx-2 text-xs font-medium transition-opacity duration-200 ${
-                            isCollapsed ? "opacity-0 hidden" : "opacity-100"
-                          }`}
-                        >
+                        <item.icon className="h-[18px] w-[18px] flex-shrink-0" aria-hidden="true" />
+                        <span className={`mx-2 text-xs font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 hidden" : "opacity-100"}`}>
                           {item.label}
                         </span>
                       </div>
                       {!isCollapsed && (
-                        <ChevronDown
-                          className={`h-4 w-4 transform transition-transform duration-300 ${
-                            isOpen ? "rotate-180" : ""
-                          }`}
-                        />
+                        <ChevronDown className={`h-4 w-4 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
                       )}
                     </button>
-                    <div
-                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                        !isCollapsed && isOpen ? "max-h-96" : "max-h-0"
-                      }`}
-                    >
+                    <div className={`overflow-hidden transition-all duration-300 ease-in-out ${!isCollapsed && isOpen ? 'max-h-96' : 'max-h-0'}`}>
                       <ul className="ml-4 mt-1 border-l border-slate-200 pl-4 space-y-1 py-1">
                         {item.subItems.map((subItem) => (
                           <li key={subItem.href}>
                             <Link
                               href={subItem.href}
-                              className={`flex transform items-center rounded-lg px-3 py-2 transition-colors duration-300 ${
-                                pathname === subItem.href
-                                  ? "bg-primary-dark text-white font-bold hover:bg-primary-dark"
-                                  : "text-slate-600 hover:bg-slate-100"
-                              }`}
+                              className={`flex transform items-center rounded-lg px-3 py-2 transition-colors duration-300 ${pathname === subItem.href ? "bg-primary-dark text-white font-bold hover:bg-primary-dark" : "text-slate-600 hover:bg-slate-100"}`}
                             >
-                              <subItem.icon
-                                className="h-4 w-4 flex-shrink-0"
-                                aria-hidden="true"
-                              />
-                              <span className="mx-2 text-xs font-medium">
-                                {subItem.label}
-                              </span>
+                              <subItem.icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                              <span className="mx-2 text-xs font-medium">{subItem.label}</span>
                             </Link>
                           </li>
                         ))}
@@ -239,23 +203,17 @@ export default function Sidebar({
                   key={item.label}
                   href={item.href!}
                   title={isCollapsed ? item.label : undefined}
-                  className={`flex transform items-center rounded-lg px-3 py-2 transition-colors duration-300 ${
-                    pathname === item.href
-                      ? "bg-primary-dark text-white font-bold hover:bg-primary-dark"
-                      : "text-slate-600 hover:bg-slate-100"
-                  } ${isCollapsed ? "justify-center" : ""}`}
+                  className={`flex transform items-center rounded-lg px-3 py-2 transition-colors duration-300 ${pathname === item.href ? "bg-primary-dark text-white font-bold hover:bg-primary-dark" : "text-slate-600 hover:bg-slate-100"} ${isCollapsed ? "justify-center" : ""}`}
                 >
-                  <item.icon
-                    className="h-[18px] w-[18px] flex-shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span
-                    className={`mx-2 text-xs font-medium transition-opacity duration-200 ${
-                      isCollapsed ? "opacity-0 hidden" : "opacity-100"
-                    }`}
-                  >
+                  <item.icon className="h-[18px] w-[18px] flex-shrink-0" aria-hidden="true" />
+                  <span className={`mx-2 text-xs font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 hidden" : "opacity-100"}`}>
                     {item.label}
                   </span>
+                  {item.label === 'Request Pegawai' && pendingRequestCount > 0 && (
+                    <span className={`ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white ${isCollapsed ? '' : 'mr-2'}`}>
+                      {pendingRequestCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -264,19 +222,11 @@ export default function Sidebar({
             <button
               onClick={openLogoutModal}
               title={isCollapsed ? "Keluar" : undefined}
-              className={`flex w-full transform items-center rounded-lg px-3 py-2 text-slate-600 transition-colors duration-300 hover:bg-slate-100 hover:text-slate-800 ${
-                isCollapsed ? "justify-center" : ""
-              }`}
-            >
-              <LogOut
-                className="h-[18px] w-[18px] flex-shrink-0"
-                aria-hidden="true"
-              />
-              <span
-                className={`mx-2 text-xs font-medium transition-opacity duration-200 ${
-                  isCollapsed ? "opacity-0 hidden" : "opacity-100"
+              className={`flex w-full transform items-center rounded-lg px-3 py-2 text-slate-600 transition-colors duration-300 hover:bg-slate-100 hover:text-slate-800 ${isCollapsed ? "justify-center" : ""
                 }`}
-              >
+            >
+              <LogOut className="h-[18px] w-[18px] flex-shrink-0" aria-hidden="true" />
+              <span className={`mx-2 text-xs font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 hidden" : "opacity-100"}`}>
                 Keluar
               </span>
             </button>
@@ -284,11 +234,7 @@ export default function Sidebar({
         </div>
       </aside>
 
-      <Modal
-        isOpen={isLogoutModalOpen}
-        onClose={closeLogoutModal}
-        title="Konfirmasi Keluar"
-      >
+      <Modal isOpen={isLogoutModalOpen} onClose={closeLogoutModal} title="Konfirmasi Keluar">
         <div>
           <p className="text-slate-600">
             Apakah Anda yakin ingin keluar dari halaman admin?
@@ -312,3 +258,4 @@ export default function Sidebar({
     </>
   );
 }
+
