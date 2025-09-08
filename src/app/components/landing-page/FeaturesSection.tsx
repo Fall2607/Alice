@@ -16,7 +16,7 @@ const features = [
   },
   {
     icon: ShieldCheck,
-    title: "Fasilitas Modern",
+    title: "Layanan Dengan Pendekatan Humanis",
     description: "Investasi pada teknologi medis terkini untuk hasil terbaik.",
   },
   {

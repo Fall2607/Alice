@@ -222,7 +222,7 @@ export default function DepartmentManagementPage() {
                   currentDepartments.map((dept) => (
                     <tr
                       key={dept.id}
-                      className="bg-white border-b border-slate-200 last:border-b-0 hover:bg-slate-50"
+                      className="bg-white border-b border-slate-300 last:border-b-0 hover:bg-slate-50"
                     >
                       <th
                         scope="row"

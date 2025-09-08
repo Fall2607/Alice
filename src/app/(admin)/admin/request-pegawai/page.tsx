@@ -133,7 +133,7 @@ export default function RequestPegawaiPage() {
               {requests.map((req) => (
                 <tr
                   key={req.id}
-                  className="bg-white border-b border-slate-200 last:border-b-0 hover:bg-slate-50"
+                  className="bg-white border-b border-slate-300 last:border-b-0 hover:bg-slate-50"
                 >
                   <th
                     scope="row"

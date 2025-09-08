@@ -5,8 +5,8 @@ import pool from "@/app/lib/db";
 
 // Tipe data untuk request PUT
 interface JabatanInput {
-    departemen_id: number;
-    level_jabatan_id: number;
+  departemen_id: number;
+  level_jabatan_id: number;
 }
 
 /**
@@ -29,13 +29,13 @@ interface JabatanInput {
  * description: Jabatan tidak ditemukan.
  */
 export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> | { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
-    try {
-        const { id } = await params;
-        const result = await pool.query(
-            `
+  try {
+    const { id } = await params;
+    const result = await pool.query(
+      `
       SELECT
         j.id,
         j.departemen_id,
@@ -47,25 +47,25 @@ export async function GET(
       JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
       WHERE j.id = $1
     `,
-            [id]
-        );
+      [id]
+    );
 
-        if (result.rows.length === 0) {
-            return NextResponse.json(
-                { message: `Jabatan dengan ID ${id} tidak ditemukan` },
-                { status: 404 }
-            );
-        }
-        return NextResponse.json(result.rows[0]);
-    } catch (err) {
-        console.error("Error fetching jabatan:", err);
-        const errorMessage =
-            err instanceof Error ? err.message : "An unknown error occurred";
-        return NextResponse.json(
-            { message: "Error fetching jabatan", error: errorMessage },
-            { status: 500 }
-        );
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { message: `Jabatan dengan ID ${id} tidak ditemukan` },
+        { status: 404 }
+      );
     }
+    return NextResponse.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching jabatan:", err);
+    const errorMessage =
+      err instanceof Error ? err.message : "An unknown error occurred";
+    return NextResponse.json(
+      { message: "Error fetching jabatan", error: errorMessage },
+      { status: 500 }
+    );
+  }
 }
 
 /**
@@ -99,53 +99,53 @@ export async function GET(
  * description: Jabatan tidak ditemukan.
  */
 export async function PUT(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> | { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
-    try {
-        const { id } = await params;
-        const { departemen_id, level_jabatan_id }: JabatanInput =
-            await request.json();
+  try {
+    const { id } = await params;
+    const { departemen_id, level_jabatan_id }: JabatanInput =
+      await request.json();
 
-        if (!departemen_id || !level_jabatan_id) {
-            return NextResponse.json(
-                { message: "Departemen ID dan Level Jabatan ID wajib diisi" },
-                { status: 400 }
-            );
-        }
-
-        const result = await pool.query(
-            "UPDATE jabatan SET departemen_id = $1, level_jabatan_id = $2 WHERE id = $3 RETURNING *",
-            [departemen_id, level_jabatan_id, id]
-        );
-
-        if (result.rows.length === 0) {
-            return NextResponse.json(
-                { message: `Jabatan dengan ID ${id} tidak ditemukan` },
-                { status: 404 }
-            );
-        }
-
-        return NextResponse.json(result.rows[0]);
-    } catch (err) {
-        console.error("Error updating jabatan:", err);
-        const errorMessage =
-            err instanceof Error ? err.message : "An unknown error occurred";
-        if (errorMessage.includes("violates foreign key constraint")) {
-            return NextResponse.json(
-                {
-                    message:
-                        "Error: departemen_id atau level_jabatan_id tidak valid atau tidak ditemukan.",
-                    error: errorMessage,
-                },
-                { status: 400 }
-            );
-        }
-        return NextResponse.json(
-            { message: "Error updating jabatan", error: errorMessage },
-            { status: 500 }
-        );
+    if (!departemen_id || !level_jabatan_id) {
+      return NextResponse.json(
+        { message: "Departemen ID dan Level Jabatan ID wajib diisi" },
+        { status: 400 }
+      );
     }
+
+    const result = await pool.query(
+      "UPDATE jabatan SET departemen_id = $1, level_jabatan_id = $2 WHERE id = $3 RETURNING *",
+      [departemen_id, level_jabatan_id, id]
+    );
+
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { message: `Jabatan dengan ID ${id} tidak ditemukan` },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error updating jabatan:", err);
+    const errorMessage =
+      err instanceof Error ? err.message : "An unknown error occurred";
+    if (errorMessage.includes("violates foreign key constraint")) {
+      return NextResponse.json(
+        {
+          message:
+            "Error: departemen_id atau level_jabatan_id tidak valid atau tidak ditemukan.",
+          error: errorMessage,
+        },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(
+      { message: "Error updating jabatan", error: errorMessage },
+      { status: 500 }
+    );
+  }
 }
 
 /**
@@ -168,33 +168,33 @@ export async function PUT(
  * description: Jabatan tidak ditemukan.
  */
 export async function DELETE(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> | { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
-    try {
-        const { id } = await params;
-        const result = await pool.query(
-            "DELETE FROM jabatan WHERE id = $1 RETURNING *",
-            [id]
-        );
+  try {
+    const { id } = await params;
+    const result = await pool.query(
+      "DELETE FROM jabatan WHERE id = $1 RETURNING *",
+      [id]
+    );
 
-        if (result.rowCount === 0) {
-            return NextResponse.json(
-                { message: `Jabatan dengan ID ${id} tidak ditemukan` },
-                { status: 404 }
-            );
-        }
-
-        return NextResponse.json({
-            message: `Jabatan dengan ID ${id} berhasil dihapus`,
-        });
-    } catch (err) {
-        console.error("Error deleting jabatan:", err);
-        const errorMessage =
-            err instanceof Error ? err.message : "An unknown error occurred";
-        return NextResponse.json(
-            { message: "Error deleting jabatan", error: errorMessage },
-            { status: 500 }
-        );
+    if (result.rowCount === 0) {
+      return NextResponse.json(
+        { message: `Jabatan dengan ID ${id} tidak ditemukan` },
+        { status: 404 }
+      );
     }
+
+    return NextResponse.json({
+      message: `Jabatan dengan ID ${id} berhasil dihapus`,
+    });
+  } catch (err) {
+    console.error("Error deleting jabatan:", err);
+    const errorMessage =
+      err instanceof Error ? err.message : "An unknown error occurred";
+    return NextResponse.json(
+      { message: "Error deleting jabatan", error: errorMessage },
+      { status: 500 }
+    );
+  }
 }

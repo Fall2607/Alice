@@ -17,8 +17,8 @@ export default function LandingPage() {
       <ServicesSection />
       <FeaturesSection />
       <DoctorsSection />
-      <ArticlesSection />
       <HealthCalculatorSection />
+      <ArticlesSection />
       <CareerSection />
       <TestimonialsSection />
     </>

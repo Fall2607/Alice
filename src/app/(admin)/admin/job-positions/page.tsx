@@ -30,12 +30,12 @@ export default function JobPositionsPage() {
     kualifikasi_job: [] as string[],
   });
 
-  // State untuk setiap modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
+  // State pencarian terpisah
   const [searchTermMedis, setSearchTermMedis] = useState("");
   const [searchTermNonMedis, setSearchTermNonMedis] = useState("");
 
@@ -43,11 +43,9 @@ export default function JobPositionsPage() {
   const [currentPageNonMedis, setCurrentPageNonMedis] = useState(1);
   const itemsPerPage = 10;
 
-  // jika di browser
   const baseUrl =
-    window.location.hostname === "localhost"
-      ? process.env.NEXT_PUBLIC_API_BASE_URL
-      : process.env.NEXT_PUBLIC_API_BASE_URL_LAN;
+    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
+    process.env.NEXT_PUBLIC_API_BASE_URL;
 
   const fetchPositions = async () => {
     try {
@@ -68,6 +66,7 @@ export default function JobPositionsPage() {
     fetchPositions();
   }, []);
 
+  // Reset paginasi saat filter pencarian berubah
   useEffect(() => {
     setCurrentPageMedis(1);
   }, [searchTermMedis]);
@@ -96,21 +95,13 @@ export default function JobPositionsPage() {
 
   const handleOpenEditModal = (pos: JobPosition) => {
     setSelectedPosition(pos);
-    setFormData({
-      ...pos,
-      deskripsi_job: pos.deskripsi_job || [],
-      kualifikasi_job: pos.kualifikasi_job || [],
-    });
+    setFormData({ ...pos });
     setIsEditModalOpen(true);
   };
 
   const handleOpenDetailsModal = (pos: JobPosition) => {
     setSelectedPosition(pos);
-    setFormData({
-      ...pos,
-      deskripsi_job: pos.deskripsi_job || [],
-      kualifikasi_job: pos.kualifikasi_job || [],
-    });
+    setFormData({ ...pos });
     setIsDetailsModalOpen(true);
   };
 
@@ -162,6 +153,7 @@ export default function JobPositionsPage() {
     handleCloseModals();
   };
 
+  // Logika filter dan paginasi
   const medisPositions = positions.filter(
     (p) =>
       p.jenis_job === "Medis" &&
@@ -172,11 +164,13 @@ export default function JobPositionsPage() {
       p.jenis_job === "Non-Medis" &&
       p.nama_job.toLowerCase().includes(searchTermNonMedis.toLowerCase())
   );
+
   const totalPagesMedis = Math.ceil(medisPositions.length / itemsPerPage);
   const currentMedisPositions = medisPositions.slice(
     (currentPageMedis - 1) * itemsPerPage,
     currentPageMedis * itemsPerPage
   );
+
   const totalPagesNonMedis = Math.ceil(nonMedisPositions.length / itemsPerPage);
   const currentNonMedisPositions = nonMedisPositions.slice(
     (currentPageNonMedis - 1) * itemsPerPage,
@@ -197,19 +191,19 @@ export default function JobPositionsPage() {
         {title}
       </h2>
       <div className="bg-white shadow-md rounded-lg overflow-hidden flex-grow flex flex-col">
-        <div className="overflow-x-auto flex-grow">
-          <div className="p-4 border-b">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder={`Cari di ${title}...`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            </div>
+        <div className="p-4 border-b">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={`Cari di ${title}...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           </div>
+        </div>
+        <div className="overflow-x-auto flex-grow">
           <table className="w-full text-sm text-left text-slate-500">
             <thead className="text-xs text-white uppercase bg-primary-dark">
               <tr>
@@ -225,7 +219,7 @@ export default function JobPositionsPage() {
               {isLoading ? (
                 <tr>
                   <td colSpan={2} className="text-center p-8">
-                    <Loader2 className="animate-spin inline-block" />
+                    <Loader2 className="animate-spin" />
                   </td>
                 </tr>
               ) : data.length === 0 ? (
@@ -238,33 +232,27 @@ export default function JobPositionsPage() {
                 data.map((pos) => (
                   <tr
                     key={pos.id}
-                    className="bg-white border-b border-slate-200 last:border-b-0 hover:bg-slate-50"
+                    className="bg-white border-b border-slate-300 last:border-b-0 hover:bg-slate-50"
                   >
-                    <th
-                      scope="row"
-                      className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap"
-                    >
+                    <th scope="row" className="px-6 py-4 font-medium">
                       {pos.nama_job}
                     </th>
                     <td className="px-6 py-4 flex items-center justify-center gap-4">
                       <button
                         onClick={() => handleOpenDetailsModal(pos)}
                         className="text-green-600 hover:text-green-800"
-                        title="Lihat Detail"
                       >
                         <Eye size={18} />
                       </button>
                       <button
                         onClick={() => handleOpenEditModal(pos)}
                         className="text-blue-600 hover:text-blue-800"
-                        title="Edit"
                       >
                         <Edit size={18} />
                       </button>
                       <button
                         onClick={() => handleOpenDeleteModal(pos)}
                         className="text-red-600 hover:text-red-800"
-                        title="Hapus"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -292,7 +280,7 @@ export default function JobPositionsPage() {
         </h1>
         <button
           onClick={handleOpenAddModal}
-          className="flex items-center gap-2 bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-dark transition-colors"
+          className="flex items-center gap-2 bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-dark"
         >
           <PlusCircle size={20} />
           Tambah Posisi
