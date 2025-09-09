@@ -209,7 +209,8 @@ export default function EmployeeManagementPage() {
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 text-xs rounded-full ${
-                          employee.status_kepegawaian === "Aktif"
+                          employee.status_kepegawaian === "Karyawan Tetap" ||
+                          employee.status_kepegawaian === "Dokter Tetap"
                             ? "bg-green-100 text-green-800"
                             : "bg-red-100 text-red-800"
                         }`}
