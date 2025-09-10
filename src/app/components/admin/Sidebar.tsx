@@ -57,7 +57,6 @@ interface SidebarProps {
   openLogoutModal: () => void;
   closeLogoutModal: () => void;
   isLogoutModalOpen: boolean;
-  pendingRequestCount: number;
 }
 
 export default function Sidebar({
@@ -65,7 +64,6 @@ export default function Sidebar({
   openLogoutModal,
   closeLogoutModal,
   isLogoutModalOpen,
-  pendingRequestCount,
 }: SidebarProps) {
   const pathname = usePathname();
   const [searchTerm, setSearchTerm] = useState("");
@@ -209,11 +207,11 @@ export default function Sidebar({
                   <span className={`mx-2 text-xs font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 hidden" : "opacity-100"}`}>
                     {item.label}
                   </span>
-                  {item.label === 'Request Pegawai' && pendingRequestCount > 0 && (
+                  {/* {item.label === 'Request Pegawai' && pendingRequestCount > 0 && (
                     <span className={`ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white ${isCollapsed ? '' : 'mr-2'}`}>
                       {pendingRequestCount}
                     </span>
-                  )}
+                  )} */}
                 </Link>
               );
             })}
