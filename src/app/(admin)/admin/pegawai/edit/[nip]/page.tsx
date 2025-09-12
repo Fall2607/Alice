@@ -1,36 +1,281 @@
 // File: app/(admin)/admin/pegawai/edit/[nip]/page.tsx
 "use client";
 
-// Kode halaman ini akan sangat mirip dengan halaman Tambah Pegawai,
-// namun dengan tambahan logika untuk mengambil data pegawai yang akan diedit
-// dan mengirimkannya dengan metode PUT.
-
-// Untuk saat ini, kita gunakan placeholder.
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { useRouter, useParams } from "next/navigation";
+import { ChevronLeft, Loader2, AlertTriangle } from "lucide-react";
+import DatePickerField from "@/app/components/admin/DatePickerField";
+import SearchableSelect from "@/app/components/admin/SearchableSelect";
+import {
+  showSuccessToast,
+  showErrorToast,
+} from "@/app/components/admin/Alert";
 
-export default function EditPegawaiPage({
-  params,
+type Option = { value: number | string; label: string };
+
+interface Department {
+  id: number;
+  nama_departemen: string;
+}
+
+interface LevelJabatan {
+  id: number;
+  nama_level: string;
+}
+
+const FormField = ({
+  label,
+  children,
 }: {
-  params: { nip: string };
-}) {
-  return (
-    <div className="p-8">
-      <div className="mb-6">
-        <Link
-          href="/admin/pegawai"
-          className="inline-flex items-center gap-2 text-primary hover:text-primary-dark"
-        >
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <div className="py-4 border-b border-slate-200 last:border-b-0">
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      {label}
+    </label>
+    {children}
+  </div>
+);
+
+export default function EditPegawaiPage() {
+  const router = useRouter();
+  const params = useParams();
+  const nip = params.nip as string;
+
+  const [departments, setDepartments] = useState<Option[]>([]);
+  const [levelJabatans, setLevelJabatans] = useState<Option[]>([]);
+  const [isClient, setIsClient] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState({
+    nip: "",
+    nama_lengkap: "",
+    nik: "",
+    profesi: "",
+    sip: "",
+    masa_berlaku_sip: null as Date | null,
+    handphone: "",
+    email: "",
+    tanggal_lahir: null as Date | null,
+    jenis_kelamin: { value: "Laki-laki", label: "Laki-laki" } as Option,
+    alamat: "",
+    tanggal_masuk: null as Date | null,
+    status_kepegawaian: {
+      value: "Karyawan Kontrak",
+      label: "Karyawan Kontrak",
+    } as Option,
+    gaji_pokok: 0,
+    level_jabatan_id: null as Option | null,
+    departemen_id: null as Option | null,
+  });
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
+    process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  useEffect(() => {
+    setIsClient(true);
+    if (!nip) {
+      setIsLoading(false);
+      setError("NIP tidak valid.");
+      return;
+    };
+
+    const fetchData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const [karyawanRes, deptRes, jabatanRes] = await Promise.all([
+          fetch(`${baseUrl}/api/karyawan/${nip}`),
+          fetch(`${baseUrl}/api/departments`),
+          fetch(`${baseUrl}/api/level-jabatan`),
+        ]);
+
+        if (!karyawanRes.ok) throw new Error("Gagal memuat data pegawai.");
+        if (!deptRes.ok) throw new Error("Gagal memuat data departemen.");
+        if (!jabatanRes.ok) throw new Error("Gagal memuat data level jabatan.");
+
+        const karyawanData = await karyawanRes.json();
+        const deptData: Department[] = await deptRes.json();
+        const jabatanData: LevelJabatan[] = await jabatanRes.json();
+
+        const deptOptions = deptData.map((d) => ({
+          value: d.id,
+          label: d.nama_departemen,
+        }));
+        const jabatanOptions = jabatanData.map((j) => ({
+          value: j.id,
+          label: j.nama_level,
+        }));
+        setDepartments(deptOptions);
+        setLevelJabatans(jabatanOptions);
+
+        const selectedDept = deptOptions.find(
+          (d) => d.label === karyawanData.nama_departemen
+        );
+        const selectedLevel = jabatanOptions.find(
+          (l) => l.label === karyawanData.nama_level
+        );
+
+        setFormData({
+          ...karyawanData,
+          tanggal_lahir: karyawanData.tanggal_lahir ? new Date(karyawanData.tanggal_lahir) : null,
+          tanggal_masuk: karyawanData.tanggal_masuk ? new Date(karyawanData.tanggal_masuk) : null,
+          masa_berlaku_sip: karyawanData.masa_berlaku_sip ? new Date(karyawanData.masa_berlaku_sip) : null,
+          jenis_kelamin: { value: karyawanData.jenis_kelamin, label: karyawanData.jenis_kelamin },
+          status_kepegawaian: { value: karyawanData.status_kepegawaian, label: karyawanData.status_kepegawaian },
+          departemen_id: selectedDept || null,
+          level_jabatan_id: selectedLevel || null,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Terjadi kesalahan yang tidak terduga.");
+        showErrorToast("Gagal memuat data pegawai.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [baseUrl, nip]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    if (!formData.departemen_id || !formData.level_jabatan_id) {
+      showErrorToast("Departemen dan Level Jabatan wajib diisi.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const jabatanRes = await fetch(`${baseUrl}/api/jabatan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          departemen_id: formData.departemen_id.value,
+          level_jabatan_id: formData.level_jabatan_id.value,
+        }),
+      });
+
+      if (!jabatanRes.ok) throw new Error("Gagal memproses ID Jabatan.");
+      const { id: jabatan_id } = await jabatanRes.json();
+
+      const karyawanData = {
+        ...formData,
+        tanggal_lahir:
+          formData.tanggal_lahir?.toISOString().split("T")[0] || null,
+        masa_berlaku_sip:
+          formData.masa_berlaku_sip?.toISOString().split("T")[0] || null,
+        tanggal_masuk:
+          formData.tanggal_masuk?.toISOString().split("T")[0] || null,
+        jenis_kelamin: formData.jenis_kelamin.value,
+        status_kepegawaian: formData.status_kepegawaian.value,
+        jabatan_id: jabatan_id,
+      };
+
+      const karyawanRes = await fetch(`${baseUrl}/api/karyawan/${nip}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(karyawanData),
+      });
+
+      if (!karyawanRes.ok) {
+        const errorData = await karyawanRes.json();
+        throw new Error(
+          errorData.message || "Gagal memperbarui data karyawan."
+        );
+      }
+
+      showSuccessToast("Data pegawai berhasil diperbarui!");
+      router.push("/admin/pegawai");
+    } catch (err) {
+      showErrorToast(
+        err instanceof Error ? err.message : "Terjadi kesalahan."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const inputClass =
+    "w-full border-gray-300 rounded-md shadow-sm focus:border-primary focus:ring-primary focus:ring-opacity-50 text-sm p-2.5";
+  const placeholderClass =
+    "w-full h-[42px] bg-slate-100 rounded-md animate-pulse";
+
+  if (isLoading) {
+    return (
+      <div className="p-8 flex justify-center items-center h-full">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center">
+        <AlertTriangle className="mx-auto text-red-500" size={48} />
+        <h2 className="mt-4 text-xl font-semibold text-red-600">Gagal Memuat Data</h2>
+        <p className="mt-2 text-slate-500">{error}</p>
+        <Link href="/admin/pegawai" className="mt-6 inline-flex items-center gap-2 text-primary hover:text-primary-dark">
           <ChevronLeft size={20} />
           Kembali ke Manajemen Pegawai
         </Link>
       </div>
-      <div className="bg-white p-8 rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-primary-dark mb-6">
-          Edit Data Pegawai (NIP: {params.nip})
-        </h1>
-        <p>Form untuk mengedit data pegawai akan ditampilkan di sini.</p>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      <div className="mb-6">
+        <Link href="/admin/pegawai" className="inline-flex items-center gap-2 text-primary hover:text-primary-dark">
+          <ChevronLeft size={20} />
+          Kembali ke Manajemen Pegawai
+        </Link>
       </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="bg-white p-8 rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold text-primary-dark mb-6 border-b pb-4">
+            Edit Data Pegawai
+          </h1>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12">
+            <div>
+              <h2 className="text-lg font-semibold text-primary-dark mb-4 border-b pb-2">Data Diri & Kontak</h2>
+              <FormField label="NIP"><input type="text" value={formData.nip} className={`${inputClass} bg-slate-100 cursor-not-allowed`} readOnly /></FormField>
+              <FormField label="Nama Lengkap"><input type="text" value={formData.nama_lengkap} onChange={(e) => setFormData({ ...formData, nama_lengkap: e.target.value })} className={inputClass} required /></FormField>
+              <FormField label="NIK"><input type="text" value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} className={inputClass} required /></FormField>
+              <FormField label="Tanggal Lahir">{isClient ? <DatePickerField selected={formData.tanggal_lahir} onChange={(date) => setFormData({ ...formData, tanggal_lahir: date })} /> : <div className={placeholderClass} />}</FormField>
+              <FormField label="Jenis Kelamin">{isClient ? <SearchableSelect options={[{ value: "Laki-laki", label: "Laki-laki" }, { value: "Perempuan", label: "Perempuan" }]} value={formData.jenis_kelamin} onChange={(option) => setFormData({ ...formData, jenis_kelamin: option! })} /> : <div className={placeholderClass} />}</FormField>
+              <FormField label="No. Handphone"><input type="tel" value={formData.handphone || ""} onChange={(e) => setFormData({ ...formData, handphone: e.target.value })} className={inputClass} /></FormField>
+              <FormField label="Email"><input type="email" value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputClass} /></FormField>
+              <FormField label="Alamat"><textarea value={formData.alamat || ""} onChange={(e) => setFormData({ ...formData, alamat: e.target.value })} rows={3} className={inputClass}></textarea></FormField>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-primary-dark mb-4 border-b pb-2">Informasi Kepegawaian & Profesional</h2>
+              <FormField label="Tanggal Masuk">{isClient ? <DatePickerField selected={formData.tanggal_masuk} onChange={(date) => setFormData({ ...formData, tanggal_masuk: date })} /> : <div className={placeholderClass} />}</FormField>
+              <FormField label="Status Kepegawaian">{isClient ? <SearchableSelect options={[{ value: "Karyawan Kontrak", label: "Karyawan Kontrak", }, { value: "Karyawan Tetap", label: "Karyawan Tetap" }, { value: "Dokter Mitra", label: "Dokter Mitra" }, { value: "Dokter Tetap", label: "Dokter Tetap" },]} value={formData.status_kepegawaian} onChange={(option) => setFormData({ ...formData, status_kepegawaian: option! })} /> : <div className={placeholderClass} />}</FormField>
+              <FormField label="Departemen">{isClient ? <SearchableSelect options={departments} value={formData.departemen_id} onChange={(option) => setFormData({ ...formData, departemen_id: option })} /> : <div className={placeholderClass} />}</FormField>
+              <FormField label="Level Jabatan">{isClient ? <SearchableSelect options={levelJabatans} value={formData.level_jabatan_id} onChange={(option) => setFormData({ ...formData, level_jabatan_id: option })} /> : <div className={placeholderClass} />}</FormField>
+              <FormField label="Profesi"><input type="text" value={formData.profesi || ""} onChange={(e) => setFormData({ ...formData, profesi: e.target.value })} className={inputClass} /></FormField>
+              <FormField label="No. SIP (jika ada)"><input type="text" value={formData.sip || ""} onChange={(e) => setFormData({ ...formData, sip: e.target.value })} className={inputClass} /></FormField>
+              <FormField label="Masa Berlaku SIP">{isClient ? <DatePickerField selected={formData.masa_berlaku_sip} onChange={(date) => setFormData({ ...formData, masa_berlaku_sip: date })} /> : <div className={placeholderClass} />}</FormField>
+              <FormField label="Gaji Pokok"><input type="number" value={formData.gaji_pokok || 0} onChange={(e) => setFormData({ ...formData, gaji_pokok: Number(e.target.value) })} className={inputClass} /></FormField>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t flex justify-end gap-4">
+            <Link href="/admin/pegawai" className="rounded-full bg-slate-200 px-6 py-2 text-sm font-semibold">Batal</Link>
+            <button type="submit" disabled={isSubmitting} className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white flex items-center justify-center min-w-[120px]">
+              {isSubmitting ? <Loader2 className="animate-spin" /> : "Simpan Perubahan"}
+            </button>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }
+

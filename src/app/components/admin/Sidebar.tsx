@@ -19,13 +19,14 @@ import {
   ChevronDown,
   ClipboardList,
   Building2,
-  Award,
-  Send,
+  Badge,
+  ShieldCheck,
+  UserCheck,
   Users,
+  Send,
 } from "lucide-react";
 import Modal from "@/app/components/modal";
 
-// Ekspor menuItems agar bisa digunakan di komponen lain
 export const menuItems = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/admin/pegawai", icon: Users, label: "Pegawai" },
@@ -45,9 +46,17 @@ export const menuItems = [
     icon: Briefcase,
     subItems: [
       { href: "/admin/job-positions", icon: FileText, label: "Posisi Pekerjaan" },
-      { href: "/admin/jabatan", icon: Award, label: "Jabatan" }, // Tambahkan menu baru
+      { href: "/admin/jabatan", icon: Badge, label: "Jabatan" },
       { href: "/admin/departemen", icon: Building2, label: "Departemen" },
       { href: "/admin/password-test", icon: KeyRound, label: "Password Test" },
+    ],
+  },
+  {
+    label: "Setting Auth",
+    icon: ShieldCheck,
+    subItems: [
+      { href: "/admin/role", icon: UserCheck, label: "Role" },
+      { href: "/admin/user", icon: Users, label: "User" },
     ],
   },
 ];
@@ -57,6 +66,7 @@ interface SidebarProps {
   openLogoutModal: () => void;
   closeLogoutModal: () => void;
   isLogoutModalOpen: boolean;
+  pendingRequestCount: number;
 }
 
 export default function Sidebar({
@@ -64,6 +74,7 @@ export default function Sidebar({
   openLogoutModal,
   closeLogoutModal,
   isLogoutModalOpen,
+  pendingRequestCount,
 }: SidebarProps) {
   const pathname = usePathname();
   const [searchTerm, setSearchTerm] = useState("");
@@ -207,11 +218,11 @@ export default function Sidebar({
                   <span className={`mx-2 text-xs font-medium transition-opacity duration-200 ${isCollapsed ? "opacity-0 hidden" : "opacity-100"}`}>
                     {item.label}
                   </span>
-                  {/* {item.label === 'Request Pegawai' && pendingRequestCount > 0 && (
+                  {item.label === 'Request Pegawai' && pendingRequestCount > 0 && (
                     <span className={`ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white ${isCollapsed ? '' : 'mr-2'}`}>
                       {pendingRequestCount}
                     </span>
-                  )} */}
+                  )}
                 </Link>
               );
             })}
