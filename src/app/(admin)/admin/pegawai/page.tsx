@@ -1,7 +1,7 @@
 // File: app/(admin)/admin/pegawai/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   PlusCircle,
@@ -11,12 +11,19 @@ import {
   Loader2,
   AlertTriangle,
   Eye,
+  Info,
 } from "lucide-react";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
+import {
+  showSuccessToast,
+  showErrorToast,
+} from "@/app/components/admin/Alert";
 
 type Option = { value: number | string; label: string };
+
+type SipStatus = "expired" | "expiring_soon" | "safe" | "none";
 
 interface Karyawan {
   nip: string;
@@ -35,232 +42,335 @@ interface Karyawan {
   gaji_pokok?: number;
   nama_departemen: string;
   nama_level: string;
+  sipStatus?: SipStatus; // Menambahkan properti status SIP
 }
 
-const DetailRow = ({ label, value }: { label: string; value: any }) => (
-  <div className="py-2 px-2 even:bg-slate-50 grid grid-cols-3 gap-4">
-    <dt className="font-medium text-slate-500">{label}</dt>
-    <dd className="text-slate-700 col-span-2">{value || "-"}</dd>
+interface Departemen {
+  id: number;
+  nama_departemen: string;
+}
+interface LevelJabatan {
+  id: number;
+  nama_level: string;
+}
+
+// FIX: Komponen DetailRow yang lebih rapi untuk modal
+const DetailRow = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <div className="grid grid-cols-3 gap-4 px-4 py-3 text-sm even:bg-slate-50/50">
+    <div className="font-medium text-slate-500">{label}</div>
+    <div className="col-span-2 text-slate-900 break-words">{children}</div>
   </div>
 );
 
+// Helper function untuk menentukan status SIP
+const getSipStatus = (sipDate: string | null | undefined): SipStatus => {
+  if (!sipDate) return "none";
+
+  const expiry = new Date(sipDate);
+  if (isNaN(expiry.getTime())) {
+    return "none";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const threeMonthsFromNow = new Date();
+  threeMonthsFromNow.setHours(0, 0, 0, 0);
+  threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+
+  expiry.setHours(0, 0, 0, 0);
+
+  if (expiry < today) {
+    return "expired";
+  }
+
+  if (expiry >= today && expiry <= threeMonthsFromNow) {
+    return "expiring_soon";
+  }
+
+  return "safe";
+};
+
+// Komponen untuk Badge Status Kepegawaian
+const StatusBadge = ({ status }: { status: string }) => {
+  const statusStyle: { [key: string]: string } = {
+    "Karyawan Tetap": "bg-blue-100 text-blue-800",
+    "Karyawan Kontrak": "bg-amber-100 text-amber-800",
+    "Dokter Tetap": "bg-emerald-100 text-emerald-800",
+    "Dokter Mitra": "bg-slate-100 text-slate-800",
+  };
+  const style = statusStyle[status] || "bg-gray-100 text-gray-800";
+  return (
+    <span
+      className={`px-2.5 py-1 text-xs font-semibold leading-tight rounded-full ${style}`}
+    >
+      {status}
+    </span>
+  );
+};
+
 export default function EmployeeManagementPage() {
   const [employeeList, setEmployeeList] = useState<Karyawan[]>([]);
+  const [departments, setDepartments] = useState<Departemen[]>([]);
+  const [levels, setLevels] = useState<LevelJabatan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedEmployee, setSelectedEmployee] = useState<Karyawan | null>(
-    null
-  );
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-
   // State untuk filter
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState<Option | null>(
-    null
-  );
+  const [selectedDept, setSelectedDept] = useState<Option | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<Option | null>(null);
   const [selectedGender, setSelectedGender] = useState<Option | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<Option | null>(null);
 
-  // State untuk options
-  const [departmentOptions, setDepartmentOptions] = useState<Option[]>([]);
-  const [levelOptions, setLevelOptions] = useState<Option[]>([]);
-  const [isClient, setIsClient] = useState(false);
+  // State untuk pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  // Opsi statis untuk filter baru
+  // State untuk modal
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Karyawan | null>(
+    null
+  );
+  const [isClient, setIsClient] = useState(false);
+  const baseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
+    process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [karyawanRes, deptRes, levelRes] = await Promise.all([
+        fetch(`${baseUrl}/api/karyawan`),
+        fetch(`${baseUrl}/api/departments`),
+        fetch(`${baseUrl}/api/level-jabatan`),
+      ]);
+
+      if (!karyawanRes.ok)
+        throw new Error(
+          `Gagal memuat data karyawan (Status: ${karyawanRes.status})`
+        );
+      if (!deptRes.ok)
+        throw new Error(
+          `Gagal memuat data departemen (Status: ${deptRes.status})`
+        );
+      if (!levelRes.ok)
+        throw new Error(
+          `Gagal memuat data level (Status: ${levelRes.status})`
+        );
+
+      const karyawanData = await karyawanRes.json();
+      const deptData = await deptRes.json();
+      const levelData = await levelRes.json();
+
+      setEmployeeList(karyawanData);
+      setDepartments(deptData);
+      setLevels(levelData);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat memuat data."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setIsClient(true);
+    fetchData();
+  }, [baseUrl]);
+
   const genderOptions: Option[] = [
     { value: "all", label: "Semua Jenis Kelamin" },
     { value: "Laki-laki", label: "Laki-laki" },
     { value: "Perempuan", label: "Perempuan" },
   ];
-
   const statusOptions: Option[] = [
     { value: "all", label: "Semua Status" },
     { value: "Karyawan Tetap", label: "Karyawan Tetap" },
     { value: "Karyawan Kontrak", label: "Karyawan Kontrak" },
     { value: "Dokter Tetap", label: "Dokter Tetap" },
     { value: "Dokter Mitra", label: "Dokter Mitra" },
-    { value: "Aktif", label: "Aktif" },
   ];
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
-    process.env.NEXT_PUBLIC_API_BASE_URL;
-
-  useEffect(() => {
-    setIsClient(true);
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const [karyawanRes, deptRes, levelRes] = await Promise.all([
-          fetch(`${baseUrl}/api/karyawan`),
-          fetch(`${baseUrl}/api/departments`),
-          fetch(`${baseUrl}/api/level-jabatan`),
-        ]);
-        if (!karyawanRes.ok || !deptRes.ok || !levelRes.ok)
-          throw new Error("Gagal mengambil data");
-        const karyawanData = await karyawanRes.json();
-        const deptData = await deptRes.json();
-        const levelData = await levelRes.json();
-        setEmployeeList(karyawanData);
-        setDepartmentOptions([
-          { value: "all", label: "Semua Departemen" },
-          ...deptData.map((d: any) => ({
-            value: d.nama_departemen,
-            label: d.nama_departemen,
-          })),
-        ]);
-        setLevelOptions([
-          { value: "all", label: "Semua Level Jabatan" },
-          ...levelData.map((l: any) => ({
-            value: l.nama_level,
-            label: l.nama_level,
-          })),
-        ]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Terjadi kesalahan.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, [baseUrl]);
-
-  // Fungsi untuk mengecek apakah SIP sudah kedaluwarsa
-  const isSipExpired = (sipDate?: string | null): boolean => {
-    if (!sipDate) {
-      return false; // Tidak kedaluwarsa jika tidak ada tanggal SIP
-    }
-    const expiryDate = new Date(sipDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Bandingkan hanya tanggalnya saja
-    return expiryDate < today;
-  };
-
-  const handleOpenViewModal = (employee: Karyawan) => {
-    setSelectedEmployee(employee);
-    setIsViewModalOpen(true);
-  };
-
-  const handleOpenDeleteModal = (employee: Karyawan) => {
-    setSelectedEmployee(employee);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleCloseModals = () => {
-    setIsViewModalOpen(false);
-    setIsDeleteModalOpen(false);
-    setSelectedEmployee(null);
-  };
-
-  const confirmDelete = async () => {
-    if (!selectedEmployee) return;
-    try {
-      const response = await fetch(
-        `${baseUrl}/api/karyawan/${selectedEmployee.nip}`,
-        {
-          method: "DELETE",
-        }
-      );
-      if (!response.ok) {
-        throw new Error("Gagal menghapus pegawai");
-      }
-      setEmployeeList(
-        employeeList.filter((e) => e.nip !== selectedEmployee.nip)
-      );
-    } catch (error) {
-      console.error("Gagal menghapus:", error);
-    } finally {
-      handleCloseModals();
-    }
-  };
-
-  const filteredEmployees = employeeList.filter((emp) => {
-    const searchMatch =
-      emp.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.nip.toLowerCase().includes(searchTerm.toLowerCase());
-    const departmentMatch =
-      !selectedDepartment ||
-      selectedDepartment.value === "all" ||
-      emp.nama_departemen === selectedDepartment.value;
-    const levelMatch =
-      !selectedLevel ||
-      selectedLevel.value === "all" ||
-      emp.nama_level === selectedLevel.value;
-    const genderMatch =
-      !selectedGender ||
-      selectedGender.value === "all" ||
-      emp.jenis_kelamin === selectedGender.value;
-    const statusMatch =
-      !selectedStatus ||
-      selectedStatus.value === "all" ||
-      emp.status_kepegawaian === selectedStatus.value;
-    return (
-      searchMatch && departmentMatch && levelMatch && genderMatch && statusMatch
-    );
-  });
-
-  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
-  const currentEmployees = filteredEmployees.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  useEffect(() => {
-    setCurrentPage(1);
+  const processedEmployees = useMemo(() => {
+    return employeeList
+      .filter((emp) => {
+        const searchMatch =
+          !searchTerm ||
+          emp.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          emp.nip.toLowerCase().includes(searchTerm.toLowerCase());
+        const departmentMatch =
+          !selectedDept ||
+          selectedDept.value === "all" ||
+          emp.nama_departemen === selectedDept.label;
+        const levelMatch =
+          !selectedLevel ||
+          selectedLevel.value === "all" ||
+          emp.nama_level === selectedLevel.label;
+        const genderMatch =
+          !selectedGender ||
+          selectedGender.value === "all" ||
+          emp.jenis_kelamin === selectedGender.value;
+        const statusMatch =
+          !selectedStatus ||
+          selectedStatus.value === "all" ||
+          emp.status_kepegawaian === selectedStatus.value;
+        return (
+          searchMatch &&
+          departmentMatch &&
+          levelMatch &&
+          genderMatch &&
+          statusMatch
+        );
+      })
+      .map((emp) => ({
+        ...emp,
+        sipStatus: getSipStatus(emp.masa_berlaku_sip),
+      }));
   }, [
+    employeeList,
     searchTerm,
-    selectedDepartment,
+    selectedDept,
     selectedLevel,
     selectedGender,
     selectedStatus,
   ]);
 
-  const getLevelBadgeClass = (levelName: string) => {
-    // ... existing code ...
-    switch (levelName) {
-      case "Direktur":
-        return "bg-purple-100 text-purple-800";
-      case "Wakil Direktur":
-        return "bg-indigo-100 text-indigo-800";
-      case "Supervisor":
-        return "bg-blue-100 text-blue-800";
-      case "Koordinator":
-        return "bg-teal-100 text-teal-800";
-      case "Staff":
-        return "bg-slate-100 text-slate-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+  const employeesWithSipIssues = useMemo(() => {
+    const statusOrder = { expired: 1, expiring_soon: 2 };
+    return processedEmployees
+      .filter(
+        (emp) =>
+          emp.sipStatus === "expired" || emp.sipStatus === "expiring_soon"
+      )
+      .sort((a, b) => {
+        const statusDifference =
+          statusOrder[a.sipStatus as keyof typeof statusOrder] -
+          statusOrder[b.sipStatus as keyof typeof statusOrder];
+        if (statusDifference !== 0) return statusDifference;
+        return a.nama_lengkap.localeCompare(b.nama_lengkap);
+      });
+  }, [processedEmployees]);
+
+  const otherEmployees = useMemo(() => {
+    return processedEmployees
+      .filter(
+        (emp) => emp.sipStatus === "safe" || emp.sipStatus === "none"
+      )
+      .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap));
+  }, [processedEmployees]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedDept, selectedLevel, selectedGender, selectedStatus]);
+
+  const handleCloseModals = () => {
+    setIsDetailModalOpen(false);
+    setIsDeleteModalOpen(false);
+    setSelectedEmployee(null);
+  };
+  const handleOpenDetailModal = (employee: Karyawan) => {
+    setSelectedEmployee(employee);
+    setIsDetailModalOpen(true);
+  };
+  const handleOpenDeleteModal = (employee: Karyawan) => {
+    setSelectedEmployee(employee);
+    setIsDeleteModalOpen(true);
+  };
+  const confirmDelete = async () => {
+    if (!selectedEmployee) return;
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/karyawan/${selectedEmployee.nip}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) throw new Error("Gagal menghapus data pegawai.");
+      showSuccessToast("Data pegawai berhasil dihapus!");
+      setEmployeeList(
+        employeeList.filter((e) => e.nip !== selectedEmployee.nip)
+      );
+      handleCloseModals();
+    } catch (err) {
+      showErrorToast(
+        err instanceof Error ? err.message : "Gagal menghapus pegawai."
+      );
     }
   };
 
-  const getDepartmentBadgeClass = (departmentName: string) => {
-    // ... existing code ...
-    if (!departmentName) return "bg-gray-100 text-gray-800";
-    if (
-      departmentName.toLowerCase().includes("igd") ||
-      departmentName.toLowerCase().includes("icu")
-    ) {
-      return "bg-red-100 text-red-800";
-    }
-    if (departmentName.toLowerCase().includes("rawat")) {
-      return "bg-sky-100 text-sky-800";
-    }
-    if (
-      departmentName.toLowerCase().includes("farmasi") ||
-      departmentName.toLowerCase().includes("laboratorium") ||
-      departmentName.toLowerCase().includes("radiologi")
-    ) {
-      return "bg-amber-100 text-amber-800";
-    }
-    return "bg-gray-100 text-gray-800";
-  };
+  const itemOffset = (currentPage - 1) * itemsPerPage;
+  const endOffset = itemOffset + itemsPerPage;
+  const currentItems = otherEmployees.slice(itemOffset, endOffset);
+  const totalPages = Math.ceil(otherEmployees.length / itemsPerPage);
+
+  const renderTableRows = (employees: Karyawan[]) => {
+    return employees.map((employee) => {
+      const rowClass = {
+        expired: "bg-red-50 hover:bg-red-100",
+        expiring_soon: "bg-yellow-50 hover:bg-yellow-100",
+        safe: "bg-white hover:bg-slate-50",
+        none: "bg-white hover:bg-slate-50",
+      }[employee.sipStatus!];
+      return (
+        <tr key={employee.nip} className={`${rowClass} border-b border-slate-300 last:border-b-0`}>
+          <td className="px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="font-medium text-slate-900">
+                  {employee.nama_lengkap}
+                </p>
+                <p className="text-xs text-slate-500">
+                  NIP: {employee.nip}
+                </p>
+              </div>
+              {employee.sipStatus === "expired" && (
+                <span className="px-2 py-0.5 text-xs font-semibold text-red-800 bg-red-200 rounded-full">
+                  SIP Kedaluwarsa
+                </span>
+              )}
+              {employee.sipStatus === "expiring_soon" && (
+                <span className="px-2 py-0.5 text-xs font-semibold text-yellow-800 bg-yellow-200 rounded-full">
+                  SIP Akan Habis
+                </span>
+              )}
+            </div>
+          </td>
+          <td className="px-6 py-4">{employee.profesi}</td>
+          <td className="px-6 py-4">{employee.nama_departemen}</td>
+          <td className="px-6 py-4">
+            <StatusBadge status={employee.status_kepegawaian} />
+          </td>
+          <td className="px-6 py-4 flex items-center justify-center gap-2">
+            <button
+              onClick={() => handleOpenDetailModal(employee)}
+              className="text-slate-500 hover:text-primary"
+              title="Lihat Detail"
+            > <Eye size={18} /> </button>
+            <Link
+              href={`/admin/pegawai/edit/${employee.nip}`}
+              className="text-blue-600 hover:text-blue-800"
+              title="Edit"
+            > <Edit size={18} /> </Link>
+            <button
+              onClick={() => handleOpenDeleteModal(employee)}
+              className="text-red-600 hover:text-red-800"
+              title="Hapus"
+            > <Trash2 size={18} /> </button>
+          </td>
+        </tr>
+      );
+    });
+  }
 
   return (
     <div className="p-8">
@@ -279,319 +389,229 @@ export default function EmployeeManagementPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="relative lg:col-span-1">
-          <input
-            type="text"
-            placeholder="Cari Nama atau NIP..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm"
-          />
-          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <input type="text" placeholder="Cari NIP atau Nama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border rounded-lg" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         </div>
-        <div>
-          {isClient ? (
-            <SearchableSelect
-              options={departmentOptions}
-              value={selectedDepartment}
-              onChange={setSelectedDepartment}
-              placeholder="Filter departemen..."
-            />
-          ) : (
-            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
-          )}
-        </div>
-        <div>
-          {isClient ? (
-            <SearchableSelect
-              options={levelOptions}
-              value={selectedLevel}
-              onChange={setSelectedLevel}
-              placeholder="Filter level jabatan..."
-            />
-          ) : (
-            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
-          )}
-        </div>
-        <div>
-          {isClient ? (
-            <SearchableSelect
-              options={genderOptions}
-              value={selectedGender}
-              onChange={setSelectedGender}
-              placeholder="Filter jenis kelamin..."
-            />
-          ) : (
-            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
-          )}
-        </div>
-        <div>
-          {isClient ? (
-            <SearchableSelect
-              options={statusOptions}
-              value={selectedStatus}
-              onChange={setSelectedStatus}
-              placeholder="Filter status..."
-            />
-          ) : (
-            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
-          )}
-        </div>
+        <div> {isClient ? (<SearchableSelect options={[{ value: "all", label: "Semua Departemen" }, ...departments.map((d) => ({ value: d.id, label: d.nama_departemen, })),]} value={selectedDept} onChange={setSelectedDept} placeholder="Filter departemen..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
+        <div> {isClient ? (<SearchableSelect options={[{ value: "all", label: "Semua Level" }, ...levels.map((l) => ({ value: l.id, label: l.nama_level })),]} value={selectedLevel} onChange={setSelectedLevel} placeholder="Filter level..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
+        <div> {isClient ? (<SearchableSelect options={genderOptions} value={selectedGender} onChange={setSelectedGender} placeholder="Filter jenis kelamin..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
+        <div> {isClient ? (<SearchableSelect options={statusOptions} value={selectedStatus} onChange={setSelectedStatus} placeholder="Filter status..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
       </div>
 
+      {employeesWithSipIssues.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-red-600 mb-3 flex items-center gap-2">
+            <AlertTriangle size={20} />
+            SIP Memerlukan Perhatian
+          </h2>
+          <div className="bg-white shadow-md rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left text-slate-500">
+                <thead className="text-xs text-white uppercase bg-primary-dark">
+                  <tr>
+                    <th scope="col" className="px-6 py-3">Nama Pegawai</th>
+                    <th scope="col" className="px-6 py-3">Profesi</th>
+                    <th scope="col" className="px-6 py-3">Departemen</th>
+                    <th scope="col" className="px-6 py-3">Status</th>
+                    <th scope="col" className="px-6 py-3 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {renderTableRows(employeesWithSipIssues)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <h2 className="text-xl font-semibold text-primary-dark px-6 pt-4">
+          {employeesWithSipIssues.length > 0 ? "Daftar Pegawai Lainnya" : "Daftar Pegawai"}
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-500">
-            {/* ... existing table code ... */}
             <thead className="text-xs text-white uppercase bg-primary-dark">
               <tr>
-                <th scope="col" className="px-6 py-3">
-                  Nama Pegawai
-                </th>
-                <th scope="col" className="px-6 py-3">
-                  Jabatan
-                </th>
-                <th scope="col" className="px-6 py-3">
-                  Kontak
-                </th>
-                <th scope="col" className="px-6 py-3">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-center">
-                  Aksi
-                </th>
+                <th scope="col" className="px-6 py-3"> Nama Pegawai </th>
+                <th scope="col" className="px-6 py-3"> Profesi </th>
+                <th scope="col" className="px-6 py-3"> Departemen </th>
+                <th scope="col" className="px-6 py-3"> Status </th>
+                <th scope="col" className="px-6 py-3 text-center"> Aksi </th>
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {isLoading && (
                 <tr>
                   <td colSpan={5} className="text-center p-8">
-                    <div className="flex justify-center items-center">
-                      <Loader2 className="animate-spin h-8 w-8 text-primary" />
-                    </div>
+                    <Loader2 className="animate-spin h-8 w-8 text-primary mx-auto" />
                   </td>
                 </tr>
-              ) : error ? (
+              )}
+              {!isLoading && error && (
                 <tr>
                   <td colSpan={5} className="text-center p-8 text-red-500">
-                    <AlertTriangle className="inline mr-2" />
-                    {error}
+                    <AlertTriangle className="inline mr-2" /> {error}
                   </td>
                 </tr>
-              ) : currentEmployees.length > 0 ? (
-                currentEmployees.map((employee) => (
-                  <tr
-                    key={employee.nip}
-                    className="bg-white border-b border-slate-300 hover:bg-slate-50"
-                  >
-                    <th
-                      scope="row"
-                      className="px-6 py-4 font-medium text-slate-900"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{employee.nama_lengkap}</span>
-                        {employee.sip &&
-                          isSipExpired(employee.masa_berlaku_sip) && (
-                            <div className="relative group">
-                              <AlertTriangle
-                                size={16}
-                                className="text-red-500 cursor-pointer"
-                              />
-                              <span className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max px-2 py-1 bg-slate-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                SIP sudah habis masa berlaku
-                              </span>
-                            </div>
-                          )}
-                      </div>
-                      <p className="font-normal text-slate-500 text-xs">
-                        NIP: {employee.nip}
-                      </p>
-                    </th>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${getLevelBadgeClass(
-                          employee.nama_level
-                        )}`}
-                      >
-                        {employee.nama_level || "-"}
-                      </span>
-                      <p className="text-slate-500 text-xs mt-1">
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full ${getDepartmentBadgeClass(
-                            employee.nama_departemen
-                          )}`}
-                        >
-                          {employee.nama_departemen || "-"}
-                        </span>
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium">{employee.handphone || "-"}</p>
-                      <p className="text-xs text-slate-500">
-                        {employee.email || "-"}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${
-                          employee.status_kepegawaian === "Karyawan Tetap" ||
-                          employee.status_kepegawaian === "Dokter Tetap" ||
-                          employee.status_kepegawaian === "Aktif"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-orange-100 text-orange-800"
-                        }`}
-                      >
-                        {employee.status_kepegawaian}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 flex items-center justify-center gap-4">
-                      <button
-                        onClick={() => handleOpenViewModal(employee)}
-                        className="text-green-600 hover:text-green-800"
-                        title="Lihat Detail"
-                      >
-                        <Eye size={18} />
-                      </button>
-                      <Link
-                        href={`/admin/pegawai/edit/${employee.nip}`}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="Edit"
-                      >
-                        <Edit size={18} />
-                      </Link>
-                      <button
-                        onClick={() => handleOpenDeleteModal(employee)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Hapus"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
+              )}
+              {!isLoading && !error && currentItems.length > 0 &&
+                renderTableRows(currentItems)
+              }
+              {!isLoading && !error && currentItems.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center p-8 text-slate-500">
-                    Tidak ada data pegawai yang cocok.
+                  <td colSpan={5} className="text-center p-8">
+                    <Info className="mx-auto mb-2 text-slate-400" />
+                    Tidak ada data pegawai yang cocok dengan filter.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-          />
-        )}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
+      {/* Modal Detail */}
       <Modal
-        isOpen={isViewModalOpen}
+        isOpen={isDetailModalOpen}
         onClose={handleCloseModals}
-        title={`Detail Pegawai: ${selectedEmployee?.nama_lengkap}`}
-        size="3xl"
+        title="Detail Pegawai"
+        size="5xl" // Memperlebar modal
       >
         {selectedEmployee && (
-          <div className="space-y-6">
-            {/* ... existing modal code ... */}
-            <section>
-              <h3 className="font-semibold text-primary-dark border-b pb-2 mb-2">
-                Data Diri & Kontak
-              </h3>
-              <dl className="divide-y divide-slate-100">
-                <DetailRow label="NIP" value={selectedEmployee.nip} />
-                <DetailRow
-                  label="Nama Lengkap"
-                  value={selectedEmployee.nama_lengkap}
-                />
-                <DetailRow label="NIK" value={selectedEmployee.nik} />
-                <DetailRow
-                  label="Tanggal Lahir"
-                  value={
-                    selectedEmployee.tanggal_lahir
-                      ? new Date(
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 p-2">
+            {/* Kolom Kiri */}
+            <div className="space-y-6">
+              {/* Informasi Pribadi */}
+              <div>
+                <h3 className="text-base font-semibold text-slate-800 px-4">
+                  Informasi Pribadi
+                </h3>
+                <div className="mt-2 overflow-hidden border border-slate-200 rounded-lg">
+                  <dl>
+                    <DetailRow label="Nama Lengkap">
+                      {selectedEmployee.nama_lengkap}
+                    </DetailRow>
+                    <DetailRow label="NIP">{selectedEmployee.nip}</DetailRow>
+                    <DetailRow label="NIK">{selectedEmployee.nik}</DetailRow>
+                    <DetailRow label="Jenis Kelamin">
+                      {selectedEmployee.jenis_kelamin}
+                    </DetailRow>
+                    <DetailRow label="Tanggal Lahir">
+                      {selectedEmployee.tanggal_lahir
+                        ? new Date(
                           selectedEmployee.tanggal_lahir
                         ).toLocaleDateString("id-ID", {
-                          day: "2-digit",
+                          day: "numeric",
                           month: "long",
                           year: "numeric",
                         })
-                      : "-"
-                  }
-                />
-                <DetailRow
-                  label="Jenis Kelamin"
-                  value={selectedEmployee.jenis_kelamin}
-                />
-                <DetailRow
-                  label="No. Handphone"
-                  value={selectedEmployee.handphone}
-                />
-                <DetailRow label="Email" value={selectedEmployee.email} />
-                <DetailRow label="Alamat" value={selectedEmployee.alamat} />
-              </dl>
-            </section>
-            <section>
-              <h3 className="font-semibold text-primary-dark border-b pb-2 mb-2">
-                Informasi Kepegawaian & Profesional
-              </h3>
-              <dl className="divide-y divide-slate-100">
-                <DetailRow
-                  label="Tanggal Masuk"
-                  value={
-                    selectedEmployee.tanggal_masuk
-                      ? new Date(
+                        : "-"}
+                    </DetailRow>
+                    <DetailRow label="Alamat">
+                      {selectedEmployee.alamat}
+                    </DetailRow>
+                  </dl>
+                </div>
+              </div>
+
+              {/* Informasi Kontak */}
+              <div>
+                <h3 className="text-base font-semibold text-slate-800 px-4">
+                  Informasi Kontak
+                </h3>
+                <div className="mt-2 overflow-hidden border border-slate-200 rounded-lg">
+                  <dl>
+                    <DetailRow label="Email">{selectedEmployee.email}</DetailRow>
+                    <DetailRow label="No. Handphone">
+                      {selectedEmployee.handphone}
+                    </DetailRow>
+                  </dl>
+                </div>
+              </div>
+            </div>
+
+            {/* Kolom Kanan */}
+            <div className="space-y-6">
+              {/* Informasi Kepegawaian */}
+              <div>
+                <h3 className="text-base font-semibold text-slate-800 px-4">
+                  Informasi Kepegawaian
+                </h3>
+                <div className="mt-2 overflow-hidden border border-slate-200 rounded-lg">
+                  <dl>
+                    <DetailRow label="Departemen">
+                      {selectedEmployee.nama_departemen}
+                    </DetailRow>
+                    <DetailRow label="Level Jabatan">
+                      {selectedEmployee.nama_level}
+                    </DetailRow>
+                    <DetailRow label="Status">
+                      <StatusBadge
+                        status={selectedEmployee.status_kepegawaian}
+                      />
+                    </DetailRow>
+                    <DetailRow label="Tanggal Masuk">
+                      {selectedEmployee.tanggal_masuk
+                        ? new Date(
                           selectedEmployee.tanggal_masuk
                         ).toLocaleDateString("id-ID", {
-                          day: "2-digit",
+                          day: "numeric",
                           month: "long",
                           year: "numeric",
                         })
-                      : "-"
-                  }
-                />
-                <DetailRow
-                  label="Status Kepegawaian"
-                  value={selectedEmployee.status_kepegawaian}
-                />
-                <DetailRow
-                  label="Departemen"
-                  value={selectedEmployee.nama_departemen}
-                />
-                <DetailRow
-                  label="Level Jabatan"
-                  value={selectedEmployee.nama_level}
-                />
-                <DetailRow label="Profesi" value={selectedEmployee.profesi} />
-                <DetailRow label="No. SIP" value={selectedEmployee.sip} />
-                <DetailRow
-                  label="Masa Berlaku SIP"
-                  value={
-                    <div className="flex items-center gap-2">
-                      <span>
-                        {selectedEmployee.masa_berlaku_sip
-                          ? new Date(
+                        : "-"}
+                    </DetailRow>
+                  </dl>
+                </div>
+              </div>
+              {/* Informasi Profesional */}
+              <div>
+                <h3 className="text-base font-semibold text-slate-800 px-4">
+                  Informasi Profesional
+                </h3>
+                <div className="mt-2 overflow-hidden border border-slate-200 rounded-lg">
+                  <dl>
+                    <DetailRow label="Profesi">
+                      {selectedEmployee.profesi}
+                    </DetailRow>
+                    <DetailRow label="Nomor SIP">
+                      {selectedEmployee.sip || "-"}
+                    </DetailRow>
+                    <DetailRow label="Masa Berlaku SIP">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>
+                          {selectedEmployee.masa_berlaku_sip
+                            ? new Date(
                               selectedEmployee.masa_berlaku_sip
                             ).toLocaleDateString("id-ID", {
-                              day: "2-digit",
+                              day: "numeric",
                               month: "long",
                               year: "numeric",
                             })
-                          : "-"}
-                      </span>
-                      {selectedEmployee.sip &&
-                        isSipExpired(selectedEmployee.masa_berlaku_sip) && (
+                            : "-"}
+                        </span>
+                        {selectedEmployee.sipStatus === "expired" && (
                           <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800">
                             Kedaluwarsa
                           </span>
                         )}
-                    </div>
-                  }
-                />
-              </dl>
-            </section>
+                        {selectedEmployee.sipStatus === "expiring_soon" && (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                            Akan Habis
+                          </span>
+                        )}
+                      </div>
+                    </DetailRow>
+                  </dl>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </Modal>
@@ -603,9 +623,9 @@ export default function EmployeeManagementPage() {
       >
         <div>
           <p>
+            {" "}
             Apakah Anda yakin ingin menghapus data pegawai{" "}
-            <strong>{selectedEmployee?.nama_lengkap}</strong>? Tindakan ini
-            tidak dapat dibatalkan.
+            <strong>{selectedEmployee?.nama_lengkap}</strong>?
           </p>
           <div className="mt-6 flex justify-end gap-4">
             <button
@@ -626,3 +646,4 @@ export default function EmployeeManagementPage() {
     </div>
   );
 }
+
