@@ -1,7 +1,7 @@
 // File: app/(admin)/admin/user/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import Modal from "@/app/components/modal";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
@@ -14,7 +14,6 @@ interface User {
   nama_lengkap: string;
   email: string;
   nama_role: string;
-  status: "Aktif" | "Non-Aktif";
   nip: string;
   role_id: number;
 }
@@ -24,11 +23,12 @@ interface Role {
   nama_role: string;
 }
 
-// Menambahkan field email ke interface Karyawan
+// Menambahkan field email & user_id ke interface Karyawan
 interface Karyawan {
   nip: string;
   nama_lengkap: string;
-  email: string; // Email dibutuhkan untuk auto-fill
+  email: string;
+  user_id: number | null; // Penting untuk filtering
 }
 
 export default function UserManagementPage() {
@@ -44,7 +44,6 @@ export default function UserManagementPage() {
     email: "",
     password: "",
     role_id: "",
-    status: "Aktif" as "Aktif" | "Non-Aktif",
   });
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -63,7 +62,7 @@ export default function UserManagementPage() {
       const [userRes, roleRes, karyawanRes] = await Promise.all([
         fetch(`${baseUrl}/api/users`),
         fetch(`${baseUrl}/api/roles`),
-        fetch(`${baseUrl}/api/karyawan`), // API ini sudah mengembalikan email
+        fetch(`${baseUrl}/api/karyawan`),
       ]);
 
       if (!userRes.ok)
@@ -98,6 +97,13 @@ export default function UserManagementPage() {
     fetchData();
   }, [baseUrl]);
 
+  // Filter karyawan yang belum punya akun user
+  const availableKaryawan = useMemo(() => {
+    return karyawan.filter(
+      (k) => k.user_id === null || k.user_id === undefined
+    );
+  }, [karyawan]);
+
   const handleCloseModals = () => {
     setIsAddModalOpen(false);
     setIsEditModalOpen(false);
@@ -109,7 +115,6 @@ export default function UserManagementPage() {
       email: "",
       password: "",
       role_id: "",
-      status: "Aktif",
     });
   };
 
@@ -118,9 +123,7 @@ export default function UserManagementPage() {
       nip: "",
       email: "",
       password: "",
-      // Set default role jika ada, jika tidak, kosongkan
       role_id: roles.length > 0 ? roles[0].id.toString() : "",
-      status: "Aktif",
     });
     setIsAddModalOpen(true);
   };
@@ -131,9 +134,7 @@ export default function UserManagementPage() {
       nip: user.nip,
       email: user.email,
       password: "", // Password dikosongkan untuk keamanan
-      // FIX: Cek jika user.role_id ada sebelum memanggil toString()
       role_id: user.role_id ? user.role_id.toString() : "",
-      status: user.status,
     });
     setIsEditModalOpen(true);
   };
@@ -143,14 +144,13 @@ export default function UserManagementPage() {
     setIsDeleteModalOpen(true);
   };
 
-  // Fungsi untuk handle pemilihan karyawan dan auto-fill email
   const handleKaryawanSelect = (option: Option | null) => {
     if (option) {
       const selected = karyawan.find((k) => k.nip === option.value);
       setFormData({
         ...formData,
         nip: selected?.nip || "",
-        email: selected?.email || "", // Otomatis isi email
+        email: selected?.email || "",
       });
     } else {
       setFormData({
@@ -167,13 +167,10 @@ export default function UserManagementPage() {
     const url = isEditing
       ? `${baseUrl}/api/users/${selectedUser?.id}`
       : `${baseUrl}/api/users`;
-    // Gunakan PATCH untuk update, sesuai dengan API yang dibuat
     const method = isEditing ? "PATCH" : "POST";
 
-    // Salin form data untuk dimodifikasi
     const body: Partial<typeof formData> = { ...formData };
 
-    // Jika sedang edit dan password kosong, hapus dari body agar tidak mengupdate password
     if (isEditing && !body.password) {
       delete body.password;
     }
@@ -195,7 +192,7 @@ export default function UserManagementPage() {
       showSuccessToast(
         `User berhasil ${isEditing ? "diperbarui" : "ditambahkan"}!`
       );
-      fetchData(); // Muat ulang data terbaru
+      fetchData();
       handleCloseModals();
     } catch (err) {
       showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan.");
@@ -213,9 +210,8 @@ export default function UserManagementPage() {
         throw new Error(errorData.message || "Gagal menghapus user.");
       }
 
-      // Optimistic UI update
-      setUsers(users.filter((u) => u.id !== selectedUser.id));
       showSuccessToast("User berhasil dihapus!");
+      fetchData(); // Muat ulang data untuk sinkronisasi
       handleCloseModals();
     } catch (err) {
       showErrorToast(
@@ -274,7 +270,7 @@ export default function UserManagementPage() {
                 users.map((user) => (
                   <tr
                     key={user.id}
-                    className="bg-white border-b border-slate-300 last:border-b-0 hover:bg-slate-50"
+                    className="bg-white border-b hover:bg-slate-50"
                   >
                     <td className="px-6 py-4">
                       <p className="font-medium text-slate-900">
@@ -322,10 +318,19 @@ export default function UserManagementPage() {
             </label>
             {isClient ? (
               <SearchableSelect
-                options={karyawan.map((k) => ({
-                  value: k.nip,
-                  label: `${k.nama_lengkap} (${k.nip})`,
-                }))}
+                options={
+                  isEditModalOpen
+                    ? karyawan.map((k) => ({
+                        // Saat edit, tampilkan semua
+                        value: k.nip,
+                        label: `${k.nama_lengkap} (${k.nip})`,
+                      }))
+                    : availableKaryawan.map((k) => ({
+                        // Saat tambah, hanya yang tersedia
+                        value: k.nip,
+                        label: `${k.nama_lengkap} (${k.nip})`,
+                      }))
+                }
                 value={
                   karyawan
                     .map((k) => ({
@@ -336,7 +341,7 @@ export default function UserManagementPage() {
                 }
                 onChange={handleKaryawanSelect}
                 placeholder="Cari pegawai..."
-                isDisabled={isEditModalOpen} // NIP tidak bisa diubah saat edit
+                isDisabled={isEditModalOpen}
               />
             ) : (
               <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
@@ -352,9 +357,9 @@ export default function UserManagementPage() {
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
               }
-              className="w-full px-3 py-2 border rounded-md bg-slate-100" // Ganti warna jadi abu-abu
+              className="w-full px-3 py-2 border rounded-md bg-slate-100"
               required
-              readOnly // Email diisi otomatis dari data karyawan
+              readOnly
             />
           </div>
           <div>
