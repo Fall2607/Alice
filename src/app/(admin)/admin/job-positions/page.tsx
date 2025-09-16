@@ -43,15 +43,13 @@ export default function JobPositionsPage() {
   const [currentPageNonMedis, setCurrentPageNonMedis] = useState(1);
   const itemsPerPage = 10;
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
-    process.env.NEXT_PUBLIC_API_BASE_URL;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const fetchPositions = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`${baseUrl}/api/jobs`);
+      const response = await fetch(`${baseUrl}/jobs`);
       if (!response.ok) throw new Error("Gagal memuat data posisi pekerjaan.");
       const data = await response.json();
       setPositions(data);
@@ -114,8 +112,8 @@ export default function JobPositionsPage() {
     e.preventDefault();
     const url =
       method === "POST"
-        ? `${baseUrl}/api/jobs`
-        : `${baseUrl}/api/jobs/${selectedPosition?.id}`;
+        ? `${baseUrl}/jobs`
+        : `${baseUrl}/jobs/${selectedPosition?.id}`;
 
     const body = {
       ...formData,
@@ -146,7 +144,7 @@ export default function JobPositionsPage() {
 
   const confirmDelete = async () => {
     if (!selectedPosition) return;
-    await fetch(`${baseUrl}/api/jobs/${selectedPosition.id}`, {
+    await fetch(`${baseUrl}/jobs/${selectedPosition.id}`, {
       method: "DELETE",
     });
     setPositions(positions.filter((p) => p.id !== selectedPosition.id));

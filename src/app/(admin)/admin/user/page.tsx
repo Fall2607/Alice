@@ -51,18 +51,16 @@ export default function UserManagementPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
-    process.env.NEXT_PUBLIC_API_BASE_URL;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const [userRes, roleRes, karyawanRes] = await Promise.all([
-        fetch(`${baseUrl}/api/users`),
-        fetch(`${baseUrl}/api/roles`),
-        fetch(`${baseUrl}/api/karyawan`),
+        fetch(`${baseUrl}/users`),
+        fetch(`${baseUrl}/roles`),
+        fetch(`${baseUrl}/karyawan`),
       ]);
 
       if (!userRes.ok)
@@ -165,8 +163,8 @@ export default function UserManagementPage() {
     e.preventDefault();
     const isEditing = isEditModalOpen;
     const url = isEditing
-      ? `${baseUrl}/api/users/${selectedUser?.id}`
-      : `${baseUrl}/api/users`;
+      ? `${baseUrl}/users/${selectedUser?.id}`
+      : `${baseUrl}/users`;
     const method = isEditing ? "PATCH" : "POST";
 
     const body: Partial<typeof formData> = { ...formData };
@@ -202,7 +200,7 @@ export default function UserManagementPage() {
   const confirmDelete = async () => {
     if (!selectedUser) return;
     try {
-      const response = await fetch(`${baseUrl}/api/users/${selectedUser.id}`, {
+      const response = await fetch(`${baseUrl}/users/${selectedUser.id}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -270,7 +268,7 @@ export default function UserManagementPage() {
                 users.map((user) => (
                   <tr
                     key={user.id}
-                    className="bg-white border-b hover:bg-slate-50"
+                    className="bg-white border-b border-slate-300 last:border-b-0 hover:bg-slate-50"
                   >
                     <td className="px-6 py-4">
                       <p className="font-medium text-slate-900">

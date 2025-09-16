@@ -26,15 +26,13 @@ export default function RoleManagementPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
-    process.env.NEXT_PUBLIC_API_BASE_URL;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const fetchRoles = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${baseUrl}/api/roles`);
+      const response = await fetch(`${baseUrl}/roles`);
       if (!response.ok) throw new Error("Gagal memuat data role.");
       const data = await response.json();
       setRoles(data);
@@ -76,8 +74,8 @@ export default function RoleManagementPage() {
     e.preventDefault();
     const isEditing = isEditModalOpen;
     const url = isEditing
-      ? `${baseUrl}/api/roles/${selectedRole?.id}`
-      : `${baseUrl}/api/roles`;
+      ? `${baseUrl}/roles/${selectedRole?.id}`
+      : `${baseUrl}/roles`;
     const method = isEditing ? "PUT" : "POST";
 
     try {
@@ -105,7 +103,7 @@ export default function RoleManagementPage() {
   const confirmDelete = async () => {
     if (!selectedRole) return;
     try {
-      const response = await fetch(`${baseUrl}/api/roles/${selectedRole.id}`, {
+      const response = await fetch(`${baseUrl}/roles/${selectedRole.id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Gagal menghapus role.");

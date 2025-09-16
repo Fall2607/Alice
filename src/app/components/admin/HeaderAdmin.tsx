@@ -1,31 +1,46 @@
 // File: app/components/admin/HeaderAdmin.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
-import Link from 'next/link';
-import { Search, Bell, Menu, User, LogOut, ChevronRight } from 'lucide-react';
-import Image from 'next/image';
-import { menuItems } from './Sidebar';
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { Search, Bell, Menu, User, LogOut, ChevronRight } from "lucide-react";
+import Image from "next/image";
+import { menuItems } from "./Sidebar";
+
+// Tipe data untuk user yang login
+interface LoggedInUser {
+  name: string;
+  role: string;
+}
 
 interface HeaderAdminProps {
   toggleSidebar: () => void;
   openLogoutModal: () => void;
+  user: LoggedInUser | null; // Tambahkan prop user
 }
 
-export default function HeaderAdmin({ toggleSidebar, openLogoutModal }: HeaderAdminProps) {
+export default function HeaderAdmin({
+  toggleSidebar,
+  openLogoutModal,
+  user,
+}: HeaderAdminProps) {
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<string[]>([]);
   const pathname = usePathname();
 
   useEffect(() => {
-    const pathParts = pathname.split('/').filter(part => part);
-    const newBreadcrumbs: string[] = ['Admin'];
+    const pathParts = pathname.split("/").filter((part) => part);
+    const newBreadcrumbs: string[] = ["Admin"];
 
-    if (pathParts.length === 1 && pathParts[0] === 'admin') {
-      newBreadcrumbs.push('Dashboard');
+    if (pathParts.length === 1 && pathParts[0] === "admin") {
+      newBreadcrumbs.push("Dashboard");
     } else if (pathParts.length > 1) {
-      const findLabels = (items: typeof menuItems, parts: string[], basePath: string): string[] => {
+      const findLabels = (
+        items: typeof menuItems,
+        parts: string[],
+        basePath: string
+      ): string[] => {
         if (parts.length === 0) return [];
         const currentPart = parts[0];
         const remainingParts = parts.slice(1);
@@ -33,20 +48,34 @@ export default function HeaderAdmin({ toggleSidebar, openLogoutModal }: HeaderAd
 
         for (const item of items) {
           if (item.href === currentSegmentPath) {
-            return [item.label, ...findLabels(items, remainingParts, currentSegmentPath)];
+            return [
+              item.label,
+              ...findLabels(items, remainingParts, currentSegmentPath),
+            ];
           }
           if (item.subItems) {
             for (const subItem of item.subItems) {
               if (subItem.href === currentSegmentPath) {
-                return [item.label, subItem.label, ...findLabels(items, remainingParts, currentSegmentPath)];
+                return [
+                  item.label,
+                  subItem.label,
+                  ...findLabels(items, remainingParts, currentSegmentPath),
+                ];
               }
             }
           }
         }
-        return [currentPart.charAt(0).toUpperCase() + currentPart.slice(1), ...findLabels(items, remainingParts, currentSegmentPath)];
+        return [
+          currentPart.charAt(0).toUpperCase() + currentPart.slice(1),
+          ...findLabels(items, remainingParts, currentSegmentPath),
+        ];
       };
 
-      const labels = findLabels(menuItems, pathParts.slice(1), `/${pathParts[0]}`);
+      const labels = findLabels(
+        menuItems,
+        pathParts.slice(1),
+        `/${pathParts[0]}`
+      );
       newBreadcrumbs.push(...labels);
     }
 
@@ -57,14 +86,23 @@ export default function HeaderAdmin({ toggleSidebar, openLogoutModal }: HeaderAd
     <header className="sticky top-0 z-30 w-full px-8 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={toggleSidebar} className="text-primary-dark hover:text-primary transition-colors">
+          <button
+            onClick={toggleSidebar}
+            className="text-primary-dark hover:text-primary transition-colors"
+          >
             <Menu size={24} />
           </button>
           <div className="text-sm font-medium text-slate-500 flex items-center gap-1">
             {breadcrumbs.map((crumb, index) => (
               <span key={index} className="flex items-center gap-1">
                 {index > 0 && <ChevronRight size={16} />}
-                <span className={index === breadcrumbs.length - 1 ? "text-primary-dark font-semibold" : ""}>
+                <span
+                  className={
+                    index === breadcrumbs.length - 1
+                      ? "text-primary-dark font-semibold"
+                      : ""
+                  }
+                >
                   {crumb}
                 </span>
               </span>
@@ -91,9 +129,12 @@ export default function HeaderAdmin({ toggleSidebar, openLogoutModal }: HeaderAd
           </button>
 
           <div className="relative">
-            <button onClick={() => setDropdownOpen(!isDropdownOpen)} className="flex items-center gap-2">
+            <button
+              onClick={() => setDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-3"
+            >
               <Image
-                src="/img/potrait/man.jpg"
+                src="/img/potrait/man.jpg" // Placeholder, bisa diganti nanti
                 alt="User Profile"
                 width={36}
                 height={36}
@@ -102,30 +143,46 @@ export default function HeaderAdmin({ toggleSidebar, openLogoutModal }: HeaderAd
             </button>
             {isDropdownOpen && (
               <div
-                className="absolute right-0 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
                 role="menu"
                 aria-orientation="vertical"
                 aria-labelledby="user-menu-button"
               >
-                <Link
-                  href="/admin/profile"
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                  role="menuitem"
-                >
-                  <User size={16} />
-                  Profil
-                </Link>
-                <button
-                  onClick={() => {
-                    openLogoutModal();
-                    setDropdownOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                  role="menuitem"
-                >
-                  <LogOut size={16} />
-                  Keluar
-                </button>
+                <div className="px-4 py-3 border-b border-slate-200">
+                  <p
+                    className="text-sm font-semibold text-slate-900 truncate"
+                    title={user?.name}
+                  >
+                    {user?.name || "Nama Pengguna"}
+                  </p>
+                  <p
+                    className="text-xs text-slate-500 truncate"
+                    title={user?.role}
+                  >
+                    {user?.role || "Role Pengguna"}
+                  </p>
+                </div>
+                <div className="py-1">
+                  <Link
+                    href="/admin/profile"
+                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    role="menuitem"
+                  >
+                    <User size={16} />
+                    Profil
+                  </Link>
+                  <button
+                    onClick={() => {
+                      openLogoutModal();
+                      setDropdownOpen(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    role="menuitem"
+                  >
+                    <LogOut size={16} />
+                    Keluar
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -134,4 +191,3 @@ export default function HeaderAdmin({ toggleSidebar, openLogoutModal }: HeaderAd
     </header>
   );
 }
-

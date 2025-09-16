@@ -33,18 +33,14 @@ export default function DepartmentManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // jika di browser
-  const baseUrl =
-    window.location.hostname === "localhost"
-      ? process.env.NEXT_PUBLIC_API_BASE_URL
-      : process.env.NEXT_PUBLIC_API_BASE_URL_LAN;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const fetchDepartments = async () => {
     try {
       setIsLoading(true);
       setError(null);
       if (!baseUrl) throw new Error("NEXT_PUBLIC_API_BASE_URL is not defined.");
-      const response = await fetch(`${baseUrl}/api/departments`);
+      const response = await fetch(`${baseUrl}/departments`);
       if (!response.ok)
         throw new Error(`Error ${response.status}: Gagal memuat data.`);
       const data: Department[] = await response.json();
@@ -80,7 +76,7 @@ export default function DepartmentManagementPage() {
     e.preventDefault();
     try {
       if (!baseUrl) throw new Error("NEXT_PUBLIC_API_BASE_URL is not defined.");
-      const response = await fetch(`${baseUrl}/api/departments`, {
+      const response = await fetch(`${baseUrl}/departments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -111,7 +107,7 @@ export default function DepartmentManagementPage() {
     try {
       if (!baseUrl) throw new Error("NEXT_PUBLIC_API_BASE_URL is not defined.");
       const response = await fetch(
-        `${baseUrl}/api/departments/${selectedDepartment.id}`,
+        `${baseUrl}/departments/${selectedDepartment.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -139,7 +135,7 @@ export default function DepartmentManagementPage() {
     try {
       if (!baseUrl) throw new Error("NEXT_PUBLIC_API_BASE_URL is not defined.");
       const response = await fetch(
-        `${baseUrl}/api/departments/${selectedDepartment.id}`,
+        `${baseUrl}/departments/${selectedDepartment.id}`,
         {
           method: "DELETE",
         }

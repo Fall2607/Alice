@@ -7,10 +7,7 @@ import { useRouter, useParams } from "next/navigation";
 import { ChevronLeft, Loader2, AlertTriangle } from "lucide-react";
 import DatePickerField from "@/app/components/admin/DatePickerField";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
-import {
-  showSuccessToast,
-  showErrorToast,
-} from "@/app/components/admin/Alert";
+import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 
 type Option = { value: number | string; label: string };
 
@@ -73,9 +70,7 @@ export default function EditPegawaiPage() {
     departemen_id: null as Option | null,
   });
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
-    process.env.NEXT_PUBLIC_API_BASE_URL;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   useEffect(() => {
     setIsClient(true);
@@ -83,16 +78,16 @@ export default function EditPegawaiPage() {
       setIsLoading(false);
       setError("NIP tidak valid.");
       return;
-    };
+    }
 
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const [karyawanRes, deptRes, jabatanRes] = await Promise.all([
-          fetch(`${baseUrl}/api/karyawan/${nip}`),
-          fetch(`${baseUrl}/api/departments`),
-          fetch(`${baseUrl}/api/level-jabatan`),
+          fetch(`${baseUrl}/karyawan/${nip}`),
+          fetch(`${baseUrl}/departments`),
+          fetch(`${baseUrl}/level-jabatan`),
         ]);
 
         if (!karyawanRes.ok) throw new Error("Gagal memuat data pegawai.");
@@ -123,16 +118,32 @@ export default function EditPegawaiPage() {
 
         setFormData({
           ...karyawanData,
-          tanggal_lahir: karyawanData.tanggal_lahir ? new Date(karyawanData.tanggal_lahir) : null,
-          tanggal_masuk: karyawanData.tanggal_masuk ? new Date(karyawanData.tanggal_masuk) : null,
-          masa_berlaku_sip: karyawanData.masa_berlaku_sip ? new Date(karyawanData.masa_berlaku_sip) : null,
-          jenis_kelamin: { value: karyawanData.jenis_kelamin, label: karyawanData.jenis_kelamin },
-          status_kepegawaian: { value: karyawanData.status_kepegawaian, label: karyawanData.status_kepegawaian },
+          tanggal_lahir: karyawanData.tanggal_lahir
+            ? new Date(karyawanData.tanggal_lahir)
+            : null,
+          tanggal_masuk: karyawanData.tanggal_masuk
+            ? new Date(karyawanData.tanggal_masuk)
+            : null,
+          masa_berlaku_sip: karyawanData.masa_berlaku_sip
+            ? new Date(karyawanData.masa_berlaku_sip)
+            : null,
+          jenis_kelamin: {
+            value: karyawanData.jenis_kelamin,
+            label: karyawanData.jenis_kelamin,
+          },
+          status_kepegawaian: {
+            value: karyawanData.status_kepegawaian,
+            label: karyawanData.status_kepegawaian,
+          },
           departemen_id: selectedDept || null,
           level_jabatan_id: selectedLevel || null,
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Terjadi kesalahan yang tidak terduga.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan yang tidak terduga."
+        );
         showErrorToast("Gagal memuat data pegawai.");
       } finally {
         setIsLoading(false);
@@ -152,7 +163,7 @@ export default function EditPegawaiPage() {
     }
 
     try {
-      const jabatanRes = await fetch(`${baseUrl}/api/jabatan`, {
+      const jabatanRes = await fetch(`${baseUrl}/jabatan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -177,7 +188,7 @@ export default function EditPegawaiPage() {
         jabatan_id: jabatan_id,
       };
 
-      const karyawanRes = await fetch(`${baseUrl}/api/karyawan/${nip}`, {
+      const karyawanRes = await fetch(`${baseUrl}/karyawan/${nip}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(karyawanData),
@@ -193,9 +204,7 @@ export default function EditPegawaiPage() {
       showSuccessToast("Data pegawai berhasil diperbarui!");
       router.push("/admin/pegawai");
     } catch (err) {
-      showErrorToast(
-        err instanceof Error ? err.message : "Terjadi kesalahan."
-      );
+      showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan.");
     } finally {
       setIsSubmitting(false);
     }
@@ -218,9 +227,14 @@ export default function EditPegawaiPage() {
     return (
       <div className="p-8 text-center">
         <AlertTriangle className="mx-auto text-red-500" size={48} />
-        <h2 className="mt-4 text-xl font-semibold text-red-600">Gagal Memuat Data</h2>
+        <h2 className="mt-4 text-xl font-semibold text-red-600">
+          Gagal Memuat Data
+        </h2>
         <p className="mt-2 text-slate-500">{error}</p>
-        <Link href="/admin/pegawai" className="mt-6 inline-flex items-center gap-2 text-primary hover:text-primary-dark">
+        <Link
+          href="/admin/pegawai"
+          className="mt-6 inline-flex items-center gap-2 text-primary hover:text-primary-dark"
+        >
           <ChevronLeft size={20} />
           Kembali ke Manajemen Pegawai
         </Link>
@@ -231,7 +245,10 @@ export default function EditPegawaiPage() {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <Link href="/admin/pegawai" className="inline-flex items-center gap-2 text-primary hover:text-primary-dark">
+        <Link
+          href="/admin/pegawai"
+          className="inline-flex items-center gap-2 text-primary hover:text-primary-dark"
+        >
           <ChevronLeft size={20} />
           Kembali ke Manajemen Pegawai
         </Link>
@@ -244,33 +261,223 @@ export default function EditPegawaiPage() {
           </h1>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12">
             <div>
-              <h2 className="text-lg font-semibold text-primary-dark mb-4 border-b pb-2">Data Diri & Kontak</h2>
-              <FormField label="NIP"><input type="text" value={formData.nip} className={`${inputClass} bg-slate-100 cursor-not-allowed`} readOnly /></FormField>
-              <FormField label="Nama Lengkap"><input type="text" value={formData.nama_lengkap} onChange={(e) => setFormData({ ...formData, nama_lengkap: e.target.value })} className={inputClass} required /></FormField>
-              <FormField label="NIK"><input type="text" value={formData.nik} onChange={(e) => setFormData({ ...formData, nik: e.target.value })} className={inputClass} required /></FormField>
-              <FormField label="Tanggal Lahir">{isClient ? <DatePickerField selected={formData.tanggal_lahir} onChange={(date) => setFormData({ ...formData, tanggal_lahir: date })} /> : <div className={placeholderClass} />}</FormField>
-              <FormField label="Jenis Kelamin">{isClient ? <SearchableSelect options={[{ value: "Laki-laki", label: "Laki-laki" }, { value: "Perempuan", label: "Perempuan" }]} value={formData.jenis_kelamin} onChange={(option) => setFormData({ ...formData, jenis_kelamin: option! })} /> : <div className={placeholderClass} />}</FormField>
-              <FormField label="No. Handphone"><input type="tel" value={formData.handphone || ""} onChange={(e) => setFormData({ ...formData, handphone: e.target.value })} className={inputClass} /></FormField>
-              <FormField label="Email"><input type="email" value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputClass} /></FormField>
-              <FormField label="Alamat"><textarea value={formData.alamat || ""} onChange={(e) => setFormData({ ...formData, alamat: e.target.value })} rows={3} className={inputClass}></textarea></FormField>
+              <h2 className="text-lg font-semibold text-primary-dark mb-4 border-b pb-2">
+                Data Diri & Kontak
+              </h2>
+              <FormField label="NIP">
+                <input
+                  type="text"
+                  value={formData.nip}
+                  className={`${inputClass} bg-slate-100 cursor-not-allowed`}
+                  readOnly
+                />
+              </FormField>
+              <FormField label="Nama Lengkap">
+                <input
+                  type="text"
+                  value={formData.nama_lengkap}
+                  onChange={(e) =>
+                    setFormData({ ...formData, nama_lengkap: e.target.value })
+                  }
+                  className={inputClass}
+                  required
+                />
+              </FormField>
+              <FormField label="NIK">
+                <input
+                  type="text"
+                  value={formData.nik}
+                  onChange={(e) =>
+                    setFormData({ ...formData, nik: e.target.value })
+                  }
+                  className={inputClass}
+                  required
+                />
+              </FormField>
+              <FormField label="Tanggal Lahir">
+                {isClient ? (
+                  <DatePickerField
+                    selected={formData.tanggal_lahir}
+                    onChange={(date) =>
+                      setFormData({ ...formData, tanggal_lahir: date })
+                    }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Jenis Kelamin">
+                {isClient ? (
+                  <SearchableSelect
+                    options={[
+                      { value: "Laki-laki", label: "Laki-laki" },
+                      { value: "Perempuan", label: "Perempuan" },
+                    ]}
+                    value={formData.jenis_kelamin}
+                    onChange={(option) =>
+                      setFormData({ ...formData, jenis_kelamin: option! })
+                    }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="No. Handphone">
+                <input
+                  type="tel"
+                  value={formData.handphone || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, handphone: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Email">
+                <input
+                  type="email"
+                  value={formData.email || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Alamat">
+                <textarea
+                  value={formData.alamat || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, alamat: e.target.value })
+                  }
+                  rows={3}
+                  className={inputClass}
+                ></textarea>
+              </FormField>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary-dark mb-4 border-b pb-2">Informasi Kepegawaian & Profesional</h2>
-              <FormField label="Tanggal Masuk">{isClient ? <DatePickerField selected={formData.tanggal_masuk} onChange={(date) => setFormData({ ...formData, tanggal_masuk: date })} /> : <div className={placeholderClass} />}</FormField>
-              <FormField label="Status Kepegawaian">{isClient ? <SearchableSelect options={[{ value: "Karyawan Kontrak", label: "Karyawan Kontrak", }, { value: "Karyawan Tetap", label: "Karyawan Tetap" }, { value: "Dokter Mitra", label: "Dokter Mitra" }, { value: "Dokter Tetap", label: "Dokter Tetap" },]} value={formData.status_kepegawaian} onChange={(option) => setFormData({ ...formData, status_kepegawaian: option! })} /> : <div className={placeholderClass} />}</FormField>
-              <FormField label="Departemen">{isClient ? <SearchableSelect options={departments} value={formData.departemen_id} onChange={(option) => setFormData({ ...formData, departemen_id: option })} /> : <div className={placeholderClass} />}</FormField>
-              <FormField label="Level Jabatan">{isClient ? <SearchableSelect options={levelJabatans} value={formData.level_jabatan_id} onChange={(option) => setFormData({ ...formData, level_jabatan_id: option })} /> : <div className={placeholderClass} />}</FormField>
-              <FormField label="Profesi"><input type="text" value={formData.profesi || ""} onChange={(e) => setFormData({ ...formData, profesi: e.target.value })} className={inputClass} /></FormField>
-              <FormField label="No. SIP (jika ada)"><input type="text" value={formData.sip || ""} onChange={(e) => setFormData({ ...formData, sip: e.target.value })} className={inputClass} /></FormField>
-              <FormField label="Masa Berlaku SIP">{isClient ? <DatePickerField selected={formData.masa_berlaku_sip} onChange={(date) => setFormData({ ...formData, masa_berlaku_sip: date })} /> : <div className={placeholderClass} />}</FormField>
-              <FormField label="Gaji Pokok"><input type="number" value={formData.gaji_pokok || 0} onChange={(e) => setFormData({ ...formData, gaji_pokok: Number(e.target.value) })} className={inputClass} /></FormField>
+              <h2 className="text-lg font-semibold text-primary-dark mb-4 border-b pb-2">
+                Informasi Kepegawaian & Profesional
+              </h2>
+              <FormField label="Tanggal Masuk">
+                {isClient ? (
+                  <DatePickerField
+                    selected={formData.tanggal_masuk}
+                    onChange={(date) =>
+                      setFormData({ ...formData, tanggal_masuk: date })
+                    }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Status Kepegawaian">
+                {isClient ? (
+                  <SearchableSelect
+                    options={[
+                      { value: "Karyawan Kontrak", label: "Karyawan Kontrak" },
+                      { value: "Karyawan Tetap", label: "Karyawan Tetap" },
+                      { value: "Dokter Mitra", label: "Dokter Mitra" },
+                      { value: "Dokter Tetap", label: "Dokter Tetap" },
+                    ]}
+                    value={formData.status_kepegawaian}
+                    onChange={(option) =>
+                      setFormData({ ...formData, status_kepegawaian: option! })
+                    }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Departemen">
+                {isClient ? (
+                  <SearchableSelect
+                    options={departments}
+                    value={formData.departemen_id}
+                    onChange={(option) =>
+                      setFormData({ ...formData, departemen_id: option })
+                    }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Level Jabatan">
+                {isClient ? (
+                  <SearchableSelect
+                    options={levelJabatans}
+                    value={formData.level_jabatan_id}
+                    onChange={(option) =>
+                      setFormData({ ...formData, level_jabatan_id: option })
+                    }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Profesi">
+                <input
+                  type="text"
+                  value={formData.profesi || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, profesi: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="No. SIP (jika ada)">
+                <input
+                  type="text"
+                  value={formData.sip || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sip: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Masa Berlaku SIP">
+                {isClient ? (
+                  <DatePickerField
+                    selected={formData.masa_berlaku_sip}
+                    onChange={(date) =>
+                      setFormData({ ...formData, masa_berlaku_sip: date })
+                    }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Gaji Pokok">
+                <input
+                  type="number"
+                  value={formData.gaji_pokok || 0}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      gaji_pokok: Number(e.target.value),
+                    })
+                  }
+                  className={inputClass}
+                />
+              </FormField>
             </div>
           </div>
 
           <div className="mt-8 pt-6 border-t flex justify-end gap-4">
-            <Link href="/admin/pegawai" className="rounded-full bg-slate-200 px-6 py-2 text-sm font-semibold">Batal</Link>
-            <button type="submit" disabled={isSubmitting} className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white flex items-center justify-center min-w-[120px]">
-              {isSubmitting ? <Loader2 className="animate-spin" /> : "Simpan Perubahan"}
+            <Link
+              href="/admin/pegawai"
+              className="rounded-full bg-slate-200 px-6 py-2 text-sm font-semibold"
+            >
+              Batal
+            </Link>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white flex items-center justify-center min-w-[120px]"
+            >
+              {isSubmitting ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                "Simpan Perubahan"
+              )}
             </button>
           </div>
         </div>
@@ -278,4 +485,3 @@ export default function EditPegawaiPage() {
     </div>
   );
 }
-

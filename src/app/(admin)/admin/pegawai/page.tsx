@@ -16,10 +16,7 @@ import {
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
-import {
-  showSuccessToast,
-  showErrorToast,
-} from "@/app/components/admin/Alert";
+import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 
 type Option = { value: number | string; label: string };
 
@@ -140,18 +137,16 @@ export default function EmployeeManagementPage() {
     null
   );
   const [isClient, setIsClient] = useState(false);
-  const baseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL_LAN ||
-    process.env.NEXT_PUBLIC_API_BASE_URL;
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const [karyawanRes, deptRes, levelRes] = await Promise.all([
-        fetch(`${baseUrl}/api/karyawan`),
-        fetch(`${baseUrl}/api/departments`),
-        fetch(`${baseUrl}/api/level-jabatan`),
+        fetch(`${baseUrl}/karyawan`),
+        fetch(`${baseUrl}/departments`),
+        fetch(`${baseUrl}/level-jabatan`),
       ]);
 
       if (!karyawanRes.ok)
@@ -163,9 +158,7 @@ export default function EmployeeManagementPage() {
           `Gagal memuat data departemen (Status: ${deptRes.status})`
         );
       if (!levelRes.ok)
-        throw new Error(
-          `Gagal memuat data level (Status: ${levelRes.status})`
-        );
+        throw new Error(`Gagal memuat data level (Status: ${levelRes.status})`);
 
       const karyawanData = await karyawanRes.json();
       const deptData = await deptRes.json();
@@ -265,9 +258,7 @@ export default function EmployeeManagementPage() {
 
   const otherEmployees = useMemo(() => {
     return processedEmployees
-      .filter(
-        (emp) => emp.sipStatus === "safe" || emp.sipStatus === "none"
-      )
+      .filter((emp) => emp.sipStatus === "safe" || emp.sipStatus === "none")
       .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap));
   }, [processedEmployees]);
 
@@ -292,7 +283,7 @@ export default function EmployeeManagementPage() {
     if (!selectedEmployee) return;
     try {
       const response = await fetch(
-        `${baseUrl}/api/karyawan/${selectedEmployee.nip}`,
+        `${baseUrl}/karyawan/${selectedEmployee.nip}`,
         { method: "DELETE" }
       );
       if (!response.ok) throw new Error("Gagal menghapus data pegawai.");
@@ -322,16 +313,17 @@ export default function EmployeeManagementPage() {
         none: "bg-white hover:bg-slate-50",
       }[employee.sipStatus!];
       return (
-        <tr key={employee.nip} className={`${rowClass} border-b border-slate-300 last:border-b-0`}>
+        <tr
+          key={employee.nip}
+          className={`${rowClass} border-b border-slate-300 last:border-b-0`}
+        >
           <td className="px-6 py-4">
             <div className="flex items-center gap-3">
               <div>
                 <p className="font-medium text-slate-900">
                   {employee.nama_lengkap}
                 </p>
-                <p className="text-xs text-slate-500">
-                  NIP: {employee.nip}
-                </p>
+                <p className="text-xs text-slate-500">NIP: {employee.nip}</p>
               </div>
               {employee.sipStatus === "expired" && (
                 <span className="px-2 py-0.5 text-xs font-semibold text-red-800 bg-red-200 rounded-full">
@@ -355,22 +347,31 @@ export default function EmployeeManagementPage() {
               onClick={() => handleOpenDetailModal(employee)}
               className="text-slate-500 hover:text-primary"
               title="Lihat Detail"
-            > <Eye size={18} /> </button>
+            >
+              {" "}
+              <Eye size={18} />{" "}
+            </button>
             <Link
               href={`/admin/pegawai/edit/${employee.nip}`}
               className="text-blue-600 hover:text-blue-800"
               title="Edit"
-            > <Edit size={18} /> </Link>
+            >
+              {" "}
+              <Edit size={18} />{" "}
+            </Link>
             <button
               onClick={() => handleOpenDeleteModal(employee)}
               className="text-red-600 hover:text-red-800"
               title="Hapus"
-            > <Trash2 size={18} /> </button>
+            >
+              {" "}
+              <Trash2 size={18} />{" "}
+            </button>
           </td>
         </tr>
       );
     });
-  }
+  };
 
   return (
     <div className="p-8">
@@ -389,19 +390,84 @@ export default function EmployeeManagementPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="relative lg:col-span-1">
-          <input type="text" placeholder="Cari NIP atau Nama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border rounded-lg" />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <input
+            type="text"
+            placeholder="Cari NIP atau Nama..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border rounded-lg"
+          />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            size={20}
+          />
         </div>
-        <div> {isClient ? (<SearchableSelect options={[{ value: "all", label: "Semua Departemen" }, ...departments.map((d) => ({ value: d.id, label: d.nama_departemen, })),]} value={selectedDept} onChange={setSelectedDept} placeholder="Filter departemen..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
-        <div> {isClient ? (<SearchableSelect options={[{ value: "all", label: "Semua Level" }, ...levels.map((l) => ({ value: l.id, label: l.nama_level })),]} value={selectedLevel} onChange={setSelectedLevel} placeholder="Filter level..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
-        <div> {isClient ? (<SearchableSelect options={genderOptions} value={selectedGender} onChange={setSelectedGender} placeholder="Filter jenis kelamin..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
-        <div> {isClient ? (<SearchableSelect options={statusOptions} value={selectedStatus} onChange={setSelectedStatus} placeholder="Filter status..." />) : (<div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>)}</div>
+        <div>
+          {" "}
+          {isClient ? (
+            <SearchableSelect
+              options={[
+                { value: "all", label: "Semua Departemen" },
+                ...departments.map((d) => ({
+                  value: d.id,
+                  label: d.nama_departemen,
+                })),
+              ]}
+              value={selectedDept}
+              onChange={setSelectedDept}
+              placeholder="Filter departemen..."
+            />
+          ) : (
+            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
+          )}
+        </div>
+        <div>
+          {" "}
+          {isClient ? (
+            <SearchableSelect
+              options={[
+                { value: "all", label: "Semua Level" },
+                ...levels.map((l) => ({ value: l.id, label: l.nama_level })),
+              ]}
+              value={selectedLevel}
+              onChange={setSelectedLevel}
+              placeholder="Filter level..."
+            />
+          ) : (
+            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
+          )}
+        </div>
+        <div>
+          {" "}
+          {isClient ? (
+            <SearchableSelect
+              options={genderOptions}
+              value={selectedGender}
+              onChange={setSelectedGender}
+              placeholder="Filter jenis kelamin..."
+            />
+          ) : (
+            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
+          )}
+        </div>
+        <div>
+          {" "}
+          {isClient ? (
+            <SearchableSelect
+              options={statusOptions}
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+              placeholder="Filter status..."
+            />
+          ) : (
+            <div className="w-full h-[42px] bg-slate-100 rounded-md animate-pulse"></div>
+          )}
+        </div>
       </div>
 
       {employeesWithSipIssues.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-red-600 mb-3 flex items-center gap-2">
-            <AlertTriangle size={20} />
             SIP Memerlukan Perhatian
           </h2>
           <div className="bg-white shadow-md rounded-lg overflow-hidden">
@@ -409,35 +475,60 @@ export default function EmployeeManagementPage() {
               <table className="w-full text-sm text-left text-slate-500">
                 <thead className="text-xs text-white uppercase bg-primary-dark">
                   <tr>
-                    <th scope="col" className="px-6 py-3">Nama Pegawai</th>
-                    <th scope="col" className="px-6 py-3">Profesi</th>
-                    <th scope="col" className="px-6 py-3">Departemen</th>
-                    <th scope="col" className="px-6 py-3">Status</th>
-                    <th scope="col" className="px-6 py-3 text-center">Aksi</th>
+                    <th scope="col" className="px-6 py-3">
+                      Nama Pegawai
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Profesi
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Departemen
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Status
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-center">
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
-                  {renderTableRows(employeesWithSipIssues)}
-                </tbody>
+                <tbody>{renderTableRows(employeesWithSipIssues)}</tbody>
               </table>
             </div>
           </div>
         </div>
       )}
 
+      <h2 className="text-xl font-semibold text-primary-dark py-4">
+        {employeesWithSipIssues.length > 0
+          ? "Daftar Pegawai Lainnya"
+          : "Daftar Pegawai"}
+      </h2>
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <h2 className="text-xl font-semibold text-primary-dark px-6 pt-4">
-          {employeesWithSipIssues.length > 0 ? "Daftar Pegawai Lainnya" : "Daftar Pegawai"}
-        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-500">
             <thead className="text-xs text-white uppercase bg-primary-dark">
               <tr>
-                <th scope="col" className="px-6 py-3"> Nama Pegawai </th>
-                <th scope="col" className="px-6 py-3"> Profesi </th>
-                <th scope="col" className="px-6 py-3"> Departemen </th>
-                <th scope="col" className="px-6 py-3"> Status </th>
-                <th scope="col" className="px-6 py-3 text-center"> Aksi </th>
+                <th scope="col" className="px-6 py-3">
+                  {" "}
+                  Nama Pegawai{" "}
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  {" "}
+                  Profesi{" "}
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  {" "}
+                  Departemen{" "}
+                </th>
+                <th scope="col" className="px-6 py-3">
+                  {" "}
+                  Status{" "}
+                </th>
+                <th scope="col" className="px-6 py-3 text-center">
+                  {" "}
+                  Aksi{" "}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -455,9 +546,10 @@ export default function EmployeeManagementPage() {
                   </td>
                 </tr>
               )}
-              {!isLoading && !error && currentItems.length > 0 &&
-                renderTableRows(currentItems)
-              }
+              {!isLoading &&
+                !error &&
+                currentItems.length > 0 &&
+                renderTableRows(currentItems)}
               {!isLoading && !error && currentItems.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center p-8">
@@ -505,12 +597,12 @@ export default function EmployeeManagementPage() {
                     <DetailRow label="Tanggal Lahir">
                       {selectedEmployee.tanggal_lahir
                         ? new Date(
-                          selectedEmployee.tanggal_lahir
-                        ).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })
+                            selectedEmployee.tanggal_lahir
+                          ).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
                         : "-"}
                     </DetailRow>
                     <DetailRow label="Alamat">
@@ -527,7 +619,9 @@ export default function EmployeeManagementPage() {
                 </h3>
                 <div className="mt-2 overflow-hidden border border-slate-200 rounded-lg">
                   <dl>
-                    <DetailRow label="Email">{selectedEmployee.email}</DetailRow>
+                    <DetailRow label="Email">
+                      {selectedEmployee.email}
+                    </DetailRow>
                     <DetailRow label="No. Handphone">
                       {selectedEmployee.handphone}
                     </DetailRow>
@@ -559,12 +653,12 @@ export default function EmployeeManagementPage() {
                     <DetailRow label="Tanggal Masuk">
                       {selectedEmployee.tanggal_masuk
                         ? new Date(
-                          selectedEmployee.tanggal_masuk
-                        ).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })
+                            selectedEmployee.tanggal_masuk
+                          ).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
                         : "-"}
                     </DetailRow>
                   </dl>
@@ -588,12 +682,12 @@ export default function EmployeeManagementPage() {
                         <span>
                           {selectedEmployee.masa_berlaku_sip
                             ? new Date(
-                              selectedEmployee.masa_berlaku_sip
-                            ).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })
+                                selectedEmployee.masa_berlaku_sip
+                              ).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })
                             : "-"}
                         </span>
                         {selectedEmployee.sipStatus === "expired" && (
@@ -646,4 +740,3 @@ export default function EmployeeManagementPage() {
     </div>
   );
 }
-
