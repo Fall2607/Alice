@@ -1,15 +1,100 @@
 // File: app/(admin)/admin/request-pegawai/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PlusCircle, CheckCircle, XCircle } from "lucide-react";
 import {
   jobRequests as initialRequests,
   JobRequest,
 } from "@/app/data/requests";
-import { departments } from "@/app/data/departements";
 import { jobPositions } from "@/app/data/careers";
 import Modal from "@/app/components/modal";
+import SearchableMultiSelect, {
+  MultiSelectOption,
+} from "@/app/components/admin/SearchableMultiSelect";
+import SearchableSelect from "@/app/components/admin/SearchableSelect";
+
+// Tipe data untuk kategori opsi MBTI
+type MbtiCategorizedOptions = {
+  interaction: MultiSelectOption[];
+  information: MultiSelectOption[];
+  decision: MultiSelectOption[];
+  workStyle: MultiSelectOption[];
+};
+
+// Tipe data untuk select biasa
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+// Opsi dikelompokkan berdasarkan kategori untuk 4 select terpisah
+const mbtiCategorizedOptions: MbtiCategorizedOptions = {
+  interaction: [
+    { value: "e1", label: "Supel, mudah bergaul", type: "E" },
+    { value: "e2", label: "Energik dan antusias", type: "E" },
+    { value: "e3", label: "Senang bekerja dalam tim", type: "E" },
+    { value: "e4", label: "Mudah mengutarakan pendapat", type: "E" },
+    { value: "e5", label: "Suka terjun langsung ke aktivitas", type: "E" },
+    { value: "i1", label: "Pendiam, fokus, observatif", type: "I" },
+    { value: "i2", label: "Lebih suka bekerja sendiri", type: "I" },
+    { value: "i3", label: "Berpikir matang sebelum bicara", type: "I" },
+    { value: "i4", label: "Mendalam dalam analisis", type: "I" },
+    { value: "i5", label: "Menyukai ruang kerja yang tenang", type: "I" },
+  ],
+  information: [
+    { value: "s1", label: "Detail-oriented dan teliti", type: "S" },
+    { value: "s2", label: "Praktis dan realistis", type: "S" },
+    { value: "s3", label: "Fokus pada fakta & pengalaman nyata", type: "S" },
+    { value: "s4", label: "Menyukai instruksi yang jelas", type: "S" },
+    { value: "s5", label: "Mengandalkan data & prosedur", type: "S" },
+    { value: "n1", label: "Visioner & penuh ide baru", type: "N" },
+    { value: "n2", label: "Kreatif & inovatif", type: "N" },
+    {
+      value: "n3",
+      label: "Senang berpikir konsep besar (big picture)",
+      type: "N",
+    },
+    { value: "n4", label: "Tertarik pada peluang masa depan", type: "N" },
+    { value: "n5", label: "Suka eksplorasi & mencoba hal baru", type: "N" },
+  ],
+  decision: [
+    { value: "t1", label: "Logis & analitis", type: "T" },
+    { value: "t2", label: "Objektif dalam mengambil keputusan", type: "T" },
+    { value: "t3", label: "Tegas dalam menyampaikan pendapat", type: "T" },
+    { value: "t4", label: "Berorientasi pada hasil", type: "T" },
+    {
+      value: "t5",
+      label: "Mementingkan keadilan daripada perasaan",
+      type: "T",
+    },
+    { value: "f1", label: "Empatik & peduli pada orang lain", type: "F" },
+    { value: "f2", label: "Harmonis & mengutamakan kerja sama", type: "F" },
+    { value: "f3", label: "Mudah memahami perasaan orang lain", type: "F" },
+    { value: "f4", label: "Ramah & suportif", type: "F" },
+    {
+      value: "f5",
+      label: "Berorientasi pada nilai dan hubungan baik",
+      type: "F",
+    },
+  ],
+  workStyle: [
+    { value: "j1", label: "Teratur & terstruktur", type: "J" },
+    { value: "j2", label: "Disiplin & tepat waktu", type: "J" },
+    { value: "j3", label: "Menyukai perencanaan yang jelas", type: "J" },
+    { value: "j4", label: "Fokus pada target & tenggat waktu", type: "J" },
+    {
+      value: "j5",
+      label: "Lebih suka kepastian daripada spontanitas",
+      type: "J",
+    },
+    { value: "p1", label: "Fleksibel & mudah beradaptasi", type: "P" },
+    { value: "p2", label: "Santai & tidak kaku", type: "P" },
+    { value: "p3", label: "Spontan & terbuka dengan perubahan", type: "P" },
+    { value: "p4", label: "Suka mencoba cara baru", type: "P" },
+    { value: "p5", label: "Lebih nyaman dengan kebebasan", type: "P" },
+  ],
+};
 
 export default function RequestPegawaiPage() {
   const [requests, setRequests] = useState(initialRequests);
@@ -17,16 +102,115 @@ export default function RequestPegawaiPage() {
     null
   );
 
-  // State untuk setiap modal
+  // State untuk modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+
+  // State untuk form tambah request
+  const [requestType, setRequestType] = useState<"penambahan" | "pergantian">(
+    "penambahan"
+  );
+  const [selectedPosition, setSelectedPosition] = useState<SelectOption | null>(
+    null
+  );
+
+  // State terpisah untuk setiap kategori MBTI
+  const [selectedInteraction, setSelectedInteraction] = useState<
+    MultiSelectOption[]
+  >([]);
+  const [selectedInformation, setSelectedInformation] = useState<
+    MultiSelectOption[]
+  >([]);
+  const [selectedDecision, setSelectedDecision] = useState<MultiSelectOption[]>(
+    []
+  );
+  const [selectedWorkStyle, setSelectedWorkStyle] = useState<
+    MultiSelectOption[]
+  >([]);
+
+  // Logika kompleks untuk menghitung 3 tipe MBTI teratas
+  const topMbtiResults = useMemo(() => {
+    const allSelectedTraits = [
+      ...selectedInteraction,
+      ...selectedInformation,
+      ...selectedDecision,
+      ...selectedWorkStyle,
+    ];
+
+    if (allSelectedTraits.length < 3) return [];
+
+    const counts = allSelectedTraits.reduce((acc, trait) => {
+      acc[trait.type] = (acc[trait.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const getTopTwo = (char1: string, char2: string) => {
+      const count1 = counts[char1] || 0;
+      const count2 = counts[char2] || 0;
+      if (count1 > count2) return [char1, char2];
+      if (count2 > count1) return [char2, char1];
+      return count1 > 0 ? [char1, char2] : [null, null]; // Jika sama atau 0
+    };
+
+    const d1 = getTopTwo("E", "I");
+    const d2 = getTopTwo("S", "N");
+    const d3 = getTopTwo("T", "F");
+    const d4 = getTopTwo("J", "P");
+
+    const combinations: string[] = [];
+    for (const c1 of d1) {
+      if (!c1) continue;
+      for (const c2 of d2) {
+        if (!c2) continue;
+        for (const c3 of d3) {
+          if (!c3) continue;
+          for (const c4 of d4) {
+            if (!c4) continue;
+            const combo = `${c1}${c2}${c3}${c4}`;
+            if (!combinations.includes(combo)) {
+              combinations.push(combo);
+            }
+          }
+        }
+      }
+    }
+
+    const sortedCombinations = combinations
+      .map((combo) => {
+        const score = combo
+          .split("")
+          .reduce((acc, char) => acc + (counts[char] || 0), 0);
+        return { combo, score };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    return sortedCombinations.slice(0, 3).map((item) => item.combo);
+  }, [
+    selectedInteraction,
+    selectedInformation,
+    selectedDecision,
+    selectedWorkStyle,
+  ]);
+
+  const positionOptions = useMemo(() => {
+    return Object.values(jobPositions)
+      .flat()
+      .map((p) => ({ value: p, label: p }));
+  }, []);
 
   const handleCloseModals = () => {
     setIsAddModalOpen(false);
     setIsApproveModalOpen(false);
     setIsRejectModalOpen(false);
     setSelectedRequest(null);
+    // Reset semua pilihan
+    setSelectedPosition(null);
+    setSelectedInteraction([]);
+    setSelectedInformation([]);
+    setSelectedDecision([]);
+    setSelectedWorkStyle([]);
+    setRequestType("penambahan");
   };
 
   const handleOpenApproveModal = (request: JobRequest) => {
@@ -41,9 +225,6 @@ export default function RequestPegawaiPage() {
 
   const handleApprove = () => {
     if (!selectedRequest) return;
-    console.log(
-      `Request ID ${selectedRequest.id} disetujui dan lowongan dibuat.`
-    );
     setRequests(
       requests.map((r) =>
         r.id === selectedRequest.id ? { ...r, status: "Disetujui" } : r
@@ -54,7 +235,6 @@ export default function RequestPegawaiPage() {
 
   const handleReject = () => {
     if (!selectedRequest) return;
-    console.log(`Request ID ${selectedRequest.id} ditolak.`);
     setRequests(
       requests.map((r) =>
         r.id === selectedRequest.id ? { ...r, status: "Ditolak" } : r
@@ -110,22 +290,28 @@ export default function RequestPegawaiPage() {
             <thead className="text-xs text-white uppercase bg-primary-dark">
               <tr>
                 <th scope="col" className="px-6 py-3">
-                  Posisi yang Diajukan
+                  {" "}
+                  Posisi yang Diajukan{" "}
                 </th>
                 <th scope="col" className="px-6 py-3">
-                  Requester
+                  {" "}
+                  Requester{" "}
                 </th>
                 <th scope="col" className="px-6 py-3">
-                  Tanggal
+                  {" "}
+                  Tanggal{" "}
                 </th>
                 <th scope="col" className="px-6 py-3">
-                  Urgensi
+                  {" "}
+                  Urgensi{" "}
                 </th>
                 <th scope="col" className="px-6 py-3">
-                  Status
+                  {" "}
+                  Status{" "}
                 </th>
                 <th scope="col" className="px-6 py-3 text-center">
-                  Aksi HC
+                  {" "}
+                  Aksi HC{" "}
                 </th>
               </tr>
             </thead>
@@ -141,7 +327,8 @@ export default function RequestPegawaiPage() {
                   >
                     {req.position}
                     <p className="font-normal text-slate-500">
-                      {req.quantity} orang
+                      {" "}
+                      {req.quantity} orang{" "}
                     </p>
                   </th>
                   <td className="px-6 py-4">
@@ -194,77 +381,183 @@ export default function RequestPegawaiPage() {
         </div>
       </div>
 
-      {/* Modal Tambah Request */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={handleCloseModals}
         title="Buat Request Pegawai Baru"
+        size="4xl"
       >
         <form>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Departemen
-              </label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                {departments.map((d) => (
-                  <option key={d.id}>{d.name}</option>
-                ))}
-              </select>
+          <div className="border-b pb-4 mb-4">
+            <h3 className="text-lg font-medium text-slate-800 mb-3">
+              Informasi Dasar
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {" "}
+                  Jenis Request{" "}
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="requestType"
+                      value="penambahan"
+                      checked={requestType === "penambahan"}
+                      onChange={(e) => setRequestType(e.target.value as any)}
+                    />{" "}
+                    Penambahan
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="requestType"
+                      value="pergantian"
+                      checked={requestType === "pergantian"}
+                      onChange={(e) => setRequestType(e.target.value as any)}
+                    />{" "}
+                    Pergantian
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {" "}
+                  Posisi Jabatan{" "}
+                </label>
+                <SearchableSelect
+                  options={positionOptions}
+                  value={selectedPosition}
+                  onChange={(option) =>
+                    setSelectedPosition(option as SelectOption | null)
+                  }
+                  placeholder="Pilih posisi jabatan..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {" "}
+                  Jumlah Dibutuhkan{" "}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  defaultValue="1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {" "}
+                  Tingkat Urgensi{" "}
+                </label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
+                  <option>Rendah</option>
+                  <option>Sedang</option>
+                  <option>Tinggi</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Posisi Jabatan
-              </label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                {Object.values(jobPositions)
-                  .flat()
-                  .map((p) => (
-                    <option key={p}>{p}</option>
-                  ))}
-              </select>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-medium text-slate-800 mb-3">
+              Preferensi Kepribadian (Pilih minimal 3 total)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Gaya Interaksi
+                  </label>
+                  <SearchableMultiSelect
+                    options={mbtiCategorizedOptions.interaction}
+                    value={selectedInteraction}
+                    onChange={setSelectedInteraction}
+                    placeholder="Pilih..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pendekatan Pengambilan Keputusan
+                  </label>
+                  <SearchableMultiSelect
+                    options={mbtiCategorizedOptions.decision}
+                    value={selectedDecision}
+                    onChange={setSelectedDecision}
+                    placeholder="Pilih..."
+                  />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cara Mengolah Informasi
+                  </label>
+                  <SearchableMultiSelect
+                    options={mbtiCategorizedOptions.information}
+                    value={selectedInformation}
+                    onChange={setSelectedInformation}
+                    placeholder="Pilih..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Gaya Bekerja & Pengaturan Waktu
+                  </label>
+                  <SearchableMultiSelect
+                    options={mbtiCategorizedOptions.workStyle}
+                    value={selectedWorkStyle}
+                    onChange={setSelectedWorkStyle}
+                    placeholder="Pilih..."
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Jumlah Dibutuhkan
-              </label>
-              <input
-                type="number"
-                min="1"
-                defaultValue="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tingkat Urgensi
-              </label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                <option>Rendah</option>
-                <option>Sedang</option>
-                <option>Tinggi</option>
-              </select>
+            <div className="mt-6">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-slate-700 text-center">
+                  Tipe Kepribadian yang disarankan (Top 3):
+                  {[
+                    ...selectedInteraction,
+                    ...selectedInformation,
+                    ...selectedDecision,
+                    ...selectedWorkStyle,
+                  ].length < 3 ? (
+                    <span className="ml-2 text-slate-500 italic">
+                      Pilih minimal 3 total karakteristik.
+                    </span>
+                  ) : (
+                    <strong className="ml-2 text-blue-700 text-base tracking-widest">
+                      {topMbtiResults.join(", ")}
+                    </strong>
+                  )}
+                </p>
+              </div>
             </div>
           </div>
           <div className="mt-6 flex justify-end gap-4">
             <button
               type="button"
               onClick={handleCloseModals}
-              className="rounded-full bg-slate-200 px-4 py-2 text-sm"
+              className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
             >
-              Batal
+              {" "}
+              Batal{" "}
             </button>
             <button
               type="submit"
-              className="rounded-full bg-primary px-4 py-2 text-sm text-white"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
             >
-              Kirim Request
+              {" "}
+              Kirim Request{" "}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* Modal Setujui Request */}
+      {/* Modal Setujui Request & Tolak */}
       <Modal
         isOpen={isApproveModalOpen}
         onClose={handleCloseModals}
@@ -275,13 +568,16 @@ export default function RequestPegawaiPage() {
             <div className="space-y-2 text-sm text-slate-600 border-b pb-4 mb-4">
               <p>Anda akan menyetujui permintaan penambahan pegawai untuk:</p>
               <p>
-                <strong>Posisi:</strong> {selectedRequest.position}
+                {" "}
+                <strong>Posisi:</strong> {selectedRequest.position}{" "}
               </p>
               <p>
-                <strong>Jumlah:</strong> {selectedRequest.quantity} orang
+                {" "}
+                <strong>Jumlah:</strong> {selectedRequest.quantity} orang{" "}
               </p>
               <p>
-                <strong>Departemen:</strong> {selectedRequest.department}
+                {" "}
+                <strong>Departemen:</strong> {selectedRequest.department}{" "}
               </p>
             </div>
             <p className="text-slate-600">
@@ -291,42 +587,46 @@ export default function RequestPegawaiPage() {
             <div className="mt-6 flex justify-end gap-4">
               <button
                 onClick={handleCloseModals}
-                className="rounded-full bg-slate-200 px-4 py-2 text-sm"
+                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
               >
-                Batal
+                {" "}
+                Batal{" "}
               </button>
               <button
                 onClick={handleApprove}
-                className="rounded-full bg-green-600 px-4 py-2 text-sm text-white"
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
               >
-                Ya, Setujui & Buat Lowongan
+                {" "}
+                Ya, Setujui & Buat Lowongan{" "}
               </button>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Modal Tolak Request */}
       <Modal
         isOpen={isRejectModalOpen}
         onClose={handleCloseModals}
         title="Tolak Request"
       >
         <p className="text-slate-600">
-          Apakah Anda yakin ingin menolak request ini?
+          {" "}
+          Apakah Anda yakin ingin menolak request ini?{" "}
         </p>
         <div className="mt-6 flex justify-end gap-4">
           <button
             onClick={handleCloseModals}
-            className="rounded-full bg-slate-200 px-4 py-2 text-sm"
+            className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
           >
-            Batal
+            {" "}
+            Batal{" "}
           </button>
           <button
             onClick={handleReject}
-            className="rounded-full bg-red-600 px-4 py-2 text-sm text-white"
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
           >
-            Ya, Tolak
+            {" "}
+            Ya, Tolak{" "}
           </button>
         </div>
       </Modal>
