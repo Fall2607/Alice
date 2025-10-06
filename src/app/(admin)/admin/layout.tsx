@@ -1,11 +1,12 @@
 // File: app/(admin)/admin/layout.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from 'next/navigation';
 import Sidebar from "@/app/components/admin/Sidebar";
 import HeaderAdmin from "@/app/components/admin/HeaderAdmin";
 import { Loader2 } from "lucide-react";
+import { showInfoToast } from "@/app/components/admin/Alert"; // Asumsi Anda punya fungsi ini
 
 // Tipe data untuk user yang login
 interface LoggedInUser {
@@ -19,45 +20,76 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  // State untuk menandakan proses verifikasi token sedang berjalan
   const [isVerifying, setIsVerifying] = useState(true);
-  // State untuk menyimpan data user yang login
   const [user, setUser] = useState<LoggedInUser | null>(null);
-
-  // State untuk tampilan UI (sidebar, modal)
+  
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
+  // --- LOGIKA LOGOUT OTOMATIS ---
+
+  // Fungsi untuk melakukan logout
+  const handleLogout = useCallback(() => {
+    // Hapus data sesi dari localStorage
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    
+    // Beri notifikasi (opsional)
+    // Anda bisa membuat fungsi showInfoToast di komponen Alert Anda
+    // showInfoToast("Sesi Anda telah berakhir karena tidak aktif.");
+
+    // Arahkan ke halaman login
+    router.push('/login');
+  }, [router]);
+
+
   useEffect(() => {
-    // 1. Ambil token dan data user dari localStorage
-    const token = localStorage.getItem("authToken");
-    const userDataString = localStorage.getItem("user");
+    // 1. Verifikasi token saat komponen dimuat
+    const token = localStorage.getItem('authToken');
+    const userDataString = localStorage.getItem('user');
 
     if (!token || !userDataString) {
-      // 2. Jika salah satu tidak ada, alihkan ke halaman login
-      router.push("/login");
+      router.push('/login');
     } else {
       try {
-        // 3. Parse data user dari string JSON
         const userData = JSON.parse(userDataString);
         setUser(userData);
+        setIsVerifying(false);
       } catch (error) {
-        // Jika data user tidak valid, hapus dan redirect
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("user");
-        router.push("/login");
-        return; // Hentikan eksekusi
+        handleLogout(); // Jika data user korup, logout saja
+        return;
       }
-      // 4. Proses verifikasi selesai
-      setIsVerifying(false);
     }
-  }, [router]);
+
+    // 2. Setup timer untuk inactivity logout
+    let inactivityTimer: NodeJS.Timeout;
+    const inactivityTimeoutDuration = 15 * 60 * 1000; // 15 menit
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(handleLogout, inactivityTimeoutDuration);
+    };
+
+    // Event listener untuk mendeteksi aktivitas pengguna
+    const events = ['mousemove', 'keydown', 'click', 'scroll'];
+    events.forEach(event => window.addEventListener(event, resetTimer));
+
+    // Inisialisasi timer saat komponen dimuat
+    resetTimer();
+
+    // Cleanup function: hapus event listener dan timer saat komponen di-unmount
+    return () => {
+      clearTimeout(inactivityTimer);
+      events.forEach(event => window.removeEventListener(event, resetTimer));
+    };
+
+  }, [router, handleLogout]);
+
 
   const toggleSidebar = () => setIsCollapsed(!isCollapsed);
   const openLogoutModal = () => setIsLogoutModalOpen(true);
   const closeLogoutModal = () => setIsLogoutModalOpen(false);
-
-  // Selama proses verifikasi, tampilkan layar loading
+  
   if (isVerifying) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-50">
@@ -66,7 +98,6 @@ export default function AdminLayout({
     );
   }
 
-  // Jika verifikasi berhasil, tampilkan layout admin yang sebenarnya
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar
@@ -74,16 +105,17 @@ export default function AdminLayout({
         openLogoutModal={openLogoutModal}
         isLogoutModalOpen={isLogoutModalOpen}
         closeLogoutModal={closeLogoutModal}
-        user={user} // Teruskan data user ke Sidebar
+        user={user}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <HeaderAdmin
           toggleSidebar={toggleSidebar}
           openLogoutModal={openLogoutModal}
-          user={user} // Teruskan data user ke HeaderAdmin
+          user={user}
         />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   );
 }
+

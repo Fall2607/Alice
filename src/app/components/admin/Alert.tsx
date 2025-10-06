@@ -1,34 +1,134 @@
-// File: app/components/admin/Alerts.ts
+// File: src/app/components/admin/Alert.tsx
 "use client";
 
-import Swal from 'sweetalert2';
+import toast, { Toaster, ToastBar } from 'react-hot-toast';
+import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 
-// Konfigurasi dasar untuk notifikasi toast (pop-up kecil)
-const Toast = Swal.mixin({
-    toast: true,
-    position: 'top-end',
-    showConfirmButton: false,
-    timer: 3000,
-    timerProgressBar: true,
-    didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer);
-        toast.addEventListener('mouseleave', Swal.resumeTimer);
-    }
-});
+// --- Fungsi untuk memicu notifikasi ---
 
-// Fungsi untuk menampilkan notifikasi toast sukses
+/**
+ * Menampilkan notifikasi toast sukses.
+ * @param message - Pesan yang akan ditampilkan.
+ */
 export const showSuccessToast = (message: string) => {
-    Toast.fire({
-        icon: 'success',
-        title: message
-    });
+  toast.custom(
+    (t) => (
+      <div
+        className={`${
+          t.visible ? 'animate-enter' : 'animate-leave'
+        } pointer-events-auto flex w-full max-w-sm items-center rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5`}
+      >
+        <div className="flex w-0 flex-1 items-center p-4">
+          <div className="flex-shrink-0 text-green-500">
+            <CheckCircle />
+          </div>
+          <div className="ml-3 flex-1">
+            <p className="text-sm font-medium text-slate-900">Berhasil!</p>
+            <p className="mt-1 text-sm text-slate-500">{message}</p>
+          </div>
+        </div>
+        <div className="flex border-l border-slate-200">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="flex w-full items-center justify-center rounded-none rounded-r-lg border border-transparent p-4 text-sm font-medium text-primary hover:text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    ),
+    { duration: 4000 }
+  );
 };
 
-// Fungsi untuk menampilkan notifikasi toast error
+/**
+ * Menampilkan notifikasi toast error.
+ * @param message - Pesan yang akan ditampilkan.
+ */
 export const showErrorToast = (message: string) => {
-    Toast.fire({
-        icon: 'error',
-        title: message
-    });
+  toast.custom(
+    (t) => (
+      <div
+        className={`${
+          t.visible ? 'animate-enter' : 'animate-leave'
+        } pointer-events-auto flex w-full max-w-sm items-center rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5`}
+      >
+        <div className="flex w-0 flex-1 items-center p-4">
+          <div className="flex-shrink-0 text-red-500">
+            <XCircle />
+          </div>
+          <div className="ml-3 flex-1">
+            <p className="text-sm font-medium text-slate-900">Gagal!</p>
+            <p className="mt-1 text-sm text-slate-500">{message}</p>
+          </div>
+        </div>
+        <div className="flex border-l border-slate-200">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="flex w-full items-center justify-center rounded-none rounded-r-lg border border-transparent p-4 text-sm font-medium text-primary hover:text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    ),
+    { duration: 6000 } // Error ditampilkan lebih lama
+  );
 };
 
+/**
+ * Menampilkan notifikasi toast informasi.
+ * @param message - Pesan yang akan ditampilkan.
+ */
+export const showInfoToast = (message: string) => {
+    toast.custom(
+      (t) => (
+        <div
+          className={`${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          } pointer-events-auto flex w-full max-w-sm items-center rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5`}
+        >
+          <div className="flex w-0 flex-1 items-center p-4">
+            <div className="flex-shrink-0 text-blue-500">
+              <Info />
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium text-slate-900">Informasi</p>
+              <p className="mt-1 text-sm text-slate-500">{message}</p>
+            </div>
+          </div>
+          <div className="flex border-l border-slate-200">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="flex w-full items-center justify-center rounded-none rounded-r-lg border border-transparent p-4 text-sm font-medium text-primary hover:text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: 4000 }
+    );
+  };
+
+/**
+ * Komponen Provider untuk Toaster.
+ * Komponen ini HARUS dipasang di layout utama aplikasi Anda (misal: layout.tsx terluar)
+ * agar notifikasi bisa muncul di halaman manapun.
+ */
+export function ToasterProvider() {
+  return (
+    <Toaster position="top-right" reverseOrder={false}>
+      {(t) => (
+        <ToastBar toast={t}>
+          {({ icon, message }) => (
+            <>
+              {icon}
+              {message}
+            </>
+          )}
+        </ToastBar>
+      )}
+    </Toaster>
+  );
+}
