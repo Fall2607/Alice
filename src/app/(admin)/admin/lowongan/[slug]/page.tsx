@@ -39,7 +39,7 @@ export default function DetailLowonganPage() {
 
     useEffect(() => {
         if (!slug) return;
-
+        
         const fetchData = async () => {
             setIsLoading(true);
             setError(null);
@@ -117,14 +117,14 @@ export default function DetailLowonganPage() {
                     <div>
                         <h2 className="text-xl font-semibold text-primary-dark border-b pb-2 mb-4">Deskripsi Pekerjaan</h2>
                         <div className="text-slate-600 text-sm leading-relaxed space-y-2">
-                            {/* API mengembalikan deskripsi_job sebagai array, jadi kita map */}
-                            {Array.isArray(job.deskripsi_job) ? job.deskripsi_job.map((p, i) => <p key={i}>{p}</p>) : <p>{job.deskripsi_job}</p>}
+                           {/* API mengembalikan deskripsi_job sebagai array, jadi kita map */}
+                           {Array.isArray(job.deskripsi_job) ? job.deskripsi_job.map((p, i) => <p key={i}>{p}</p>) : <p>{job.deskripsi_job}</p>}
                         </div>
                     </div>
                     <div>
                         <h2 className="text-xl font-semibold text-primary-dark border-b pb-2 mb-4">Kualifikasi</h2>
                         <ul className="list-disc list-inside space-y-2 text-slate-600 text-sm">
-                            {Array.isArray(job.kualifikasi_job) ? job.kualifikasi_job.map((q, i) => <li key={i}>{q}</li>) : <li>{job.kualifikasi_job}</li>}
+                           {Array.isArray(job.kualifikasi_job) ? job.kualifikasi_job.map((q, i) => <li key={i}>{q}</li>) : <li>{job.kualifikasi_job}</li>}
                         </ul>
                     </div>
                 </div>

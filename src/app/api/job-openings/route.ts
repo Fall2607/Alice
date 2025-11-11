@@ -6,8 +6,8 @@ import pool from "@/app/lib/db";
  * GET: Mengambil semua data lowongan pekerjaan yang ada.
  */
 export async function GET() {
-    try {
-        const result = await pool.query(`
+  try {
+    const result = await pool.query(`
       SELECT
         jo.id,
         jo.title,
@@ -19,9 +19,9 @@ export async function GET() {
       LEFT JOIN job j ON jo.job_id = j.id
       ORDER BY jo.created_at DESC;
     `);
-        return NextResponse.json(result.rows);
-    } catch (error) {
-        console.error("API Error - Gagal mengambil lowongan:", error);
-        return NextResponse.json({ message: "Gagal mengambil data lowongan" }, { status: 500 });
-    }
+    return NextResponse.json(result.rows);
+  } catch (error) {
+    console.error("API Error - Gagal mengambil lowongan:", error);
+    return NextResponse.json({ message: "Gagal mengambil data lowongan" }, { status: 500 });
+  }
 }

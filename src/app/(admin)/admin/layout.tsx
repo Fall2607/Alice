@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Sidebar from "@/app/components/admin/Sidebar";
 import HeaderAdmin from "@/app/components/admin/HeaderAdmin";
 import { Loader2 } from "lucide-react";
-import { showInfoToast } from "@/app/components/admin/Alert"; // Asumsi Anda punya fungsi ini
+import { showInfoToast } from "@/app/components/admin/Alert";
 
 // Tipe data untuk user yang login
 interface LoggedInUser {

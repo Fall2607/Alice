@@ -84,7 +84,8 @@ export async function PUT(
       return NextResponse.json({ message: `Request dengan ID ${id} tidak ditemukan.` }, { status: 404 });
     }
     return NextResponse.json(result.rows[0]);
-  } catch (error) {
+  } catch (error)
+ {
     console.error(`API Error - Gagal memperbarui request pegawai ID ${params.id}:`, error);
     const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
     return NextResponse.json({ message: "Gagal memperbarui request", error: errorMessage }, { status: 500 });
@@ -95,77 +96,82 @@ export async function PUT(
  * PATCH: Memperbarui status dan membuat lowongan jika disetujui.
  */
 export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+    request: NextRequest,
+    { params }: { params: { id: string } }
 ) {
-  const { id } = params;
-  const body = await request.json();
+    const { id } = params;
+    const body = await request.json();
 
-  // Untuk persetujuan, kita akan menggunakan transaksi
-  if (body.status === 'Disetujui') {
-    const client = await pool.connect();
-    try {
-      const { title, closing_date } = body;
-      if (!title) {
-        return NextResponse.json({ message: "Judul lowongan wajib diisi." }, { status: 400 });
-      }
+    // Untuk persetujuan, kita akan menggunakan transaksi
+    if (body.status === 'Disetujui') {
+        const client = await pool.connect();
+        try {
+            const { title, closing_date, opening_status } = body;
+            if (!title) {
+                return NextResponse.json({ message: "Judul lowongan wajib diisi." }, { status: 400 });
+            }
 
-      await client.query('BEGIN');
+            // Logika baru: Tentukan status & tanggal posting
+            // Default ke 'Published' jika tidak ada input (sesuai permintaan)
+            const finalStatus = opening_status || 'Published';
+            const postedDate = finalStatus === 'Published' ? new Date() : null;
 
-      // 1. Update status request
-      const updateResult = await client.query(
-        "UPDATE employee_requests SET status = 'Disetujui', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
-        [id]
-      );
-      if (updateResult.rows.length === 0) {
-        throw new Error(`Request dengan ID ${id} tidak ditemukan.`);
-      }
-      const approvedRequest = updateResult.rows[0];
+            await client.query('BEGIN');
 
-      // 2. Buat entri baru di job_openings
-      await client.query(
-        `INSERT INTO job_openings (request_id, job_id, title, status, closing_date)
-                 VALUES ($1, $2, $3, 'Draft', $4)`,
-        [id, approvedRequest.job_id, title, closing_date || null]
-      );
+            // 1. Update status request
+            const updateResult = await client.query(
+                "UPDATE employee_requests SET status = 'Disetujui', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
+                [id]
+            );
+            if (updateResult.rows.length === 0) {
+                throw new Error(`Request dengan ID ${id} tidak ditemukan.`);
+            }
+            const approvedRequest = updateResult.rows[0];
 
-      await client.query('COMMIT');
-      return NextResponse.json(approvedRequest);
+            // 2. Buat entri baru di job_openings dengan status dan posted_date yang dinamis
+            await client.query(
+                `INSERT INTO job_openings (request_id, job_id, title, status, closing_date, posted_date)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [id, approvedRequest.job_id, title, finalStatus, closing_date || null, postedDate]
+            );
+            
+            await client.query('COMMIT');
+            return NextResponse.json(approvedRequest);
 
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error(`API Error - Gagal menyetujui request ID ${id}:`, error);
-      const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
-      return NextResponse.json({ message: "Gagal menyetujui request", error: errorMessage }, { status: 500 });
-    } finally {
-      client.release();
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error(`API Error - Gagal menyetujui request ID ${id}:`, error);
+            const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
+            return NextResponse.json({ message: "Gagal menyetujui request", error: errorMessage }, { status: 500 });
+        } finally {
+            client.release();
+        }
+    } 
+    // Untuk penolakan atau update field lain, gunakan query sederhana
+    else {
+        const fieldsToUpdate = Object.keys(body);
+        if (fieldsToUpdate.length === 0) {
+            return NextResponse.json({ message: "Tidak ada data yang dikirim." }, { status: 400 });
+        }
+        const setQueryParts = fieldsToUpdate.map((field, i) => `${field} = $${i + 1}`);
+        const values = fieldsToUpdate.map(field => body[field]);
+        values.push(id);
+        
+        try {
+            const result = await pool.query(
+                `UPDATE employee_requests SET ${setQueryParts.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length} RETURNING *`,
+                values
+            );
+            if (result.rows.length === 0) {
+                return NextResponse.json({ message: `Request dengan ID ${id} tidak ditemukan.` }, { status: 404 });
+            }
+            return NextResponse.json(result.rows[0]);
+        } catch (error) {
+            console.error(`API Error - Gagal memperbarui request ID ${id}:`, error);
+            const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
+            return NextResponse.json({ message: "Gagal memperbarui request", error: errorMessage }, { status: 500 });
+        }
     }
-  }
-  // Untuk penolakan atau update field lain, gunakan query sederhana
-  else {
-    const fieldsToUpdate = Object.keys(body);
-    if (fieldsToUpdate.length === 0) {
-      return NextResponse.json({ message: "Tidak ada data yang dikirim." }, { status: 400 });
-    }
-    const setQueryParts = fieldsToUpdate.map((field, i) => `${field} = $${i + 1}`);
-    const values = fieldsToUpdate.map(field => body[field]);
-    values.push(id);
-
-    try {
-      const result = await pool.query(
-        `UPDATE employee_requests SET ${setQueryParts.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length} RETURNING *`,
-        values
-      );
-      if (result.rows.length === 0) {
-        return NextResponse.json({ message: `Request dengan ID ${id} tidak ditemukan.` }, { status: 404 });
-      }
-      return NextResponse.json(result.rows[0]);
-    } catch (error) {
-      console.error(`API Error - Gagal memperbarui request ID ${id}:`, error);
-      const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
-      return NextResponse.json({ message: "Gagal memperbarui request", error: errorMessage }, { status: 500 });
-    }
-  }
 }
 
 
@@ -176,19 +182,18 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const { id } = params;
-    const result = await pool.query("DELETE FROM employee_requests WHERE id = $1 RETURNING id", [id]);
+    try {
+        const { id } = params;
+        const result = await pool.query("DELETE FROM employee_requests WHERE id = $1 RETURNING id", [id]);
 
-    if (result.rowCount === 0) {
-      return NextResponse.json({ message: `Request dengan ID ${id} tidak ditemukan.` }, { status: 404 });
+        if (result.rowCount === 0) {
+            return NextResponse.json({ message: `Request dengan ID ${id} tidak ditemukan.` }, { status: 404 });
+        }
+
+        return NextResponse.json({ message: `Request dengan ID ${id} berhasil dihapus.` });
+    } catch (error) {
+        console.error(`API Error - Gagal menghapus request pegawai ID ${params.id}:`, error);
+        const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
+        return NextResponse.json({ message: "Gagal menghapus request", error: errorMessage }, { status: 500 });
     }
-
-    return NextResponse.json({ message: `Request dengan ID ${id} berhasil dihapus.` });
-  } catch (error) {
-    console.error(`API Error - Gagal menghapus request pegawai ID ${params.id}:`, error);
-    const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
-    return NextResponse.json({ message: "Gagal menghapus request", error: errorMessage }, { status: 500 });
-  }
 }
-
