@@ -1,90 +1,167 @@
-// File: app/components/CareerFilter.tsx
+// File: src/app/components/CareerFilter.tsx
 "use client";
 
-import { jobPositions } from "@/app/data/careers"; // Path diubah menjadi relatif
-import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { Search, Filter, X, CheckSquare, Square } from "lucide-react";
+import { useState, useMemo } from "react";
 
-interface CareerFilterProps {
-  onFilterChange: (filters: { category: string; positions: string[] }) => void;
+// Tipe data minimal yang dibutuhkan filter
+interface JobSimple {
+  id: number;
+  title: string;
+  category: string;
 }
 
-export default function CareerFilter({ onFilterChange }: CareerFilterProps) {
-  const [selectedCategory, setSelectedCategory] = useState("Medis");
-  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
+interface FilterState {
+  category: string;
+  positions: string[];
+}
 
-  const handlePositionChange = (position: string) => {
-    const newPositions = selectedPositions.includes(position)
-      ? selectedPositions.filter((p) => p !== position)
-      : [...selectedPositions, position];
-    setSelectedPositions(newPositions);
-    onFilterChange({ category: selectedCategory, positions: newPositions });
-  };
+interface CareerFilterProps {
+  currentFilters: FilterState;
+  onFilterChange: (filters: FilterState) => void;
+  jobs: JobSimple[]; // Data lowongan dari API untuk generate list posisi
+}
 
-  const handleCategoryChange = (category: "Medis" | "Non-Medis") => {
-    setSelectedCategory(category);
-    setSelectedPositions([]); // Reset pilihan posisi saat kategori berubah
+export default function CareerFilter({ currentFilters, onFilterChange, jobs }: CareerFilterProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Generate daftar posisi unik berdasarkan kategori yang dipilih
+  const availablePositions = useMemo(() => {
+    // 1. Filter jobs berdasarkan kategori aktif
+    const filteredByCategory = currentFilters.category === "Semua"
+      ? jobs
+      : jobs.filter(job => job.category === currentFilters.category);
+
+    // 2. Ambil judul unik saja
+    const uniqueTitles = Array.from(new Set(filteredByCategory.map(job => job.title)));
+
+    // 3. Urutkan abjad
+    return uniqueTitles.sort();
+  }, [jobs, currentFilters.category]);
+
+  // Filter list posisi berdasarkan search bar (pencarian lokal di dalam list)
+  const displayedPositions = availablePositions.filter(pos =>
+    pos.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleCategoryChange = (category: string) => {
+    // Reset pilihan posisi saat kategori berubah agar tidak rancu
     onFilterChange({ category, positions: [] });
   };
 
-  return (
-    <div className="bg-white rounded-lg shadow-lg p-6 h-fit">
-      <h3 className="text-xl font-bold text-primary-dark mb-4">
-        Filter Lowongan
-      </h3>
+  const handlePositionToggle = (position: string) => {
+    const currentPositions = currentFilters.positions;
+    const newPositions = currentPositions.includes(position)
+      ? currentPositions.filter(p => p !== position)
+      : [...currentPositions, position];
 
-      {/* Filter Kategori */}
-      <div className="mb-6">
-        <label className="block text-sm font-semibold text-slate-700 mb-2">
-          Jenis Pekerjaan
-        </label>
-        <div className="flex rounded-md shadow-sm">
-          <button
-            onClick={() => handleCategoryChange("Medis")}
-            className={`flex-1 px-4 py-2 text-sm rounded-l-md transition-colors ${
-              selectedCategory === "Medis"
-                ? "bg-primary text-white"
-                : "bg-slate-200 hover:bg-slate-300"
-            }`}
-          >
-            Medis
-          </button>
-          <button
-            onClick={() => handleCategoryChange("Non-Medis")}
-            className={`flex-1 px-4 py-2 text-sm rounded-r-md transition-colors ${
-              selectedCategory === "Non-Medis"
-                ? "bg-primary text-white"
-                : "bg-slate-200 hover:bg-slate-300"
-            }`}
-          >
-            Non-Medis
-          </button>
+    onFilterChange({ ...currentFilters, positions: newPositions });
+  };
+
+  const categories = [
+    { id: "Semua", label: "Semua" },
+    { id: "Medis", label: "Medis" },
+    { id: "Non-Medis", label: "Non-Medis" },
+  ];
+
+  return (
+    <div className="space-y-6">
+
+      {/* 1. Kategori Tabs */}
+      <div>
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Filter size={12} /> Kategori
+        </h4>
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => handleCategoryChange(cat.id)}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${currentFilters.category === cat.id
+                  ? "bg-white text-primary shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                }`}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Filter Posisi */}
+      {/* 2. Search & List Posisi */}
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-2">
-          List Pekerjaan
-        </label>
-        <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-          {(
-            jobPositions[selectedCategory as keyof typeof jobPositions] || []
-          ).map((position) => (
-            <label
-              key={position}
-              className="flex items-center space-x-3 cursor-pointer"
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          List Lowongan
+        </h4>
+
+        {/* Search Bar Kecil untuk filter list */}
+        <div className="relative mb-3">
+          <input
+            type="text"
+            placeholder="Cari di list..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-primary transition-colors bg-slate-50"
+          />
+          <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
             >
-              <input
-                type="checkbox"
-                checked={selectedPositions.includes(position)}
-                onChange={() => handlePositionChange(position)}
-                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <span className="text-slate-600">{position}</span>
-            </label>
-          ))}
+              <X size={14} />
+            </button>
+          )}
         </div>
+
+        {/* Scrollable Checkbox List */}
+        <div className="max-h-64 overflow-y-auto pr-1 space-y-1 custom-scrollbar">
+          {displayedPositions.length > 0 ? (
+            displayedPositions.map((pos) => {
+              const isSelected = currentFilters.positions.includes(pos);
+              return (
+                <label
+                  key={pos}
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors text-sm ${isSelected ? "bg-blue-50 text-primary font-medium" : "hover:bg-slate-50 text-slate-600"
+                    }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={isSelected}
+                    onChange={() => handlePositionToggle(pos)}
+                  />
+                  {/* Custom Checkbox UI */}
+                  {isSelected ? (
+                    <CheckSquare size={18} className="shrink-0 text-primary" />
+                  ) : (
+                    <Square size={18} className="shrink-0 text-slate-300" />
+                  )}
+                  <span className="line-clamp-2">{pos}</span>
+                </label>
+              );
+            })
+          ) : (
+            <div className="text-center py-4 text-xs text-slate-400 italic">
+              {jobs.length === 0 ? "Memuat data..." : "Tidak ada posisi ditemukan"}
+            </div>
+          )}
+        </div>
+
+        {/* Indikator jumlah terpilih */}
+        {currentFilters.positions.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center">
+            <span className="text-xs text-slate-500 font-medium">
+              {currentFilters.positions.length} dipilih
+            </span>
+            <button
+              onClick={() => onFilterChange({ ...currentFilters, positions: [] })}
+              className="text-xs text-red-500 hover:text-red-700 hover:underline"
+            >
+              Reset
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
