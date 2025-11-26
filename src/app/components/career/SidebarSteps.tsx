@@ -1,64 +1,84 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
 import React from "react";
+import { CheckCircle2, Circle } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 
-const steps = [
-  { id: 1, label: "Identitas", href: "" },
-  { id: 2, label: "Data Keluarga", href: "step2" },
-  { id: 3, label: "Pendidikan", href: "step3" },
-  { id: 4, label: "Pengalaman Kerja", href: "step4" },
-  { id: 5, label: "Dokumen", href: "step5" },
-  { id: 6, label: "Review & Submit", href: "step6" },
-];
+// Definisi tipe data untuk props yang diterima
+interface Step {
+  id: number;
+  label: string;
+  path: string;
+}
 
-export default function SidebarSteps() {
-  const pathname = usePathname() || "";
+interface SidebarStepsProps {
+  currentStep: number;
+  steps: Step[];
+}
+
+export default function SidebarSteps({ currentStep, steps }: SidebarStepsProps) {
   const params = useParams();
-  const base = `/karir/${params.slug}/apply`;
-  // current step detection
-  const cur = pathname.includes("/step6")
-    ? 6
-    : pathname.includes("/step5")
-    ? 5
-    : pathname.includes("/step4")
-    ? 4
-    : pathname.includes("/step3")
-    ? 3
-    : pathname.includes("/step2")
-    ? 2
-    : 1;
+  const slug = params?.slug as string;
 
   return (
-    <div className="sticky top-6">
-      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
-        <h4 className="text-sm font-semibold text-slate-700">Langkah</h4>
-        <div className="space-y-2">
-          {steps.map((s) => {
-            const active = s.id === cur;
-            const done = s.id < cur;
-            return (
-              <Link key={s.id} href={s.href ? `${base}/${s.href}` : base} className="block">
+    <nav aria-label="Progress" className="px-4 py-6">
+      <ol role="list" className="overflow-hidden">
+        {steps.map((step, stepIdx) => {
+          const isComplete = currentStep > step.id;
+          const isCurrent = currentStep === step.id;
+
+          return (
+            <li key={step.label} className={`relative ${stepIdx !== steps.length - 1 ? "pb-10" : ""}`}>
+              {/* Garis Penghubung (Vertical Line) */}
+              {stepIdx !== steps.length - 1 ? (
                 <div
-                  className={`flex items-center gap-3 p-2 rounded-lg ${
-                    active ? "bg-primary/10 border border-primary" : "hover:bg-slate-100"
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-                      done ? "bg-primary text-white" : active ? "bg-primary/20 text-primary" : "bg-slate-200 text-slate-400"
+                  className={`absolute top-4 left-4 -ml-px h-full w-0.5 transition-colors duration-300 ${isComplete ? "bg-primary" : "bg-slate-200"
                     }`}
+                  aria-hidden="true"
+                />
+              ) : null}
+
+              <Link
+                href={`/karir/${slug}/apply${step.path}`}
+                className="group relative flex items-start"
+              // Mencegah klik jika langkah tersebut belum tercapai (opsional, hapus pointer-events-none jika ingin bebas klik)
+              // className={`group relative flex items-start ${!isComplete && !isCurrent ? 'pointer-events-none' : ''}`} 
+              >
+                <span className="flex h-9 items-center">
+                  <span
+                    className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300 ${isComplete
+                      ? "bg-primary group-hover:bg-primary-dark"
+                      : isCurrent
+                        ? "border-2 border-primary bg-white shadow-[0_0_0_4px_rgba(var(--primary),0.1)]"
+                        : "border-2 border-slate-200 bg-white group-hover:border-slate-300"
+                      }`}
                   >
-                    {s.id}
-                  </div>
-                  <div className={`${active ? "text-slate-800 font-medium" : "text-slate-600"}`}>{s.label}</div>
-                </div>
+                    {isComplete ? (
+                      <CheckCircle2 className="h-5 w-5 text-white" />
+                    ) : isCurrent ? (
+                      <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                    ) : (
+                      <div className="h-2.5 w-2.5 rounded-full bg-slate-200 group-hover:bg-slate-300" />
+                    )}
+                  </span>
+                </span>
+                <span className="ml-4 flex min-w-0 flex-col pt-1.5">
+                  <span
+                    className={`text-sm font-bold tracking-wide transition-colors duration-200 ${isCurrent ? 'text-primary' : isComplete ? 'text-slate-700' : 'text-slate-400'
+                      }`}
+                  >
+                    {step.label}
+                  </span>
+                  {isCurrent && (
+                    <span className="text-xs text-slate-500 font-medium animate-in fade-in">Sedang diisi...</span>
+                  )}
+                </span>
               </Link>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
