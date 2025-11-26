@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Users, Phone, Briefcase, User, Plus, Trash2,
-  Heart, Link as LinkIcon, Search, ChevronDown, AlertTriangle, X, ArrowLeft, ArrowRight, CalendarDays
+  Heart, Link as LinkIcon, Search, ChevronDown, AlertCircle, ArrowRight, CalendarDays, ArrowLeft
 } from "lucide-react";
 import { useApply } from "../ApplyContext";
 
@@ -83,7 +83,7 @@ const SearchableSelect = ({
   );
 };
 
-// --- COMPONENT: INPUT FIELD (Reusable) ---
+// --- COMPONENT: INPUT FIELD ---
 const InputField = ({
   label, value, onChange, icon: Icon, placeholder, type = "text", required = false
 }: {
@@ -136,14 +136,6 @@ export default function Step2Page() {
     { value: "Perempuan", label: "Perempuan" }
   ];
 
-  // Handler Konfirmasi Hapus
-  const confirmDelete = () => {
-    if (deleteId) {
-      removeSibling(deleteId);
-      setDeleteId(null);
-    }
-  };
-
   return (
     <div className="animate-in fade-in slide-in-from-right-8 duration-500 relative">
       <div className="mb-8 border-b border-slate-100 pb-6">
@@ -188,33 +180,37 @@ export default function Step2Page() {
 
         {/* SECTION 2: SAUDARA KANDUNG */}
         <section>
-          <div className="flex justify-between items-center mb-5 sticky top-20 z-20 bg-white/90 backdrop-blur-sm py-2">
-            <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2 bg-primary/5 w-fit px-3 py-1 rounded-lg">
-              <Users size={14} /> Saudara Kandung
+          {/* FIXED STICKY HEADER: Desain Glass Pill & Posisi Aman dari Header Utama */}
+          <div className="flex justify-between items-center mb-6 sticky top-[150px] md:top-[140px] z-20 bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm transition-all">
+            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <div className="p-1.5 bg-slate-100 rounded-lg text-slate-600">
+                <Users size={16} />
+              </div>
+              Saudara Kandung
             </h3>
             <button
               onClick={addSibling}
               className="text-xs font-bold bg-slate-800 text-white px-4 py-2.5 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 shadow-lg shadow-slate-800/20 active:scale-95 group"
             >
-              <Plus size={16} className="group-hover:rotate-90 transition-transform" /> Tambah Data
+              <Plus size={16} className="group-hover:rotate-90 transition-transform" /> <span className="hidden sm:inline">Tambah Data</span><span className="sm:hidden">Tambah</span>
             </button>
           </div>
 
-          <div className="space-y-4" ref={siblingsListRef}>
+          <div className="space-y-4 px-1" ref={siblingsListRef}>
             {state.siblings.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-slate-100">
-                  <Users className="h-8 w-8 text-slate-300" />
+              <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50 hover:bg-slate-50 transition-colors group cursor-pointer" onClick={addSibling}>
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
+                  <Users className="h-8 w-8 text-slate-300 group-hover:text-slate-500 transition-colors" />
                 </div>
                 <p className="text-slate-500 text-sm font-medium">Belum ada data saudara ditambahkan.</p>
-                <p className="text-xs text-slate-400 mt-1">Tekan tombol "Tambah Data" di kanan atas jika Anda memiliki saudara.</p>
+                <p className="text-xs text-slate-400 mt-1">Klik tombol "Tambah" di atas untuk mengisi.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-5">
                 {state.siblings.map((s, index) => (
                   <div key={s.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-slate-300 transition-all relative group animate-in slide-in-from-bottom-2 duration-300">
 
-                    {/* TOMBOL HAPUS (Memanggil Modal) */}
+                    {/* TOMBOL HAPUS (Mobile Friendly) */}
                     <div className="absolute top-4 right-4 z-10">
                       <button
                         onClick={() => setDeleteId(s.id)}
@@ -226,7 +222,8 @@ export default function Step2Page() {
                     </div>
 
                     <h4 className="text-xs font-extrabold text-slate-400 uppercase mb-4 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-slate-300"></span> Saudara ke-{index + 1}
+                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-[10px]">{index + 1}</span>
+                      Saudara
                     </h4>
 
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -255,15 +252,15 @@ export default function Step2Page() {
 
         {/* MODAL KONFIRMASI HAPUS */}
         {deleteId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full transform scale-100 animate-in zoom-in-95 duration-200">
               <div className="flex flex-col items-center text-center">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                  <AlertTriangle className="text-red-600" size={24} />
+                  <AlertCircle className="text-red-600" size={24} />
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 mb-2">Hapus Data?</h3>
                 <p className="text-slate-500 text-sm mb-6">
-                  Apakah Anda yakin ingin menghapus data saudara ini? Tindakan ini tidak dapat dibatalkan.
+                  Yakin ingin menghapus data saudara ini?
                 </p>
                 <div className="flex gap-3 w-full">
                   <button
@@ -273,7 +270,7 @@ export default function Step2Page() {
                     Batal
                   </button>
                   <button
-                    onClick={confirmDelete}
+                    onClick={() => { if (deleteId) { removeSibling(deleteId); setDeleteId(null); } }}
                     className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20"
                   >
                     Ya, Hapus

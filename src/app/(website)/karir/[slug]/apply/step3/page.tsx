@@ -90,13 +90,8 @@ export default function Step3Page() {
 
         {/* --- SECTION 1: PENDIDIKAN FORMAL --- */}
         <section>
-          {/* STICKY HEADER DESIGN BARU: 
-               - Rounded-2xl agar tidak kotak kaku
-               - Shadow-sm dan border tipis agar terlihat mengambang
-               - Backdrop-blur agar transparan tapi tetap terbaca
-               - Top offset disesuaikan agar tidak tertutup header utama
-            */}
-          <div className="flex justify-between items-center mb-6 sticky top-[110px] md:top-[140px] z-20 bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm transition-all">
+          {/* UPDATE POSISI STICKY: top-[180px] md:top-[200px] untuk menghindari tertutup header utama */}
+          <div className="flex justify-between items-center mb-6 sticky top-[150px] md:top-[140px] z-20 bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm transition-all">
             <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wider flex items-center gap-2">
               <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600">
                 <School size={16} />
@@ -124,7 +119,7 @@ export default function Step3Page() {
               state.educationFormal.map((edu, index) => (
                 <div key={edu.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all relative group animate-in slide-in-from-bottom-2 duration-300">
 
-                  {/* Tombol Hapus (Mobile Friendly) */}
+                  {/* Tombol Hapus */}
                   <div className="absolute top-4 right-4 z-10">
                     <button
                       onClick={() => setDeleteFormalId(edu.id)}
@@ -141,7 +136,6 @@ export default function Step3Page() {
                   </h4>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
-                    {/* Nama Sekolah - 6 Kolom */}
                     <div className="lg:col-span-6">
                       <InputField
                         label="Nama Sekolah / Universitas"
@@ -151,8 +145,6 @@ export default function Step3Page() {
                         icon={School}
                       />
                     </div>
-
-                    {/* Tahun Masuk - 3 Kolom */}
                     <div className="lg:col-span-3">
                       <InputField
                         label="Thn Masuk"
@@ -162,8 +154,6 @@ export default function Step3Page() {
                         type="number"
                       />
                     </div>
-
-                    {/* Tahun Keluar - 3 Kolom */}
                     <div className="lg:col-span-3">
                       <InputField
                         label="Thn Lulus"
@@ -173,8 +163,6 @@ export default function Step3Page() {
                         type="number"
                       />
                     </div>
-
-                    {/* No Ijazah - Full Width */}
                     <div className="lg:col-span-12 border-t border-slate-50 pt-2 mt-1">
                       <InputField
                         label="Nomor Ijazah"
@@ -193,8 +181,8 @@ export default function Step3Page() {
 
         {/* --- SECTION 2: PENDIDIKAN NON-FORMAL --- */}
         <section>
-          {/* STICKY HEADER DESAIN BARU */}
-          <div className="flex justify-between items-center mb-6 sticky top-[110px] md:top-[140px] z-20 bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm transition-all">
+          {/* UPDATE POSISI STICKY JUGA DI SINI */}
+          <div className="flex justify-between items-center mb-6 sticky top-[150px] md:top-[140px] z-20 bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm transition-all">
             <h3 className="text-sm font-bold text-green-700 uppercase tracking-wider flex items-center gap-2">
               <div className="p-1.5 bg-green-100 rounded-lg text-green-600">
                 <BookOpen size={16} />
@@ -218,7 +206,7 @@ export default function Step3Page() {
               state.educationNonFormal.map((edu, index) => (
                 <div key={edu.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-green-200 transition-all relative group animate-in slide-in-from-bottom-2 duration-300">
 
-                  {/* Tombol Hapus (Mobile Friendly) */}
+                  {/* Tombol Hapus */}
                   <div className="absolute top-4 right-4 z-10">
                     <button
                       onClick={() => setDeleteNonFormalId(edu.id)}
