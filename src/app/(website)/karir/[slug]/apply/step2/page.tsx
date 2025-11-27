@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Users, Phone, Briefcase, User, Plus, Trash2,
-  Heart, Link as LinkIcon, Search, ChevronDown, AlertCircle, ArrowRight, CalendarDays, ArrowLeft
+  Heart, Link as LinkIcon, Search, ChevronDown, AlertCircle, ArrowRight, CalendarDays, ArrowLeft, Users2
 } from "lucide-react";
 import { useApply } from "../ApplyContext";
 
@@ -157,7 +157,7 @@ export default function Step2Page() {
             {/* Ayah */}
             <div className="space-y-4 bg-blue-50/50 p-6 rounded-2xl border border-blue-100 hover:border-blue-200 transition-all">
               <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-2">
-                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shadow-sm">AYAH</span>
+                <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shadow-sm"><Users2 size={17}></Users2></span>
                 Ayah Kandung
               </h4>
               <InputField label="Nama Lengkap" value={state.identity.fatherName} onChange={(e) => setIdentityField("fatherName", e.target.value)} icon={User} placeholder="Nama Ayah" />
@@ -168,7 +168,7 @@ export default function Step2Page() {
             {/* Ibu */}
             <div className="space-y-4 bg-pink-50/50 p-6 rounded-2xl border border-pink-100 hover:border-pink-200 transition-all">
               <h4 className="font-bold text-slate-700 flex items-center gap-2 mb-2">
-                <span className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold shadow-sm">IBU</span>
+                <span className="w-8 h-8 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold shadow-sm"><Users2 size={17}></Users2></span>
                 Ibu Kandung
               </h4>
               <InputField label="Nama Lengkap" value={state.identity.motherName} onChange={(e) => setIdentityField("motherName", e.target.value)} icon={User} placeholder="Nama Ibu" />
