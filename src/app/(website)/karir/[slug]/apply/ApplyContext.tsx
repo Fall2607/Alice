@@ -1,8 +1,10 @@
+// File: src/app/karir/[slug]/apply/ApplyContext.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-type Sibling = {
+// --- TYPES ---
+export type Sibling = {
   id: string;
   name: string;
   gender: string;
@@ -11,15 +13,16 @@ type Sibling = {
   job: string;
 };
 
-type EducationItem = {
+export type EducationItem = {
   id: string;
   school: string;
   yearFrom: string;
   yearTo: string;
   certificateNo: string;
+  ipk?: string; // Optional IPK
 };
 
-type ExperienceItem = {
+export type ExperienceItem = {
   id: string;
   company: string;
   position: string;
@@ -30,10 +33,18 @@ type ExperienceItem = {
   reasonLeave: string;
 };
 
-type Documents = Record<
-  "cv" | "photo" | "ktp" | "ijazah" | "kk" | "str" | "transkrip",
+// Tipe Dokumen Utama
+export type Documents = Record<
+  "cv" | "photo" | "ktp" | "ijazah" | "kk" | "str" | "transkrip" | "paklaring",
   File | null
 >;
+
+// NEW: Tipe Dokumen Tambahan (Dinamis)
+export type OtherDocumentItem = {
+    id: string;
+    name: string; 
+    file: File | null;
+};
 
 type ApplyState = {
   identity: Record<string, any>;
@@ -42,196 +53,141 @@ type ApplyState = {
   educationNonFormal: EducationItem[];
   experiences: ExperienceItem[];
   documents: Documents;
+  otherDocuments: OtherDocumentItem[]; // Menambahkan state ini
 };
 
 type ApplyContextType = {
   state: ApplyState;
   setIdentityField: (name: string, value: any) => void;
-  // siblings
+  
+  // Siblings
   addSibling: () => void;
   updateSibling: (id: string, data: Partial<Sibling>) => void;
   removeSibling: (id: string) => void;
-  // education
+  
+  // Education
   addEducationFormal: () => void;
   updateEducationFormal: (id: string, data: Partial<EducationItem>) => void;
   removeEducationFormal: (id: string) => void;
   addEducationNonFormal: () => void;
   updateEducationNonFormal: (id: string, data: Partial<EducationItem>) => void;
   removeEducationNonFormal: (id: string) => void;
-  // experiences
+  
+  // Experience
   addExperience: () => void;
   updateExperience: (id: string, data: Partial<ExperienceItem>) => void;
   removeExperience: (id: string) => void;
-  // documents
+  
+  // Documents
   setDocumentFile: (key: keyof Documents, file: File | null) => void;
-  // utilities
+  
+  // NEW: Other Documents Actions
+  addOtherDocument: () => void;
+  updateOtherDocument: (id: string, data: Partial<OtherDocumentItem>) => void;
+  removeOtherDocument: (id: string) => void;
+
   resetAll: () => void;
 };
 
 const defaultDocuments: Documents = {
-  cv: null,
-  photo: null,
-  ktp: null,
-  ijazah: null,
-  kk: null,
-  str: null,
-  transkrip: null,
+  cv: null, photo: null, ktp: null, ijazah: null, kk: null, str: null, transkrip: null, paklaring: null
 };
 
-const makeId = (p = "") =>
-  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}${p}`;
+const makeId = (p = "") => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}${p}`;
 
 const initialState: ApplyState = {
   identity: {
-    fullName: "",
-    email: "",
-    whatsapp: "",
-    birthPlace: "",
-    birthDate: "",
-    ethnicity: "",
-    religion: "",
-    ktp: "",
-    address: "",
-    maritalStatus: "",
-    spouseName: "",
-    spouseBirthPlace: "",
-    spouseBirthDate: "",
-    childrenCount: "",
-    spousePhone: "",
-    fatherName: "",
-    fatherJob: "",
-    fatherPhone: "",
-    motherName: "",
-    motherJob: "",
-    motherPhone: "",
+    fullName: "", email: "", whatsapp: "", birthPlace: "", birthDate: "", ethnicity: "", religion: "", ktp: "", address: "", maritalStatus: "",
+    spouseName: "", spouseBirthPlace: "", spouseBirthDate: "", childrenCount: "", spousePhone: "",
+    fatherName: "", fatherJob: "", fatherPhone: "", motherName: "", motherJob: "", motherPhone: "",
   },
   siblings: [],
   educationFormal: [],
   educationNonFormal: [],
   experiences: [],
   documents: defaultDocuments,
+  otherDocuments: [], // Inisialisasi array kosong agar tidak undefined
 };
 
-const STORAGE_KEY = "apply_form_v1";
+const STORAGE_KEY = "apply_form_v2";
 
 const ApplyContext = createContext<ApplyContextType | undefined>(undefined);
 
 export const ApplyProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, setState] = useState<ApplyState>(initialState);
 
-  // load from localStorage
+  // Load state from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        // documents can't be restored; keep as nulls
+        // Pastikan structure documents & otherDocuments ada meskipun dari storage lama
         parsed.documents = defaultDocuments;
+        parsed.otherDocuments = parsed.otherDocuments || []; 
         setState((s) => ({ ...s, ...parsed }));
       }
-    } catch (e) {
-      console.warn("Failed to load apply state", e);
-    }
+    } catch (e) { console.warn(e); }
   }, []);
 
-  // persist
+  // Save state to localStorage
   useEffect(() => {
     try {
       const toStore = { ...state };
-      // remove File objects before storing
-      toStore.documents = Object.fromEntries(
-        Object.entries(toStore.documents).map(([k]) => [k, null])
-      ) as Documents;
+      toStore.documents = Object.fromEntries(Object.keys(defaultDocuments).map(k => [k, null])) as Documents;
+      toStore.otherDocuments = []; // File tidak bisa disimpan di storage
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
-    } catch (e) {
-      console.warn("Failed to save apply state", e);
-    }
+    } catch (e) { console.warn(e); }
   }, [state]);
 
   const setIdentityField = (name: string, value: any) => {
     setState((s) => ({ ...s, identity: { ...s.identity, [name]: value } }));
   };
 
-  // siblings
-  const addSibling = () =>
-    setState((s) => ({
-      ...s,
-      siblings: [
-        ...s.siblings,
-        { id: makeId("sib"), name: "", gender: "", age: "", relation: "", job: "" },
-      ],
-    }));
-  const updateSibling = (id: string, data: Partial<Sibling>) =>
-    setState((s) => ({ ...s, siblings: s.siblings.map((it) => (it.id === id ? { ...it, ...data } : it)) }));
-  const removeSibling = (id: string) => setState((s) => ({ ...s, siblings: s.siblings.filter((it) => it.id !== id) }));
+  // --- ACTIONS ---
+  const addSibling = () => setState(s => ({ ...s, siblings: [...s.siblings, { id: makeId("sib"), name: "", gender: "", age: "", relation: "", job: "" }] }));
+  const updateSibling = (id: string, data: Partial<Sibling>) => setState(s => ({ ...s, siblings: s.siblings.map(it => it.id === id ? { ...it, ...data } : it) }));
+  const removeSibling = (id: string) => setState(s => ({ ...s, siblings: s.siblings.filter(it => it.id !== id) }));
 
-  // education formal
-  const addEducationFormal = () =>
-    setState((s) => ({
-      ...s,
-      educationFormal: [...s.educationFormal, { id: makeId("eduF"), school: "", yearFrom: "", yearTo: "", certificateNo: "" }],
-    }));
-  const updateEducationFormal = (id: string, data: Partial<EducationItem>) =>
-    setState((s) => ({ ...s, educationFormal: s.educationFormal.map((it) => (it.id === id ? { ...it, ...data } : it)) }));
-  const removeEducationFormal = (id: string) =>
-    setState((s) => ({ ...s, educationFormal: s.educationFormal.filter((it) => it.id !== id) }));
+  const addEducationFormal = () => setState(s => ({ ...s, educationFormal: [...s.educationFormal, { id: makeId("eduF"), school: "", yearFrom: "", yearTo: "", certificateNo: "", ipk: "" }] }));
+  const updateEducationFormal = (id: string, data: Partial<EducationItem>) => setState(s => ({ ...s, educationFormal: s.educationFormal.map(it => it.id === id ? { ...it, ...data } : it) }));
+  const removeEducationFormal = (id: string) => setState(s => ({ ...s, educationFormal: s.educationFormal.filter(it => it.id !== id) }));
 
-  // education non formal
-  const addEducationNonFormal = () =>
-    setState((s) => ({
-      ...s,
-      educationNonFormal: [...s.educationNonFormal, { id: makeId("eduN"), school: "", yearFrom: "", yearTo: "", certificateNo: "" }],
-    }));
-  const updateEducationNonFormal = (id: string, data: Partial<EducationItem>) =>
-    setState((s) => ({ ...s, educationNonFormal: s.educationNonFormal.map((it) => (it.id === id ? { ...it, ...data } : it)) }));
-  const removeEducationNonFormal = (id: string) =>
-    setState((s) => ({ ...s, educationNonFormal: s.educationNonFormal.filter((it) => it.id !== id) }));
+  const addEducationNonFormal = () => setState(s => ({ ...s, educationNonFormal: [...s.educationNonFormal, { id: makeId("eduN"), school: "", yearFrom: "", yearTo: "", certificateNo: "" }] }));
+  const updateEducationNonFormal = (id: string, data: Partial<EducationItem>) => setState(s => ({ ...s, educationNonFormal: s.educationNonFormal.map(it => it.id === id ? { ...it, ...data } : it) }));
+  const removeEducationNonFormal = (id: string) => setState(s => ({ ...s, educationNonFormal: s.educationNonFormal.filter(it => it.id !== id) }));
 
-  // experiences
-  const addExperience = () =>
-    setState((s) => ({
-      ...s,
-      experiences: [...s.experiences, { id: makeId("exp"), company: "", position: "", place: "", duration: "", fromYear: "", toYear: "", reasonLeave: "" }],
-    }));
-  const updateExperience = (id: string, data: Partial<ExperienceItem>) =>
-    setState((s) => ({ ...s, experiences: s.experiences.map((it) => (it.id === id ? { ...it, ...data } : it)) }));
-  const removeExperience = (id: string) => setState((s) => ({ ...s, experiences: s.experiences.filter((it) => it.id !== id) }));
+  const addExperience = () => setState(s => ({ ...s, experiences: [...s.experiences, { id: makeId("exp"), company: "", position: "", place: "", duration: "", fromYear: "", toYear: "", reasonLeave: "" }] }));
+  const updateExperience = (id: string, data: Partial<ExperienceItem>) => setState(s => ({ ...s, experiences: s.experiences.map(it => it.id === id ? { ...it, ...data } : it) }));
+  const removeExperience = (id: string) => setState(s => ({ ...s, experiences: s.experiences.filter(it => it.id !== id) }));
 
-  // documents
   const setDocumentFile = (key: keyof Documents, file: File | null) => {
-    setState((s) => ({ ...s, documents: { ...s.documents, [key]: file } }));
+    setState(s => ({ ...s, documents: { ...s.documents, [key]: file } }));
   };
+
+  // --- NEW ACTIONS FOR OTHER DOCUMENTS ---
+  const addOtherDocument = () => setState(s => ({ 
+    ...s, 
+    otherDocuments: [...(s.otherDocuments || []), { id: makeId("oth"), name: "", file: null }] 
+  }));
+  
+  const updateOtherDocument = (id: string, data: Partial<OtherDocumentItem>) => setState(s => ({ 
+    ...s, 
+    otherDocuments: (s.otherDocuments || []).map(it => it.id === id ? { ...it, ...data } : it) 
+  }));
+  
+  const removeOtherDocument = (id: string) => setState(s => ({ 
+    ...s, 
+    otherDocuments: (s.otherDocuments || []).filter(it => it.id !== id) 
+  }));
 
   const resetAll = () => {
     setState(initialState);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {
-      // ignore
-    }
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
   };
 
   return (
-    <ApplyContext.Provider
-      value={{
-        state,
-        setIdentityField,
-        addSibling,
-        updateSibling,
-        removeSibling,
-        addEducationFormal,
-        updateEducationFormal,
-        removeEducationFormal,
-        addEducationNonFormal,
-        updateEducationNonFormal,
-        removeEducationNonFormal,
-        addExperience,
-        updateExperience,
-        removeExperience,
-        setDocumentFile,
-        resetAll,
-      }}
-    >
+    <ApplyContext.Provider value={{ state, setIdentityField, addSibling, updateSibling, removeSibling, addEducationFormal, updateEducationFormal, removeEducationFormal, addEducationNonFormal, updateEducationNonFormal, removeEducationNonFormal, addExperience, updateExperience, removeExperience, setDocumentFile, addOtherDocument, updateOtherDocument, removeOtherDocument, resetAll }}>
       {children}
     </ApplyContext.Provider>
   );
