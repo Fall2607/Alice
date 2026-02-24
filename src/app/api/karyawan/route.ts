@@ -1,10 +1,9 @@
-// File: src/app/api/karyawan/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 
-// Tipe data untuk input Karyawan (bisa null untuk beberapa field)
+// Tipe data untuk input Karyawan (diperbarui untuk UUID)
 interface KaryawanInput {
+  id?: string; // UUID (opsional saat input)
   nip: string;
   nama_lengkap: string;
   nik: string;
@@ -19,9 +18,9 @@ interface KaryawanInput {
   tanggal_masuk?: string | null;
   status_kepegawaian?: string | null;
   gaji_pokok?: number | null;
-  jabatan_id?: number | null;
-  user_id?: number | null;
-  atasan_nip?: string | null;
+  jabatan_id?: string | null; // Sekarang UUID (string)
+  user_id?: string | null; // Sekarang UUID (string)
+  atasan_id?: string | null; // Sekarang UUID (string), menggantikan atasan_nip
 }
 
 // Handler untuk GET (mendapatkan semua karyawan)
@@ -29,6 +28,7 @@ export async function GET() {
   try {
     const result = await pool.query(`
       SELECT
+        k.id, -- Primary Key UUID
         k.nip,
         k.nama_lengkap,
         k.nik,
@@ -43,17 +43,17 @@ export async function GET() {
         k.tanggal_masuk,
         k.status_kepegawaian,
         k.gaji_pokok,
-        j.id as jabatan_id,
+        k.jabatan_id, -- UUID
         d.nama_departemen,
         lj.nama_level,
-        k.user_id,
-        k.atasan_nip,
+        k.user_id, -- UUID
+        k.atasan_id, -- Menggunakan ID UUID, bukan NIP
         atasan.nama_lengkap AS nama_atasan
       FROM karyawan k
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
       LEFT JOIN departemen d ON j.departemen_id = d.id
       LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
-      LEFT JOIN karyawan atasan ON k.atasan_nip = atasan.nip
+      LEFT JOIN karyawan atasan ON k.atasan_id = atasan.id
       ORDER BY k.nama_lengkap ASC
     `);
     return NextResponse.json(result.rows);
@@ -63,7 +63,7 @@ export async function GET() {
       err instanceof Error ? err.message : "An unknown error occurred";
     return NextResponse.json(
       { message: "Error fetching karyawan", error: errorMessage },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -88,21 +88,22 @@ export async function POST(request: NextRequest) {
       gaji_pokok = null,
       jabatan_id = null,
       user_id = null,
-      atasan_nip = null,
+      atasan_id = null, // Menggunakan ID UUID
     }: KaryawanInput = await request.json();
 
     if (!nip || !nama_lengkap || !nik) {
       return NextResponse.json(
         { message: "NIP, Nama Lengkap, dan NIK wajib diisi" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
+    // Query diperbarui: atasan_nip menjadi atasan_id
     const query = `
       INSERT INTO karyawan (
         nip, nama_lengkap, nik, profesi, sip, masa_berlaku_sip, handphone,
         email, tanggal_lahir, jenis_kelamin, alamat, tanggal_masuk,
-        status_kepegawaian, gaji_pokok, jabatan_id, user_id, atasan_nip
+        status_kepegawaian, gaji_pokok, jabatan_id, user_id, atasan_id
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
       ) RETURNING *;
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
       gaji_pokok,
       jabatan_id,
       user_id,
-      atasan_nip,
+      atasan_id,
     ];
 
     const result = await pool.query(query, values);
@@ -135,6 +136,7 @@ export async function POST(request: NextRequest) {
     console.error("Error creating karyawan:", err);
     const errorMessage =
       err instanceof Error ? err.message : "An unknown error occurred";
+
     // Cek error duplikasi atau foreign key
     if (errorMessage.includes("duplicate key value")) {
       return NextResponse.json(
@@ -142,21 +144,22 @@ export async function POST(request: NextRequest) {
           message: "Error: NIP, NIK, atau Email sudah terdaftar.",
           error: errorMessage,
         },
-        { status: 409 } // 409 Conflict
+        { status: 409 },
       );
     }
     if (errorMessage.includes("violates foreign key constraint")) {
       return NextResponse.json(
         {
-          message: "Error: jabatan_id, user_id, atau atasan_nip tidak valid.",
+          message:
+            "Error: ID Jabatan, User, atau Atasan tidak valid (UUID mismatch).",
           error: errorMessage,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
     return NextResponse.json(
       { message: "Error creating karyawan", error: errorMessage },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

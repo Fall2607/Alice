@@ -11,8 +11,8 @@ export async function POST(request: Request) {
     // Validasi input
     if (!identifier || !password) {
       return NextResponse.json(
-        { message: "Email/NIP dan password wajib diisi." },
-        { status: 400 }
+        { message: "Email dan password wajib diisi." },
+        { status: 400 },
       );
     }
 
@@ -21,32 +21,32 @@ export async function POST(request: Request) {
       console.error("JWT_SECRET belum diatur di .env.local");
       return NextResponse.json(
         { message: "Kesalahan konfigurasi server." },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
-    // 1. Cari user berdasarkan email ATAU nip
+    // 1. Cari user berdasarkan email
     const userResult = await pool.query(
       `
       SELECT 
         u.id,
         u.email,
         u.password_hash,
-        u.nip,
+        u.karyawan_id,
         k.nama_lengkap,
         r.nama_role
       FROM users u
-      LEFT JOIN karyawan k ON u.nip = k.nip
+      LEFT JOIN karyawan k ON u.karyawan_id = k.id
       LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.email = $1 OR u.nip = $1
+      WHERE u.email = $1
     `,
-      [identifier]
+      [identifier],
     );
 
     if (userResult.rows.length === 0) {
       return NextResponse.json(
-        { message: "Email/NIP atau password salah." },
-        { status: 401 }
+        { message: "Email atau password salah." },
+        { status: 401 },
       );
     }
 
@@ -57,15 +57,14 @@ export async function POST(request: Request) {
 
     if (!passwordMatch) {
       return NextResponse.json(
-        { message: "Email/NIP atau password salah." },
-        { status: 401 }
+        { message: "Email atau password salah." },
+        { status: 401 },
       );
     }
 
     // 3. Jika password cocok, buat JWT
     const payload = {
       userId: user.id,
-      nip: user.nip,
       name: user.nama_lengkap,
       role: user.nama_role,
     };
@@ -80,7 +79,6 @@ export async function POST(request: Request) {
       token,
       user: {
         id: user.id,
-        nip: user.nip,
         name: user.nama_lengkap,
         email: user.email,
         role: user.nama_role,
@@ -93,7 +91,7 @@ export async function POST(request: Request) {
         message: "Terjadi kesalahan pada server.",
         error: (error as Error).message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

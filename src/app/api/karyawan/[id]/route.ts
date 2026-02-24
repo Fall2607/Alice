@@ -1,9 +1,7 @@
-// File: src/app/api/karyawan/[nip]/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 
-// Tipe data untuk input Karyawan (bisa null untuk beberapa field)
+// Tipe data untuk input Karyawan (diperbarui untuk UUID)
 interface KaryawanInput {
   nama_lengkap: string;
   nik: string;
@@ -18,62 +16,67 @@ interface KaryawanInput {
   tanggal_masuk?: string | null;
   status_kepegawaian?: string | null;
   gaji_pokok?: number | null;
-  jabatan_id?: number | null;
-  user_id?: number | null;
-  atasan_nip?: string | null;
+  jabatan_id?: string | null; // UUID (string)
+  user_id?: string | null; // UUID (string)
+  atasan_id?: string | null; // UUID (string), penggantikan atasan_nip
 }
 
-// Handler untuk GET (mendapatkan satu karyawan by NIP)
+/**
+ * GET: Mendapatkan detail satu karyawan berdasarkan ID (UUID)
+ * Mengapa ID? Agar URL tetap valid meskipun NIP karyawan tersebut diperbaiki/diubah.
+ */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ nip: string }> | { nip: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } },
 ) {
   try {
-    const { nip } = await params;
+    const { id } = await params;
 
     const result = await pool.query(
       `
       SELECT
-        k.nip, k.nama_lengkap, k.nik, k.profesi, k.sip, k.masa_berlaku_sip,
+        k.id, k.nip, k.nama_lengkap, k.nik, k.profesi, k.sip, k.masa_berlaku_sip,
         k.handphone, k.email, k.tanggal_lahir, k.jenis_kelamin, k.alamat,
-        k.tanggal_masuk, k.status_kepegawaian, k.gaji_pokok, j.id as jabatan_id,
-        d.nama_departemen, lj.nama_level, k.user_id, k.atasan_nip,
+        k.tanggal_masuk, k.status_kepegawaian, k.gaji_pokok, k.jabatan_id,
+        d.nama_departemen, lj.nama_level, k.user_id, k.atasan_id,
         atasan.nama_lengkap AS nama_atasan
       FROM karyawan k
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
       LEFT JOIN departemen d ON j.departemen_id = d.id
       LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
-      LEFT JOIN karyawan atasan ON k.atasan_nip = atasan.nip
-      WHERE k.nip = $1
+      LEFT JOIN karyawan atasan ON k.atasan_id = atasan.id
+      WHERE k.id = $1 -- Menggunakan PK ID untuk performa terbaik
     `,
-      [nip]
+      [id],
     );
 
     if (result.rows.length === 0) {
       return NextResponse.json(
-        { message: `Karyawan dengan NIP ${nip} tidak ditemukan` },
-        { status: 404 }
+        { message: `Karyawan dengan ID ${id} tidak ditemukan` },
+        { status: 404 },
       );
     }
     return NextResponse.json(result.rows[0]);
   } catch (err) {
+    console.error("Error fetching detail karyawan:", err);
     const errorMessage =
       err instanceof Error ? err.message : "An unknown error occurred";
     return NextResponse.json(
       { message: "Error fetching karyawan", error: errorMessage },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-// Handler untuk PUT (memperbarui seluruh data karyawan by NIP)
+/**
+ * PUT: Memperbarui seluruh data karyawan
+ */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ nip: string }> | { nip: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } },
 ) {
   try {
-    const { nip } = await params;
-
+    const { id } = await params;
     const {
       nama_lengkap,
       nik,
@@ -90,13 +93,13 @@ export async function PUT(
       gaji_pokok,
       jabatan_id,
       user_id,
-      atasan_nip,
+      atasan_id,
     }: KaryawanInput = await request.json();
 
     if (!nama_lengkap || !nik) {
       return NextResponse.json(
         { message: "Nama Lengkap dan NIK wajib diisi" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -105,8 +108,8 @@ export async function PUT(
         nama_lengkap = $1, nik = $2, profesi = $3, sip = $4, masa_berlaku_sip = $5,
         handphone = $6, email = $7, tanggal_lahir = $8, jenis_kelamin = $9,
         alamat = $10, tanggal_masuk = $11, status_kepegawaian = $12,
-        gaji_pokok = $13, jabatan_id = $14, user_id = $15, atasan_nip = $16
-      WHERE nip = $17
+        gaji_pokok = $13, jabatan_id = $14, user_id = $15, atasan_id = $16
+      WHERE id = $17 -- Update berdasarkan PK ID
       RETURNING *;
     `;
     const values = [
@@ -125,40 +128,38 @@ export async function PUT(
       gaji_pokok,
       jabatan_id,
       user_id,
-      atasan_nip,
-      nip,
+      atasan_id,
+      id,
     ];
 
     const result = await pool.query(query, values);
-
     if (result.rows.length === 0) {
       return NextResponse.json(
-        { message: `Karyawan dengan NIP ${nip} tidak ditemukan` },
-        { status: 404 }
+        { message: `Karyawan tidak ditemukan` },
+        { status: 404 },
       );
     }
-
     return NextResponse.json(result.rows[0]);
   } catch (err) {
-    const errorMessage =
-      err instanceof Error ? err.message : "An unknown error occurred";
+    console.error("Error updating karyawan:", err);
     return NextResponse.json(
-      { message: "Error updating karyawan", error: errorMessage },
-      { status: 500 }
+      { message: "Error updating karyawan", error: (err as Error).message },
+      { status: 500 },
     );
   }
 }
 
-// Handler untuk PATCH (memperbarui sebagian data karyawan by NIP)
+/**
+ * PATCH: Memperbarui sebagian data karyawan
+ */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ nip: string }> | { nip: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } },
 ) {
   try {
-    const { nip } = await params;
+    const { id } = await params;
     const body = await request.json();
 
-    // Daftar field yang diizinkan untuk di-update
     const validFields: (keyof KaryawanInput)[] = [
       "nama_lengkap",
       "nik",
@@ -175,87 +176,67 @@ export async function PATCH(
       "gaji_pokok",
       "jabatan_id",
       "user_id",
-      "atasan_nip",
+      "atasan_id",
     ];
 
-    // Filter field dari body request yang valid dan ada di daftar
     const fieldsToUpdate = Object.keys(body).filter((field) =>
-      validFields.includes(field as keyof KaryawanInput)
+      validFields.includes(field as keyof KaryawanInput),
     );
 
     if (fieldsToUpdate.length === 0) {
       return NextResponse.json(
-        { message: "Tidak ada field valid yang dikirim untuk diupdate" },
-        { status: 400 }
+        { message: "Tidak ada field valid untuk diupdate" },
+        { status: 400 },
       );
     }
 
-    // Buat query SET secara dinamis
     const setQueryParts = fieldsToUpdate.map(
-      (field, index) => `${field} = $${index + 1}`
+      (field, index) => `${field} = $${index + 1}`,
     );
-    const setQueryString = setQueryParts.join(", ");
-
-    // Ambil values sesuai urutan field yang valid
     const values = fieldsToUpdate.map((field) => body[field]);
-    values.push(nip); // Tambahkan NIP di akhir untuk klausa WHERE
+    values.push(id);
 
-    const query = `
-      UPDATE karyawan
-      SET ${setQueryString}
-      WHERE nip = $${values.length}
-      RETURNING *;
-    `;
-
+    const query = `UPDATE karyawan SET ${setQueryParts.join(", ")} WHERE id = $${values.length} RETURNING *;`;
     const result = await pool.query(query, values);
 
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0)
       return NextResponse.json(
-        { message: `Karyawan dengan NIP ${nip} tidak ditemukan` },
-        { status: 404 }
+        { message: "Karyawan tidak ditemukan" },
+        { status: 404 },
       );
-    }
-
     return NextResponse.json(result.rows[0]);
   } catch (err) {
-    const errorMessage =
-      err instanceof Error ? err.message : "An unknown error occurred";
     return NextResponse.json(
-      { message: "Error updating karyawan", error: errorMessage },
-      { status: 500 }
+      { message: "Error patching karyawan", error: (err as Error).message },
+      { status: 500 },
     );
   }
 }
 
-// Handler untuk DELETE (menghapus karyawan by NIP)
+/**
+ * DELETE: Menghapus data karyawan
+ */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ nip: string }> | { nip: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } },
 ) {
   try {
-    const { nip } = await params;
-
+    const { id } = await params;
     const result = await pool.query(
-      "DELETE FROM karyawan WHERE nip = $1 RETURNING *",
-      [nip]
+      "DELETE FROM karyawan WHERE id = $1 RETURNING *",
+      [id],
     );
 
-    if (result.rowCount === 0) {
+    if (result.rowCount === 0)
       return NextResponse.json(
-        { message: `Karyawan dengan NIP ${nip} tidak ditemukan` },
-        { status: 404 }
+        { message: "Karyawan tidak ditemukan" },
+        { status: 404 },
       );
-    }
-
-    return NextResponse.json({
-      message: `Karyawan dengan NIP ${nip} berhasil dihapus`,
-    });
+    return NextResponse.json({ message: "Karyawan berhasil dihapus" });
   } catch (err) {
-    const errorMessage =
-      err instanceof Error ? err.message : "An unknown error occurred";
     return NextResponse.json(
-      { message: "Error deleting karyawan", error: errorMessage },
-      { status: 500 }
+      { message: "Error deleting karyawan", error: (err as Error).message },
+      { status: 500 },
     );
   }
 }

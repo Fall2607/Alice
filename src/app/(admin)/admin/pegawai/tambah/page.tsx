@@ -1,4 +1,3 @@
-// File: app/(admin)/admin/pegawai/tambah/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,16 +8,23 @@ import DatePickerField from "@/app/components/admin/DatePickerField";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 
-type Option = { value: number | string; label: string };
+// Renamed to FormOption to avoid naming collisions with external components
+type FormOption = { value: string; label: string };
 
 interface Department {
-  id: number;
+  id: string; // UUID
   nama_departemen: string;
 }
 
 interface LevelJabatan {
-  id: number;
+  id: string; // UUID
   nama_level: string;
+}
+
+interface Employee {
+  id: string; // UUID
+  nama_lengkap: string;
+  nip: string;
 }
 
 const FormField = ({
@@ -38,8 +44,9 @@ const FormField = ({
 
 export default function TambahPegawaiPage() {
   const router = useRouter();
-  const [departments, setDepartments] = useState<Option[]>([]);
-  const [levelJabatans, setLevelJabatans] = useState<Option[]>([]);
+  const [departments, setDepartments] = useState<FormOption[]>([]);
+  const [levelJabatans, setLevelJabatans] = useState<FormOption[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<FormOption[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -53,16 +60,17 @@ export default function TambahPegawaiPage() {
     handphone: "",
     email: "",
     tanggal_lahir: null as Date | null,
-    jenis_kelamin: { value: "Laki-laki", label: "Laki-laki" } as Option,
+    jenis_kelamin: { value: "Laki-laki", label: "Laki-laki" } as FormOption,
     alamat: "",
     tanggal_masuk: null as Date | null,
     status_kepegawaian: {
       value: "Karyawan Kontrak",
       label: "Karyawan Kontrak",
-    } as Option,
+    } as FormOption,
     gaji_pokok: 0,
-    level_jabatan_id: null as Option | null,
-    departemen_id: null as Option | null,
+    level_jabatan_id: null as FormOption | null,
+    departemen_id: null as FormOption | null,
+    atasan_id: null as FormOption | null,
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -71,22 +79,35 @@ export default function TambahPegawaiPage() {
     setIsClient(true);
     const fetchDataForDropdowns = async () => {
       try {
-        const [deptRes, jabatanRes] = await Promise.all([
+        const [deptRes, jabatanRes, employeeRes] = await Promise.all([
           fetch(`${baseUrl}/departments`),
           fetch(`${baseUrl}/level-jabatan`),
+          fetch(`${baseUrl}/karyawan`),
         ]);
 
+        if (!deptRes.ok || !jabatanRes.ok || !employeeRes.ok) {
+          throw new Error("Gagal mengambil data referensi.");
+        }
+
         const deptData: Department[] = await deptRes.json();
-        const jabatanData: LevelJabatan[] = await jabatanRes.json();
+        const levelData: LevelJabatan[] = await jabatanRes.json();
+        const empData: Employee[] = await employeeRes.json();
 
         setDepartments(
-          deptData.map((d) => ({ value: d.id, label: d.nama_departemen }))
+          deptData.map((d) => ({ value: d.id, label: d.nama_departemen })),
         );
         setLevelJabatans(
-          jabatanData.map((j) => ({ value: j.id, label: j.nama_level }))
+          levelData.map((j) => ({ value: j.id, label: j.nama_level })),
         );
-      } catch (error) {
+        setEmployeeOptions(
+          empData.map((e) => ({
+            value: e.id,
+            label: `${e.nama_lengkap} (${e.nip})`,
+          })),
+        );
+      } catch (error: unknown) {
         console.error("Gagal mengambil data dropdown:", error);
+        showErrorToast("Beberapa data pilihan gagal dimuat.");
       }
     };
     fetchDataForDropdowns();
@@ -112,8 +133,8 @@ export default function TambahPegawaiPage() {
         }),
       });
 
-      if (!jabatanRes.ok) throw new Error("Gagal memproses ID Jabatan.");
-      const { id: jabatan_id } = await jabatanRes.json();
+      if (!jabatanRes.ok) throw new Error("Gagal memproses struktur Jabatan.");
+      const { id: jabatan_uuid } = await jabatanRes.json();
 
       const karyawanData = {
         nip: formData.nip,
@@ -133,7 +154,8 @@ export default function TambahPegawaiPage() {
           formData.tanggal_masuk?.toISOString().split("T")[0] || null,
         status_kepegawaian: formData.status_kepegawaian.value,
         gaji_pokok: formData.gaji_pokok || null,
-        jabatan_id: jabatan_id,
+        jabatan_id: jabatan_uuid,
+        atasan_id: formData.atasan_id?.value || null,
       };
 
       const karyawanRes = await fetch(`${baseUrl}/karyawan`, {
@@ -149,8 +171,10 @@ export default function TambahPegawaiPage() {
 
       showSuccessToast("Data pegawai berhasil ditambahkan!");
       router.push("/admin/pegawai");
-    } catch (err) {
-      showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Terjadi kesalahan.";
+      showErrorToast(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -241,7 +265,10 @@ export default function TambahPegawaiPage() {
                     ]}
                     value={formData.jenis_kelamin}
                     onChange={(option) =>
-                      setFormData({ ...formData, jenis_kelamin: option! })
+                      setFormData({
+                        ...formData,
+                        jenis_kelamin: option as FormOption,
+                      })
                     }
                   />
                 ) : (
@@ -310,7 +337,10 @@ export default function TambahPegawaiPage() {
                     ]}
                     value={formData.status_kepegawaian}
                     onChange={(option) =>
-                      setFormData({ ...formData, status_kepegawaian: option! })
+                      setFormData({
+                        ...formData,
+                        status_kepegawaian: option as FormOption,
+                      })
                     }
                   />
                 ) : (
@@ -323,7 +353,10 @@ export default function TambahPegawaiPage() {
                     options={departments}
                     value={formData.departemen_id}
                     onChange={(option) =>
-                      setFormData({ ...formData, departemen_id: option })
+                      setFormData({
+                        ...formData,
+                        departemen_id: option as FormOption,
+                      })
                     }
                     placeholder="Cari & pilih departemen..."
                   />
@@ -337,9 +370,32 @@ export default function TambahPegawaiPage() {
                     options={levelJabatans}
                     value={formData.level_jabatan_id}
                     onChange={(option) =>
-                      setFormData({ ...formData, level_jabatan_id: option })
+                      setFormData({
+                        ...formData,
+                        level_jabatan_id: option as FormOption,
+                      })
                     }
                     placeholder="Cari & pilih level jabatan..."
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Atasan Langsung">
+                {isClient ? (
+                  <SearchableSelect
+                    options={[
+                      { value: "", label: "Tanpa Atasan" },
+                      ...employeeOptions,
+                    ]}
+                    value={formData.atasan_id}
+                    onChange={(option) =>
+                      setFormData({
+                        ...formData,
+                        atasan_id: option as FormOption,
+                      })
+                    }
+                    placeholder="Pilih atasan langsung..."
                   />
                 ) : (
                   <div className={placeholderClass} />

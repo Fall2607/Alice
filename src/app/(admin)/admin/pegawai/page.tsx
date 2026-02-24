@@ -1,4 +1,3 @@
-// File: app/(admin)/admin/pegawai/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -18,11 +17,13 @@ import Pagination from "@/app/components/admin/Pagination";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 
-type Option = { value: number | string; label: string };
+// Renamed to FormOption to avoid naming collisions with external components
+type FormOption = { value: string; label: string };
 
 type SipStatus = "expired" | "expiring_soon" | "safe" | "none";
 
 interface Karyawan {
+  id: string; // UUID Primary Key
   nip: string;
   nama_lengkap: string;
   nik: string;
@@ -37,21 +38,22 @@ interface Karyawan {
   tanggal_masuk?: string;
   status_kepegawaian: string;
   gaji_pokok?: number;
+  jabatan_id?: string; // UUID
   nama_departemen: string;
   nama_level: string;
-  sipStatus?: SipStatus; // Menambahkan properti status SIP
+  sipStatus?: SipStatus;
 }
 
 interface Departemen {
-  id: number;
+  id: string; // UUID
   nama_departemen: string;
 }
+
 interface LevelJabatan {
-  id: number;
+  id: string; // UUID
   nama_level: string;
 }
 
-// FIX: Komponen DetailRow yang lebih rapi untuk modal
 const DetailRow = ({
   label,
   children,
@@ -65,36 +67,21 @@ const DetailRow = ({
   </div>
 );
 
-// Helper function untuk menentukan status SIP
 const getSipStatus = (sipDate: string | null | undefined): SipStatus => {
   if (!sipDate) return "none";
-
   const expiry = new Date(sipDate);
-  if (isNaN(expiry.getTime())) {
-    return "none";
-  }
-
+  if (isNaN(expiry.getTime())) return "none";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const threeMonthsFromNow = new Date();
   threeMonthsFromNow.setHours(0, 0, 0, 0);
   threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
-
   expiry.setHours(0, 0, 0, 0);
-
-  if (expiry < today) {
-    return "expired";
-  }
-
-  if (expiry >= today && expiry <= threeMonthsFromNow) {
-    return "expiring_soon";
-  }
-
+  if (expiry < today) return "expired";
+  if (expiry >= today && expiry <= threeMonthsFromNow) return "expiring_soon";
   return "safe";
 };
 
-// Komponen untuk Badge Status Kepegawaian
 const StatusBadge = ({ status }: { status: string }) => {
   const statusStyle: { [key: string]: string } = {
     "Karyawan Tetap": "bg-blue-100 text-blue-800",
@@ -119,22 +106,19 @@ export default function EmployeeManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State untuk filter
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDept, setSelectedDept] = useState<Option | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<Option | null>(null);
-  const [selectedGender, setSelectedGender] = useState<Option | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<Option | null>(null);
+  const [selectedDept, setSelectedDept] = useState<FormOption | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<FormOption | null>(null);
+  const [selectedGender, setSelectedGender] = useState<FormOption | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<FormOption | null>(null);
 
-  // State untuk pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // State untuk modal
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Karyawan | null>(
-    null
+    null,
   );
   const [isClient, setIsClient] = useState(false);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -149,16 +133,9 @@ export default function EmployeeManagementPage() {
         fetch(`${baseUrl}/level-jabatan`),
       ]);
 
-      if (!karyawanRes.ok)
-        throw new Error(
-          `Gagal memuat data karyawan (Status: ${karyawanRes.status})`
-        );
-      if (!deptRes.ok)
-        throw new Error(
-          `Gagal memuat data departemen (Status: ${deptRes.status})`
-        );
-      if (!levelRes.ok)
-        throw new Error(`Gagal memuat data level (Status: ${levelRes.status})`);
+      if (!karyawanRes.ok) throw new Error(`Gagal memuat data karyawan`);
+      if (!deptRes.ok) throw new Error(`Gagal memuat data departemen`);
+      if (!levelRes.ok) throw new Error(`Gagal memuat data level`);
 
       const karyawanData = await karyawanRes.json();
       const deptData = await deptRes.json();
@@ -167,11 +144,11 @@ export default function EmployeeManagementPage() {
       setEmployeeList(karyawanData);
       setDepartments(deptData);
       setLevels(levelData);
-    } catch (err) {
+    } catch (err: unknown) {
       setError(
         err instanceof Error
           ? err.message
-          : "Terjadi kesalahan saat memuat data."
+          : "Terjadi kesalahan saat memuat data.",
       );
     } finally {
       setIsLoading(false);
@@ -183,12 +160,12 @@ export default function EmployeeManagementPage() {
     fetchData();
   }, [baseUrl]);
 
-  const genderOptions: Option[] = [
+  const genderOptions: FormOption[] = [
     { value: "all", label: "Semua Jenis Kelamin" },
     { value: "Laki-laki", label: "Laki-laki" },
     { value: "Perempuan", label: "Perempuan" },
   ];
-  const statusOptions: Option[] = [
+  const statusOptions: FormOption[] = [
     { value: "all", label: "Semua Status" },
     { value: "Karyawan Tetap", label: "Karyawan Tetap" },
     { value: "Karyawan Kontrak", label: "Karyawan Kontrak" },
@@ -245,7 +222,7 @@ export default function EmployeeManagementPage() {
     return processedEmployees
       .filter(
         (emp) =>
-          emp.sipStatus === "expired" || emp.sipStatus === "expiring_soon"
+          emp.sipStatus === "expired" || emp.sipStatus === "expiring_soon",
       )
       .sort((a, b) => {
         const statusDifference =
@@ -271,37 +248,42 @@ export default function EmployeeManagementPage() {
     setIsDeleteModalOpen(false);
     setSelectedEmployee(null);
   };
+
   const handleOpenDetailModal = (employee: Karyawan) => {
     setSelectedEmployee(employee);
     setIsDetailModalOpen(true);
   };
+
   const handleOpenDeleteModal = (employee: Karyawan) => {
     setSelectedEmployee(employee);
     setIsDeleteModalOpen(true);
   };
+
   const confirmDelete = async () => {
     if (!selectedEmployee) return;
     try {
       const response = await fetch(
-        `${baseUrl}/karyawan/${selectedEmployee.nip}`,
-        { method: "DELETE" }
+        `${baseUrl}/karyawan/${selectedEmployee.id}`,
+        {
+          method: "DELETE",
+        },
       );
       if (!response.ok) throw new Error("Gagal menghapus data pegawai.");
       showSuccessToast("Data pegawai berhasil dihapus!");
-      setEmployeeList(
-        employeeList.filter((e) => e.nip !== selectedEmployee.nip)
-      );
+      setEmployeeList(employeeList.filter((e) => e.id !== selectedEmployee.id));
       handleCloseModals();
-    } catch (err) {
+    } catch (err: unknown) {
       showErrorToast(
-        err instanceof Error ? err.message : "Gagal menghapus pegawai."
+        err instanceof Error ? err.message : "Gagal menghapus pegawai.",
       );
     }
   };
 
   const itemOffset = (currentPage - 1) * itemsPerPage;
-  const endOffset = itemOffset + itemsPerPage;
-  const currentItems = otherEmployees.slice(itemOffset, endOffset);
+  const currentItems = otherEmployees.slice(
+    itemOffset,
+    itemOffset + itemsPerPage,
+  );
   const totalPages = Math.ceil(otherEmployees.length / itemsPerPage);
 
   const renderTableRows = (employees: Karyawan[]) => {
@@ -312,9 +294,10 @@ export default function EmployeeManagementPage() {
         safe: "bg-white hover:bg-slate-50",
         none: "bg-white hover:bg-slate-50",
       }[employee.sipStatus!];
+
       return (
         <tr
-          key={employee.nip}
+          key={employee.id}
           className={`${rowClass} border-b border-slate-300 last:border-b-0`}
         >
           <td className="px-6 py-4">
@@ -338,7 +321,7 @@ export default function EmployeeManagementPage() {
             </div>
           </td>
           <td className="px-6 py-4">{employee.profesi}</td>
-          <td className="px-6 py-4">{employee.nama_departemen}</td>
+          <td className="px-6 py-4">{employee.nama_departemen || "-"}</td>
           <td className="px-6 py-4">
             <StatusBadge status={employee.status_kepegawaian} />
           </td>
@@ -348,24 +331,21 @@ export default function EmployeeManagementPage() {
               className="text-slate-500 hover:text-primary"
               title="Lihat Detail"
             >
-              {" "}
-              <Eye size={18} />{" "}
+              <Eye size={18} />
             </button>
             <Link
-              href={`/admin/pegawai/edit/${employee.nip}`}
+              href={`/admin/pegawai/edit/${employee.id}`}
               className="text-blue-600 hover:text-blue-800"
               title="Edit"
             >
-              {" "}
-              <Edit size={18} />{" "}
+              <Edit size={18} />
             </Link>
             <button
               onClick={() => handleOpenDeleteModal(employee)}
               className="text-red-600 hover:text-red-800"
               title="Hapus"
             >
-              {" "}
-              <Trash2 size={18} />{" "}
+              <Trash2 size={18} />
             </button>
           </td>
         </tr>
@@ -383,8 +363,7 @@ export default function EmployeeManagementPage() {
           href="/admin/pegawai/tambah"
           className="flex items-center gap-2 bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-dark"
         >
-          <PlusCircle size={20} />
-          Tambah Pegawai
+          <PlusCircle size={20} /> Tambah Pegawai
         </Link>
       </div>
 
@@ -403,7 +382,6 @@ export default function EmployeeManagementPage() {
           />
         </div>
         <div>
-          {" "}
           {isClient ? (
             <SearchableSelect
               options={[
@@ -414,7 +392,7 @@ export default function EmployeeManagementPage() {
                 })),
               ]}
               value={selectedDept}
-              onChange={setSelectedDept}
+              onChange={(val) => setSelectedDept(val as FormOption | null)}
               placeholder="Filter departemen..."
             />
           ) : (
@@ -422,7 +400,6 @@ export default function EmployeeManagementPage() {
           )}
         </div>
         <div>
-          {" "}
           {isClient ? (
             <SearchableSelect
               options={[
@@ -430,7 +407,7 @@ export default function EmployeeManagementPage() {
                 ...levels.map((l) => ({ value: l.id, label: l.nama_level })),
               ]}
               value={selectedLevel}
-              onChange={setSelectedLevel}
+              onChange={(val) => setSelectedLevel(val as FormOption | null)}
               placeholder="Filter level..."
             />
           ) : (
@@ -438,12 +415,11 @@ export default function EmployeeManagementPage() {
           )}
         </div>
         <div>
-          {" "}
           {isClient ? (
             <SearchableSelect
               options={genderOptions}
               value={selectedGender}
-              onChange={setSelectedGender}
+              onChange={(val) => setSelectedGender(val as FormOption | null)}
               placeholder="Filter jenis kelamin..."
             />
           ) : (
@@ -451,12 +427,11 @@ export default function EmployeeManagementPage() {
           )}
         </div>
         <div>
-          {" "}
           {isClient ? (
             <SearchableSelect
               options={statusOptions}
               value={selectedStatus}
-              onChange={setSelectedStatus}
+              onChange={(val) => setSelectedStatus(val as FormOption | null)}
               placeholder="Filter status..."
             />
           ) : (
@@ -504,30 +479,26 @@ export default function EmployeeManagementPage() {
           ? "Daftar Pegawai Lainnya"
           : "Daftar Pegawai"}
       </h2>
+
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-500">
             <thead className="text-xs text-white uppercase bg-primary-dark">
               <tr>
                 <th scope="col" className="px-6 py-3">
-                  {" "}
-                  Nama Pegawai{" "}
+                  Nama Pegawai
                 </th>
                 <th scope="col" className="px-6 py-3">
-                  {" "}
-                  Profesi{" "}
+                  Profesi
                 </th>
                 <th scope="col" className="px-6 py-3">
-                  {" "}
-                  Departemen{" "}
+                  Departemen
                 </th>
                 <th scope="col" className="px-6 py-3">
-                  {" "}
-                  Status{" "}
+                  Status
                 </th>
                 <th scope="col" className="px-6 py-3 text-center">
-                  {" "}
-                  Aksi{" "}
+                  Aksi
                 </th>
               </tr>
             </thead>
@@ -568,18 +539,15 @@ export default function EmployeeManagementPage() {
         />
       </div>
 
-      {/* Modal Detail */}
       <Modal
         isOpen={isDetailModalOpen}
         onClose={handleCloseModals}
         title="Detail Pegawai"
-        size="5xl" // Memperlebar modal
+        size="5xl"
       >
         {selectedEmployee && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 p-2">
-            {/* Kolom Kiri */}
             <div className="space-y-6">
-              {/* Informasi Pribadi */}
               <div>
                 <h3 className="text-base font-semibold text-slate-800 px-4">
                   Informasi Pribadi
@@ -597,7 +565,7 @@ export default function EmployeeManagementPage() {
                     <DetailRow label="Tanggal Lahir">
                       {selectedEmployee.tanggal_lahir
                         ? new Date(
-                            selectedEmployee.tanggal_lahir
+                            selectedEmployee.tanggal_lahir,
                           ).toLocaleDateString("id-ID", {
                             day: "numeric",
                             month: "long",
@@ -611,8 +579,6 @@ export default function EmployeeManagementPage() {
                   </dl>
                 </div>
               </div>
-
-              {/* Informasi Kontak */}
               <div>
                 <h3 className="text-base font-semibold text-slate-800 px-4">
                   Informasi Kontak
@@ -629,10 +595,7 @@ export default function EmployeeManagementPage() {
                 </div>
               </div>
             </div>
-
-            {/* Kolom Kanan */}
             <div className="space-y-6">
-              {/* Informasi Kepegawaian */}
               <div>
                 <h3 className="text-base font-semibold text-slate-800 px-4">
                   Informasi Kepegawaian
@@ -640,10 +603,10 @@ export default function EmployeeManagementPage() {
                 <div className="mt-2 overflow-hidden border border-slate-200 rounded-lg">
                   <dl>
                     <DetailRow label="Departemen">
-                      {selectedEmployee.nama_departemen}
+                      {selectedEmployee.nama_departemen || "-"}
                     </DetailRow>
                     <DetailRow label="Level Jabatan">
-                      {selectedEmployee.nama_level}
+                      {selectedEmployee.nama_level || "-"}
                     </DetailRow>
                     <DetailRow label="Status">
                       <StatusBadge
@@ -653,7 +616,7 @@ export default function EmployeeManagementPage() {
                     <DetailRow label="Tanggal Masuk">
                       {selectedEmployee.tanggal_masuk
                         ? new Date(
-                            selectedEmployee.tanggal_masuk
+                            selectedEmployee.tanggal_masuk,
                           ).toLocaleDateString("id-ID", {
                             day: "numeric",
                             month: "long",
@@ -664,7 +627,6 @@ export default function EmployeeManagementPage() {
                   </dl>
                 </div>
               </div>
-              {/* Informasi Profesional */}
               <div>
                 <h3 className="text-base font-semibold text-slate-800 px-4">
                   Informasi Profesional
@@ -682,7 +644,7 @@ export default function EmployeeManagementPage() {
                         <span>
                           {selectedEmployee.masa_berlaku_sip
                             ? new Date(
-                                selectedEmployee.masa_berlaku_sip
+                                selectedEmployee.masa_berlaku_sip,
                               ).toLocaleDateString("id-ID", {
                                 day: "numeric",
                                 month: "long",
@@ -717,7 +679,6 @@ export default function EmployeeManagementPage() {
       >
         <div>
           <p>
-            {" "}
             Apakah Anda yakin ingin menghapus data pegawai{" "}
             <strong>{selectedEmployee?.nama_lengkap}</strong>?
           </p>

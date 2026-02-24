@@ -1,4 +1,3 @@
-// File: app/(admin)/admin/pegawai/edit/[nip]/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,16 +8,22 @@ import DatePickerField from "@/app/components/admin/DatePickerField";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 
-type Option = { value: number | string; label: string };
+// Tipe data Option menggunakan string untuk UUID
+type FormOption = { value: string; label: string };
 
 interface Department {
-  id: number;
+  id: string; // UUID
   nama_departemen: string;
 }
 
 interface LevelJabatan {
-  id: number;
+  id: string; // UUID
   nama_level: string;
+}
+
+// Interface untuk error database agar type-safe
+interface DatabaseError extends Error {
+  code?: string;
 }
 
 const FormField = ({
@@ -39,16 +44,19 @@ const FormField = ({
 export default function EditPegawaiPage() {
   const router = useRouter();
   const params = useParams();
-  const nip = params.nip as string;
 
-  const [departments, setDepartments] = useState<Option[]>([]);
-  const [levelJabatans, setLevelJabatans] = useState<Option[]>([]);
+  // Pastikan mengambil 'id' sesuai dengan nama folder [id]
+  const id = params.id as string;
+
+  const [departments, setDepartments] = useState<FormOption[]>([]);
+  const [levelJabatans, setLevelJabatans] = useState<FormOption[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    id: "",
     nip: "",
     nama_lengkap: "",
     nik: "",
@@ -58,25 +66,25 @@ export default function EditPegawaiPage() {
     handphone: "",
     email: "",
     tanggal_lahir: null as Date | null,
-    jenis_kelamin: { value: "Laki-laki", label: "Laki-laki" } as Option,
+    jenis_kelamin: { value: "Laki-laki", label: "Laki-laki" } as FormOption,
     alamat: "",
     tanggal_masuk: null as Date | null,
     status_kepegawaian: {
       value: "Karyawan Kontrak",
       label: "Karyawan Kontrak",
-    } as Option,
+    } as FormOption,
     gaji_pokok: 0,
-    level_jabatan_id: null as Option | null,
-    departemen_id: null as Option | null,
+    level_jabatan_id: null as FormOption | null,
+    departemen_id: null as FormOption | null,
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   useEffect(() => {
     setIsClient(true);
-    if (!nip) {
+    if (!id) {
       setIsLoading(false);
-      setError("NIP tidak valid.");
+      setError("ID tidak valid.");
       return;
     }
 
@@ -85,7 +93,7 @@ export default function EditPegawaiPage() {
       setError(null);
       try {
         const [karyawanRes, deptRes, jabatanRes] = await Promise.all([
-          fetch(`${baseUrl}/karyawan/${nip}`),
+          fetch(`${baseUrl}/karyawan/${id}`),
           fetch(`${baseUrl}/departments`),
           fetch(`${baseUrl}/level-jabatan`),
         ]);
@@ -106,14 +114,15 @@ export default function EditPegawaiPage() {
           value: j.id,
           label: j.nama_level,
         }));
+
         setDepartments(deptOptions);
         setLevelJabatans(jabatanOptions);
 
         const selectedDept = deptOptions.find(
-          (d) => d.label === karyawanData.nama_departemen
+          (d) => d.label === karyawanData.nama_departemen,
         );
         const selectedLevel = jabatanOptions.find(
-          (l) => l.label === karyawanData.nama_level
+          (l) => l.label === karyawanData.nama_level,
         );
 
         setFormData({
@@ -138,19 +147,16 @@ export default function EditPegawaiPage() {
           departemen_id: selectedDept || null,
           level_jabatan_id: selectedLevel || null,
         });
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Terjadi kesalahan yang tidak terduga."
-        );
-        showErrorToast("Gagal memuat data pegawai.");
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Gagal memuat data.";
+        setError(msg);
+        showErrorToast(msg);
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [baseUrl, nip]);
+  }, [baseUrl, id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,35 +181,42 @@ export default function EditPegawaiPage() {
       if (!jabatanRes.ok) throw new Error("Gagal memproses ID Jabatan.");
       const { id: jabatan_id } = await jabatanRes.json();
 
-      const karyawanData = {
-        ...formData,
-        tanggal_lahir:
-          formData.tanggal_lahir?.toISOString().split("T")[0] || null,
+      const karyawanUpdateData = {
+        nama_lengkap: formData.nama_lengkap,
+        nik: formData.nik,
+        profesi: formData.profesi,
+        sip: formData.sip,
         masa_berlaku_sip:
           formData.masa_berlaku_sip?.toISOString().split("T")[0] || null,
+        handphone: formData.handphone,
+        email: formData.email,
+        tanggal_lahir:
+          formData.tanggal_lahir?.toISOString().split("T")[0] || null,
+        jenis_kelamin: formData.jenis_kelamin.value,
+        alamat: formData.alamat,
         tanggal_masuk:
           formData.tanggal_masuk?.toISOString().split("T")[0] || null,
-        jenis_kelamin: formData.jenis_kelamin.value,
         status_kepegawaian: formData.status_kepegawaian.value,
+        gaji_pokok: formData.gaji_pokok,
         jabatan_id: jabatan_id,
       };
 
-      const karyawanRes = await fetch(`${baseUrl}/karyawan/${nip}`, {
+      const karyawanRes = await fetch(`${baseUrl}/karyawan/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(karyawanData),
+        body: JSON.stringify(karyawanUpdateData),
       });
 
       if (!karyawanRes.ok) {
         const errorData = await karyawanRes.json();
         throw new Error(
-          errorData.message || "Gagal memperbarui data karyawan."
+          errorData.message || "Gagal memperbarui data karyawan.",
         );
       }
 
       showSuccessToast("Data pegawai berhasil diperbarui!");
       router.push("/admin/pegawai");
-    } catch (err) {
+    } catch (err: unknown) {
       showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan.");
     } finally {
       setIsSubmitting(false);
@@ -235,8 +248,7 @@ export default function EditPegawaiPage() {
           href="/admin/pegawai"
           className="mt-6 inline-flex items-center gap-2 text-primary hover:text-primary-dark"
         >
-          <ChevronLeft size={20} />
-          Kembali ke Manajemen Pegawai
+          <ChevronLeft size={20} /> Kembali ke Manajemen Pegawai
         </Link>
       </div>
     );
@@ -249,8 +261,7 @@ export default function EditPegawaiPage() {
           href="/admin/pegawai"
           className="inline-flex items-center gap-2 text-primary hover:text-primary-dark"
         >
-          <ChevronLeft size={20} />
-          Kembali ke Manajemen Pegawai
+          <ChevronLeft size={20} /> Kembali ke Manajemen Pegawai
         </Link>
       </div>
 
@@ -269,7 +280,7 @@ export default function EditPegawaiPage() {
                   type="text"
                   value={formData.nip}
                   className={`${inputClass} bg-slate-100 cursor-not-allowed`}
-                  readOnly
+                  disabled
                 />
               </FormField>
               <FormField label="Nama Lengkap">
@@ -315,7 +326,10 @@ export default function EditPegawaiPage() {
                     ]}
                     value={formData.jenis_kelamin}
                     onChange={(option) =>
-                      setFormData({ ...formData, jenis_kelamin: option! })
+                      setFormData({
+                        ...formData,
+                        jenis_kelamin: option as FormOption,
+                      })
                     }
                   />
                 ) : (
@@ -380,7 +394,10 @@ export default function EditPegawaiPage() {
                     ]}
                     value={formData.status_kepegawaian}
                     onChange={(option) =>
-                      setFormData({ ...formData, status_kepegawaian: option! })
+                      setFormData({
+                        ...formData,
+                        status_kepegawaian: option as FormOption,
+                      })
                     }
                   />
                 ) : (
@@ -393,7 +410,10 @@ export default function EditPegawaiPage() {
                     options={departments}
                     value={formData.departemen_id}
                     onChange={(option) =>
-                      setFormData({ ...formData, departemen_id: option })
+                      setFormData({
+                        ...formData,
+                        departemen_id: option as FormOption,
+                      })
                     }
                   />
                 ) : (
@@ -406,7 +426,10 @@ export default function EditPegawaiPage() {
                     options={levelJabatans}
                     value={formData.level_jabatan_id}
                     onChange={(option) =>
-                      setFormData({ ...formData, level_jabatan_id: option })
+                      setFormData({
+                        ...formData,
+                        level_jabatan_id: option as FormOption,
+                      })
                     }
                   />
                 ) : (
