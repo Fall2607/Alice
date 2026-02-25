@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 
-// Definisi interface untuk error database agar menghindari penggunaan 'any'
+// Interface untuk menangani error dari PostgreSQL secara type-safe
 interface DatabaseError extends Error {
   code?: string;
   detail?: string;
 }
 
-// Handler untuk GET (mengambil semua request)
+/**
+ * GET: Mengambil semua permintaan pegawai.
+ * Relasi diubah dari NIP ke ID (UUID) karyawan.
+ */
 export async function GET() {
   try {
     const result = await pool.query(`
@@ -25,7 +28,8 @@ export async function GET() {
         lj.nama_level AS level
       FROM employee_requests er
       LEFT JOIN job j ON er.job_id = j.id
-      LEFT JOIN karyawan k ON er.requester_id = k.id
+      -- Menghubungkan menggunakan ID (UUID), bukan NIP
+      LEFT JOIN karyawan k ON er.requester_id = k.id 
       LEFT JOIN jabatan kj ON k.jabatan_id = kj.id
       LEFT JOIN departemen d ON kj.departemen_id = d.id
       LEFT JOIN level_jabatan lj ON kj.level_jabatan_id = lj.id
@@ -41,21 +45,23 @@ export async function GET() {
     return NextResponse.json(result.rows);
   } catch (error: unknown) {
     console.error("API Error - Gagal mengambil request pegawai:", error);
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "Terjadi kesalahan tidak diketahui";
+    const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan tidak diketahui";
     return NextResponse.json(
       { message: "Gagal mengambil data", error: errorMessage },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
-// Handler untuk POST (membuat request baru)
-export async function POST(request: Request) {
+/**
+ * POST: Membuat permintaan pegawai baru.
+ * requester_id harus berupa UUID yang valid dari tabel karyawan.
+ */
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    
+    // Destructuring dengan tipe data eksplisit (UUID sebagai string)
     const {
       requester_id,
       job_id,
@@ -64,22 +70,19 @@ export async function POST(request: Request) {
       urgency,
       mbti_results,
     }: {
-      requester_id: string;
-      job_id: string;
+      requester_id: string; // UUID karyawan
+      job_id: string;        // UUID job
       quantity: number;
       type: string;
       urgency: string;
       mbti_results?: string[];
     } = body;
 
-    // Validasi data dasar
+    // Validasi input wajib
     if (!requester_id || !job_id || !quantity || !type || !urgency) {
       return NextResponse.json(
-        {
-          message:
-            "Data dasar (requester_id, job_id, jumlah, tipe, urgensi) wajib diisi.",
-        },
-        { status: 400 },
+        { message: "Data dasar (requester_id, job_id, jumlah, tipe, urgensi) wajib diisi." },
+        { status: 400 }
       );
     }
 
@@ -87,7 +90,7 @@ export async function POST(request: Request) {
       `INSERT INTO employee_requests (
         requester_id, job_id, quantity, type, urgency, mbti_results
       ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [requester_id, job_id, quantity, type, urgency, mbti_results],
+      [requester_id, job_id, quantity, type, urgency, mbti_results]
     );
 
     return NextResponse.json(result.rows[0], { status: 201 });
@@ -98,26 +101,26 @@ export async function POST(request: Request) {
       const dbError = error as DatabaseError;
 
       // Kode '23503' adalah foreign_key_violation di PostgreSQL
+      // Ini terjadi jika requester_id atau job_id tidak ada di tabel induknya
       if (dbError.code === "23503") {
         return NextResponse.json(
           {
-            message:
-              "Gagal: ID Requester atau ID Job tidak valid (tidak ditemukan).",
+            message: "Gagal: ID Requester (Karyawan) atau ID Job tidak valid.",
             error: dbError.message,
           },
-          { status: 400 },
+          { status: 400 }
         );
       }
 
       return NextResponse.json(
         { message: "Gagal membuat request baru", error: dbError.message },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
     return NextResponse.json(
       { message: "Terjadi kesalahan internal server" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

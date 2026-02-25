@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 
-// Interface untuk error database guna menghindari 'any'
+// Interface untuk error database guna menghindari penggunaan 'any'
 interface DatabaseError extends Error {
   code?: string;
   detail?: string;
@@ -12,7 +12,7 @@ interface DatabaseError extends Error {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } },
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const resolvedParams = await params;
@@ -35,40 +35,39 @@ export async function GET(
         lj.nama_level AS level
       FROM employee_requests er
       LEFT JOIN job j ON er.job_id = j.id
-      LEFT JOIN karyawan k ON er.requester_id = k.id -- Menggunakan requester_id (UUID)
+      -- Menggunakan requester_id (UUID) hasil migrasi
+      LEFT JOIN karyawan k ON er.requester_id = k.id 
       LEFT JOIN jabatan kj ON k.jabatan_id = kj.id
       LEFT JOIN departemen d ON kj.departemen_id = d.id
       LEFT JOIN level_jabatan lj ON kj.level_jabatan_id = lj.id
       WHERE er.id = $1;
     `,
-      [id],
+      [id]
     );
 
     if (result.rows.length === 0) {
       return NextResponse.json(
         { message: `Request dengan ID ${id} tidak ditemukan.` },
-        { status: 404 },
+        { status: 404 }
       );
     }
     return NextResponse.json(result.rows[0]);
   } catch (error: unknown) {
     const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "Terjadi kesalahan tidak diketahui";
+      error instanceof Error ? error.message : "Terjadi kesalahan tidak diketahui";
     return NextResponse.json(
       { message: "Gagal mengambil data", error: errorMessage },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
 /**
- * PUT: Memperbarui keseluruhan data request pegawai.
+ * PUT: Memperbarui keseluruhan data request pegawai (fitur edit).
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } },
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const resolvedParams = await params;
@@ -92,7 +91,7 @@ export async function PUT(
     if (!job_id || !quantity || !type || !urgency) {
       return NextResponse.json(
         { message: "Semua field wajib diisi untuk pembaruan." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -107,13 +106,13 @@ export async function PUT(
          updated_at = CURRENT_TIMESTAMP
        WHERE id = $6
        RETURNING *`,
-      [job_id, quantity, type, urgency, mbti_results, id],
+      [job_id, quantity, type, urgency, mbti_results, id]
     );
 
     if (result.rows.length === 0) {
       return NextResponse.json(
         { message: `Request dengan ID ${id} tidak ditemukan.` },
-        { status: 404 },
+        { status: 404 }
       );
     }
     return NextResponse.json(result.rows[0]);
@@ -122,7 +121,7 @@ export async function PUT(
       error instanceof Error ? error.message : "Terjadi kesalahan";
     return NextResponse.json(
       { message: "Gagal memperbarui request", error: errorMessage },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
@@ -132,7 +131,7 @@ export async function PUT(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } },
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const resolvedParams = await params;
   const { id } = resolvedParams;
@@ -145,7 +144,7 @@ export async function PATCH(
       if (!title) {
         return NextResponse.json(
           { message: "Judul lowongan wajib diisi." },
-          { status: 400 },
+          { status: 400 }
         );
       }
 
@@ -154,9 +153,10 @@ export async function PATCH(
 
       await client.query("BEGIN");
 
+      // 1. Update status request menjadi 'Disetujui'
       const updateResult = await client.query(
         "UPDATE employee_requests SET status = 'Disetujui', updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
-        [id],
+        [id]
       );
 
       if (updateResult.rows.length === 0) {
@@ -165,9 +165,10 @@ export async function PATCH(
 
       const approvedRequest = updateResult.rows[0];
 
+      // 2. Buat entri lowongan di job_openings (Menggunakan UUID)
       await client.query(
         `INSERT INTO job_openings (request_id, job_id, title, status, closing_date, posted_date)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           id,
           approvedRequest.job_id,
@@ -175,7 +176,7 @@ export async function PATCH(
           finalStatus,
           closing_date || null,
           postedDate,
-        ],
+        ]
       );
 
       await client.query("COMMIT");
@@ -186,22 +187,23 @@ export async function PATCH(
         error instanceof Error ? error.message : "Terjadi kesalahan";
       return NextResponse.json(
         { message: "Gagal menyetujui request", error: errorMessage },
-        { status: 500 },
+        { status: 500 }
       );
     } finally {
       client.release();
     }
   } else {
+    // Penanganan update parsial untuk status lain (misal: Ditolak atau Review)
     const fieldsToUpdate = Object.keys(body);
     if (fieldsToUpdate.length === 0) {
       return NextResponse.json(
         { message: "Tidak ada data yang dikirim." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const setQueryParts = fieldsToUpdate.map(
-      (field, i) => `${field} = $${i + 1}`,
+      (field, i) => `${field} = $${i + 1}`
     );
     const values = fieldsToUpdate.map((field) => body[field]);
     values.push(id);
@@ -209,12 +211,12 @@ export async function PATCH(
     try {
       const result = await pool.query(
         `UPDATE employee_requests SET ${setQueryParts.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length} RETURNING *`,
-        values,
+        values
       );
       if (result.rows.length === 0) {
         return NextResponse.json(
           { message: `Request dengan ID ${id} tidak ditemukan.` },
-          { status: 404 },
+          { status: 404 }
         );
       }
       return NextResponse.json(result.rows[0]);
@@ -223,7 +225,7 @@ export async function PATCH(
         error instanceof Error ? error.message : "Terjadi kesalahan";
       return NextResponse.json(
         { message: "Gagal memperbarui request", error: errorMessage },
-        { status: 500 },
+        { status: 500 }
       );
     }
   }
@@ -234,20 +236,20 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } },
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const resolvedParams = await params;
     const { id } = resolvedParams;
     const result = await pool.query(
       "DELETE FROM employee_requests WHERE id = $1 RETURNING id",
-      [id],
+      [id]
     );
 
     if (result.rowCount === 0) {
       return NextResponse.json(
         { message: `Request dengan ID ${id} tidak ditemukan.` },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -259,7 +261,7 @@ export async function DELETE(
       error instanceof Error ? error.message : "Terjadi kesalahan";
     return NextResponse.json(
       { message: "Gagal menghapus request", error: errorMessage },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
