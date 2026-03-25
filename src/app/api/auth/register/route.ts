@@ -8,7 +8,10 @@ export async function POST(request: Request) {
     const { email, action } = await request.json();
 
     if (!email) {
-      return NextResponse.json({ message: "Email wajib diisi." }, { status: 400 });
+      return NextResponse.json(
+        { message: "Email wajib diisi." },
+        { status: 400 },
+      );
     }
 
     // TAHAP 1: VERIFIKASI DATA KARYAWAN
@@ -16,14 +19,17 @@ export async function POST(request: Request) {
       const result = await pool.query(
         `SELECT id, nip, nama_lengkap, email, user_id 
          FROM karyawan 
-         WHERE email = $1`, 
-        [email]
+         WHERE email = $1`,
+        [email],
       );
 
       if (result.rows.length === 0) {
         return NextResponse.json(
-          { message: "Email tidak terdaftar sebagai karyawan. Silakan hubungi HRD." },
-          { status: 404 }
+          {
+            message:
+              "Email tidak terdaftar sebagai karyawan. Silakan hubungi HRD.",
+          },
+          { status: 404 },
         );
       }
 
@@ -32,8 +38,11 @@ export async function POST(request: Request) {
       // Cek apakah sudah punya akun
       if (karyawan.user_id) {
         return NextResponse.json(
-          { message: "Akun sudah terdaftar. Silakan gunakan fitur Lupa Password jika kendala login." },
-          { status: 409 }
+          {
+            message:
+              "Akun sudah terdaftar. Silakan gunakan fitur Lupa Password jika kendala login.",
+          },
+          { status: 409 },
         );
       }
 
@@ -42,8 +51,8 @@ export async function POST(request: Request) {
         data: {
           nip: karyawan.nip,
           nama: karyawan.nama_lengkap,
-          email: karyawan.email
-        }
+          email: karyawan.email,
+        },
       });
     }
 
@@ -57,11 +66,14 @@ export async function POST(request: Request) {
          SET registration_token = $1, registration_expires = $2 
          WHERE email = $3 AND user_id IS NULL
          RETURNING nama_lengkap`,
-        [token, expires, email]
+        [token, expires, email],
       );
 
       if (updateResult.rows.length === 0) {
-        return NextResponse.json({ message: "Gagal memproses undangan." }, { status: 500 });
+        return NextResponse.json(
+          { message: "Gagal memproses undangan." },
+          { status: 500 },
+        );
       }
 
       const namaKaryawan = updateResult.rows[0].nama_lengkap;
@@ -95,12 +107,17 @@ export async function POST(request: Request) {
         `,
       });
 
-      return NextResponse.json({ message: "Link registrasi telah dikirim ke email Anda." });
+      return NextResponse.json({
+        message: "Link registrasi telah dikirim ke email Anda.",
+      });
     }
 
     return NextResponse.json({ message: "Aksi tidak valid." }, { status: 400 });
   } catch (error) {
     console.error("Register invite error:", error);
-    return NextResponse.json({ message: "Terjadi kesalahan server." }, { status: 500 });
+    return NextResponse.json(
+      { message: "Terjadi kesalahan server." },
+      { status: 500 },
+    );
   }
 }

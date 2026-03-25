@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, UserPlus } from "lucide-react";
+import Link from "next/link";
+import Image from "next/image";
 
 /**
  * Interface untuk data pengguna yang dikembalikan dari API
@@ -32,7 +34,9 @@ export default function App() {
   /**
    * Menangani proses pengiriman form login
    */
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleLogin = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -46,24 +50,20 @@ export default function App() {
         body: JSON.stringify({ identifier, password }),
       });
 
-      // Melakukan casting hasil json ke interface LoginResponse
       const data: LoginResponse = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || "Login gagal, silakan coba lagi.");
       }
 
-      // Simpan token ke localStorage jika ada
       if (data.token) {
         localStorage.setItem("authToken", data.token);
       }
 
-      // Simpan data user sebagai string JSON jika ada
       if (data.user) {
         localStorage.setItem("user", JSON.stringify(data.user));
       }
 
-      // Redirect menggunakan window.location untuk kompatibilitas lingkungan pratinjau
       window.location.href = "/admin";
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -76,28 +76,25 @@ export default function App() {
     }
   };
 
-  /**
-   * Handler untuk menangani kegagalan pemuatan gambar logo
-   */
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>): void => {
-    const target = e.currentTarget;
-    target.src = "https://via.placeholder.com/150x43?text=RSU+Avisena";
+  const handleImageError = (
+    e: React.SyntheticEvent<HTMLImageElement, Event>,
+  ): void => {
+    e.currentTarget.src = "https://via.placeholder.com/150x43?text=RSU+Avisena";
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 font-sans">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 font-sans p-4">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg border border-slate-200">
         <div className="mb-8 text-center">
-          <a href="/">
-            <img
+          <Link href="/">
+            <Image
               src="/brand-avisena.png"
-              alt="Logo RSU Avisena"
-              width={150}
-              height={43}
-              className="mx-auto"
-              onError={handleImageError}
+              alt="Logo"
+              width={140}
+              height={40}
+              className="mx-auto mb-6 cursor-pointer"
             />
-          </a>
+          </Link>
           <h1 className="mt-6 text-2xl font-bold text-slate-800">
             Admin Login
           </h1>
@@ -129,8 +126,10 @@ export default function App() {
                 autoComplete="email"
                 required
                 value={identifier}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIdentifier(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setIdentifier(e.target.value)
+                }
+                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
               />
             </div>
           </div>
@@ -143,8 +142,8 @@ export default function App() {
               >
                 Password
               </label>
-              <a 
-                href="/forgot-password" 
+              <a
+                href="/forgot-password"
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
               >
                 Lupa Password?
@@ -158,13 +157,15 @@ export default function App() {
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setPassword(e.target.value)
+                }
+                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all text-sm"
               />
             </div>
           </div>
 
-          <div>
+          <div className="space-y-4">
             <button
               type="submit"
               disabled={isLoading}
@@ -179,6 +180,20 @@ export default function App() {
                 "Masuk"
               )}
             </button>
+
+            {/* Tombol Akses ke Registrasi Baru */}
+            <div className="pt-4 border-t border-slate-100">
+              <p className="text-center text-sm text-slate-500">
+                Belum memiliki akun?{" "}
+                <a
+                  href="/register"
+                  className="inline-flex items-center gap-1 font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  <UserPlus size={14} />
+                  Daftar Akun Baru
+                </a>
+              </p>
+            </div>
           </div>
         </form>
       </div>
