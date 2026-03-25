@@ -1,20 +1,38 @@
-// File: app/(admin)/login/page.tsx
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 
-export default function LoginPage() {
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+/**
+ * Interface untuk data pengguna yang dikembalikan dari API
+ */
+interface UserData {
+  id: string;
+  karyawan_id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
-  const handleLogin = async (e: React.FormEvent) => {
+/**
+ * Interface untuk respon dari endpoint /api/auth/login
+ */
+interface LoginResponse {
+  message?: string;
+  token?: string;
+  user?: UserData;
+}
+
+export default function App() {
+  const [identifier, setIdentifier] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  /**
+   * Menangani proses pengiriman form login
+   */
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -28,56 +46,68 @@ export default function LoginPage() {
         body: JSON.stringify({ identifier, password }),
       });
 
-      const data = await response.json();
+      // Melakukan casting hasil json ke interface LoginResponse
+      const data: LoginResponse = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || "Login gagal, silakan coba lagi.");
       }
 
-      // Simpan token ke localStorage
+      // Simpan token ke localStorage jika ada
       if (data.token) {
         localStorage.setItem("authToken", data.token);
       }
 
-      // Simpan data user (opsional, tapi berguna)
+      // Simpan data user sebagai string JSON jika ada
       if (data.user) {
         localStorage.setItem("user", JSON.stringify(data.user));
       }
 
-      // Redirect ke halaman admin menggunakan Next.js Router
-      router.push("/admin");
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Terjadi kesalahan tidak dikenal."
-      );
+      // Redirect menggunakan window.location untuk kompatibilitas lingkungan pratinjau
+      window.location.href = "/admin";
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Terjadi kesalahan tidak dikenal.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  /**
+   * Handler untuk menangani kegagalan pemuatan gambar logo
+   */
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>): void => {
+    const target = e.currentTarget;
+    target.src = "https://via.placeholder.com/150x43?text=RSU+Avisena";
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 font-sans">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg border border-slate-200">
         <div className="mb-8 text-center">
-          <Link href="/">
-            <Image
+          <a href="/">
+            <img
               src="/brand-avisena.png"
               alt="Logo RSU Avisena"
               width={150}
               height={43}
               className="mx-auto"
+              onError={handleImageError}
             />
-          </Link>
-          <h1 className="mt-6 text-2xl font-bold text-primary-dark">
+          </a>
+          <h1 className="mt-6 text-2xl font-bold text-slate-800">
             Admin Login
           </h1>
-          <p className="text-slate-500">
+          <p className="text-slate-500 text-sm">
             Silakan masuk untuk mengelola sistem.
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 flex items-center gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <div className="mb-4 flex items-center gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 animate-in fade-in slide-in-from-top-1">
             <AlertTriangle className="h-5 w-5 flex-shrink-0" />
             <p>{error}</p>
           </div>
@@ -99,19 +129,27 @@ export default function LoginPage() {
                 autoComplete="email"
                 required
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-primary"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIdentifier(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-slate-700"
+              >
+                Password
+              </label>
+              <a 
+                href="/forgot-password" 
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                Lupa Password?
+              </a>
+            </div>
             <div className="mt-1">
               <input
                 id="password"
@@ -120,8 +158,8 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-primary focus:outline-none focus:ring-primary"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
               />
             </div>
           </div>
@@ -130,7 +168,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:bg-primary/70"
+              className="flex w-full items-center justify-center rounded-full bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400 transition-all active:scale-95"
             >
               {isLoading ? (
                 <>
