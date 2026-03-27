@@ -1,11 +1,14 @@
-// File: src/app/api/roles/route.ts
+/**
+ * Path: src/app/api/roles/route.ts
+ * Deskripsi: Endpoint untuk mengambil daftar role dan menambah role baru menggunakan UUID.
+ */
 
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 
-// Tipe data untuk Role
+// Interface disesuaikan dengan standar UUID (string)
 interface Role {
-    id: number;
+    id: string; 
     nama_role: string;
     deskripsi: string | null;
 }
@@ -13,13 +16,14 @@ interface Role {
 // Handler untuk GET (mendapatkan semua roles)
 export async function GET(request: NextRequest) {
     try {
-        const result = await pool.query("SELECT * FROM roles ORDER BY id ASC");
+        // Mengurutkan berdasarkan nama agar tampilan di sidebar/list lebih rapi (A-Z)
+        const result = await pool.query("SELECT id, nama_role, deskripsi FROM public.roles ORDER BY nama_role ASC");
         return NextResponse.json(result.rows);
     } catch (err) {
-        const errorMessage =
-            err instanceof Error ? err.message : "An unknown error occurred";
+        console.error("Error fetching roles:", err);
+        const errorMessage = err instanceof Error ? err.message : "Terjadi kesalahan pada server.";
         return NextResponse.json(
-            { message: "Error fetching roles", error: errorMessage },
+            { message: "Gagal mengambil data role.", error: errorMessage },
             { status: 500 }
         );
     }
@@ -28,30 +32,36 @@ export async function GET(request: NextRequest) {
 // Handler untuk POST (membuat role baru)
 export async function POST(request: NextRequest) {
     try {
-        const { nama_role, deskripsi }: Partial<Role> = await request.json();
+        const body = await request.json();
+        const { nama_role, deskripsi } = body;
 
         if (!nama_role) {
             return NextResponse.json(
-                { message: "Nama role wajib diisi" },
+                { message: "Nama role wajib diisi." },
                 { status: 400 }
             );
         }
 
         const result = await pool.query(
-            "INSERT INTO roles (nama_role, deskripsi) VALUES ($1, $2) RETURNING *",
+            "INSERT INTO public.roles (nama_role, deskripsi) VALUES ($1, $2) RETURNING *",
             [nama_role, deskripsi || null]
         );
 
         return NextResponse.json(result.rows[0], { status: 201 });
-    } catch (err) {
-        const errorMessage =
-            err instanceof Error ? err.message : "An unknown error occurred";
+    } catch (err: any) {
+        console.error("Error creating role:", err);
+        const errorMessage = err.message || "An unknown error occurred";
+        
         // Menangani error jika nama_role sudah ada (unique constraint)
-        if (errorMessage.includes('duplicate key value violates unique constraint "roles_nama_role_key"')) {
-            return NextResponse.json({ message: `Role dengan nama "${(err as any).detail.match(/\((.*?)\)/)[1]}" sudah ada.` }, { status: 409 });
+        if (err.code === "23505") {
+            return NextResponse.json(
+                { message: `Role dengan nama tersebut sudah terdaftar.` }, 
+                { status: 409 }
+            );
         }
+
         return NextResponse.json(
-            { message: "Error creating role", error: errorMessage },
+            { message: "Gagal membuat role baru.", error: errorMessage },
             { status: 500 }
         );
     }
