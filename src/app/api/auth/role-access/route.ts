@@ -1,49 +1,70 @@
 /**
- * Path: src/app/api/auth/role-access/[roleId]/route.ts
- * Deskripsi: Endpoint untuk mengambil matriks izin seluruh menu untuk Role ID tertentu.
+ * Path: src/app/api/auth/role-access/route.ts
+ * Deskripsi: Endpoint untuk menyimpan/sinkronisasi matriks izin per role.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ roleId: string }> | { roleId: string } }
-) {
+export async function POST(request: Request) {
+  const client = await pool.connect();
   try {
-    // Next.js 15 mewajibkan await pada params
-    const resolvedParams = await params;
-    const { roleId } = resolvedParams;
+    const body = await request.json();
+    const { role_id, permissions } = body;
 
-    if (!roleId) {
-      return NextResponse.json({ message: "Role ID tidak valid." }, { status: 400 });
+    // Validasi input: Pastikan role_id ada dan permissions adalah array
+    if (!role_id || !Array.isArray(permissions)) {
+      return NextResponse.json(
+        { message: "Format data tidak valid atau data kosong." },
+        { status: 400 },
+      );
     }
 
-    /**
-     * Query ini menggabungkan tabel 'menus' dengan 'role_menu_access'.
-     * Menggunakan LEFT JOIN agar semua menu tetap muncul di daftar, 
-     * meskipun role tersebut belum pernah diatur izinnya (menggunakan COALESCE untuk default false).
-     */
-    const result = await pool.query(
-      `SELECT 
-        m.id as menu_id,
-        m.nama_menu,
-        m.path,
-        COALESCE(rma.can_view, false) as can_view,
-        COALESCE(rma.can_create, false) as can_create,
-        COALESCE(rma.can_edit, false) as can_edit,
-        COALESCE(rma.can_delete, false) as can_delete
-       FROM public.menus m
-       LEFT JOIN public.role_menu_access rma ON m.id = rma.menu_id AND rma.role_id = $1
-       WHERE m.path != '#' -- Mengabaikan menu parent kategori jika hanya ingin mengatur menu aksi
-       ORDER BY m.urutan ASC`,
-      [roleId]
-    );
+    // Gunakan transaksi database untuk memastikan seluruh data tersimpan dengan benar (atomicity)
+    await client.query("BEGIN");
 
-    return NextResponse.json(result.rows);
+    /**
+     * Mekanisme UPSERT (INSERT ... ON CONFLICT).
+     * Jika kombinasi role_id dan menu_id sudah ada, maka update kolom izinnya.
+     * Jika belum ada, maka buat baris baru di tabel role_menu_access.
+     */
+    for (const p of permissions) {
+      await client.query(
+        `INSERT INTO public.role_menu_access 
+         (role_id, menu_id, can_view, can_create, can_edit, can_delete)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (role_id, menu_id) 
+         DO UPDATE SET 
+            can_view = EXCLUDED.can_view,
+            can_create = EXCLUDED.can_create,
+            can_edit = EXCLUDED.can_edit,
+            can_delete = EXCLUDED.can_delete`,
+        [
+          role_id,
+          p.menu_id,
+          p.can_view,
+          p.can_create,
+          p.can_edit,
+          p.can_delete,
+        ],
+      );
+    }
+
+    await client.query("COMMIT");
+    return NextResponse.json({
+      message: "Konfigurasi hak akses berhasil diperbarui.",
+    });
   } catch (error: unknown) {
-    console.error("Get Role Access Error:", error);
-    const msg = error instanceof Error ? error.message : "Gagal mengambil data akses.";
+    // Batalkan semua perubahan jika terjadi kesalahan di tengah jalan
+    await client.query("ROLLBACK");
+    console.error("Save Role Access Error:", error);
+    const msg =
+      error instanceof Error
+        ? error.message
+        : "Terjadi kesalahan internal server.";
     return NextResponse.json({ message: msg }, { status: 500 });
+  } finally {
+    // Selalu lepaskan koneksi client kembali ke pool agar tidak terjadi memory leak
+    client.release();
   }
 }
