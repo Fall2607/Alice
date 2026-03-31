@@ -107,7 +107,7 @@ export default function KioskAbsensiPage() {
             </span>
           </div>
           <div className="flex items-center gap-2 text-emerald-400">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <Wifi size={16} />
             <span className="text-[10px] font-black uppercase tracking-widest">
               System Online
             </span>
