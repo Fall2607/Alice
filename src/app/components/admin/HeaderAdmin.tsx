@@ -1,23 +1,41 @@
-// File: app/components/admin/HeaderAdmin.tsx
+/** Path: app/components/admin/HeaderAdmin.tsx
+ * Deskripsi: Komponen Header Admin Alice dengan Breadcrumbs dinamis.
+ * Perbaikan: Menghapus import statis menuItems dan menggunakan caching localStorage.
+ */
+
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Bell, Menu, User, LogOut, ChevronRight } from "lucide-react";
-import Image from "next/image";
-import { menuItems } from "./Sidebar";
+import {
+  Search,
+  Bell,
+  Menu as MenuIcon,
+  User,
+  LogOut,
+  ChevronRight,
+  Shield,
+} from "lucide-react";
 
-// Tipe data untuk user yang login
+// Tipe data lokal untuk sinkronisasi
+interface MenuItem {
+  label: string;
+  href?: string;
+  subItems?: MenuItem[] | null;
+}
+
 interface LoggedInUser {
   name: string;
   role: string;
+  role_id?: string;
+  jenis_kelamin?: string;
 }
 
 interface HeaderAdminProps {
   toggleSidebar: () => void;
   openLogoutModal: () => void;
-  user: LoggedInUser | null; // Tambahkan prop user
+  user: LoggedInUser | null;
 }
 
 export default function HeaderAdmin({
@@ -28,164 +46,179 @@ export default function HeaderAdmin({
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<string[]>([]);
   const pathname = usePathname();
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
+    /**
+     * LOGIKA BREADCRUMBS DINAMIS:
+     * Mengambil data menu dari localStorage agar label sesuai dengan database.
+     */
+    const cachedMenu = localStorage.getItem(`sidebar_menu_${user?.role_id}`);
+    const menuData: MenuItem[] = cachedMenu ? JSON.parse(cachedMenu) : [];
+
     const pathParts = pathname.split("/").filter((part) => part);
-    const newBreadcrumbs: string[] = ["Admin"];
+    const labels: string[] = ["Admin"];
+
+    const findLabelRecursive = (
+      items: MenuItem[],
+      targetPath: string,
+    ): string | null => {
+      for (const item of items) {
+        if (item.href === targetPath) return item.label;
+        if (item.subItems) {
+          const found = findLabelRecursive(item.subItems, targetPath);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
 
     if (pathParts.length === 1 && pathParts[0] === "admin") {
-      newBreadcrumbs.push("Dashboard");
-    } else if (pathParts.length > 1) {
-      const findLabels = (
-        items: typeof menuItems,
-        parts: string[],
-        basePath: string
-      ): string[] => {
-        if (parts.length === 0) return [];
-        const currentPart = parts[0];
-        const remainingParts = parts.slice(1);
-        const currentSegmentPath = `${basePath}/${currentPart}`;
-
-        for (const item of items) {
-          if (item.href === currentSegmentPath) {
-            return [
-              item.label,
-              ...findLabels(items, remainingParts, currentSegmentPath),
-            ];
-          }
-          if (item.subItems) {
-            for (const subItem of item.subItems) {
-              if (subItem.href === currentSegmentPath) {
-                return [
-                  item.label,
-                  subItem.label,
-                  ...findLabels(items, remainingParts, currentSegmentPath),
-                ];
-              }
-            }
-          }
+      labels.push("Dashboard");
+    } else {
+      let currentPath = "/admin";
+      for (let i = 1; i < pathParts.length; i++) {
+        currentPath += `/${pathParts[i]}`;
+        const label = findLabelRecursive(menuData, currentPath);
+        if (label) {
+          labels.push(label);
+        } else {
+          // Fallback jika path tidak terdaftar di menu (misal detail/edit)
+          const fallback = pathParts[i]
+            .split("-")
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(" ");
+          labels.push(fallback);
         }
-        return [
-          currentPart.charAt(0).toUpperCase() + currentPart.slice(1),
-          ...findLabels(items, remainingParts, currentSegmentPath),
-        ];
-      };
-
-      const labels = findLabels(
-        menuItems,
-        pathParts.slice(1),
-        `/${pathParts[0]}`
-      );
-      newBreadcrumbs.push(...labels);
+      }
     }
 
-    setBreadcrumbs(newBreadcrumbs);
-  }, [pathname]);
+    setBreadcrumbs(labels);
+  }, [pathname, user?.role_id]);
+
+  // Gambar profil berdasarkan jenis kelamin
+  const profileImg =
+    user?.jenis_kelamin === "Perempuan"
+      ? "/img/potrait/woman.jpg"
+      : "/img/potrait/man.jpg";
+
+  if (!mounted)
+    return <header className="h-16 bg-white border-b border-slate-100" />;
 
   return (
-    <header className="sticky top-0 z-30 w-full px-8 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={toggleSidebar}
-            className="text-primary-dark hover:text-primary transition-colors"
-          >
-            <Menu size={24} />
-          </button>
-          <div className="text-sm font-medium text-slate-500 flex items-center gap-1">
-            {breadcrumbs.map((crumb, index) => (
-              <span key={index} className="flex items-center gap-1">
-                {index > 0 && <ChevronRight size={16} />}
-                <span
-                  className={
-                    index === breadcrumbs.length - 1
-                      ? "text-primary-dark font-semibold"
-                      : ""
-                  }
-                >
-                  {crumb}
-                </span>
+    <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between bg-white/80 backdrop-blur-md px-6 border-b border-slate-100">
+      {/* Sisi Kiri: Navigasi */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={toggleSidebar}
+          className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-500 transition-all hover:bg-blue-50 hover:text-primary active:scale-95 border border-slate-100"
+        >
+          <MenuIcon size={18} />
+        </button>
+
+        <nav className="hidden md:flex items-center gap-2">
+          {breadcrumbs.map((crumb, index) => (
+            <React.Fragment key={index}>
+              {index > 0 && (
+                <ChevronRight size={12} className="text-slate-300" />
+              )}
+              <span
+                className={`text-[10px] font-black uppercase tracking-widest ${
+                  index === breadcrumbs.length - 1
+                    ? "text-primary"
+                    : "text-slate-400"
+                }`}
+              >
+                {crumb}
               </span>
-            ))}
-          </div>
+            </React.Fragment>
+          ))}
+        </nav>
+      </div>
+
+      {/* Sisi Kanan: Aksi & Profil */}
+      <div className="flex items-center gap-3">
+        {/* Search - Ukuran lebih pas */}
+        <div className="relative hidden lg:block mr-2">
+          <input
+            type="text"
+            placeholder="Cari..."
+            className="w-48 rounded-xl border border-slate-100 bg-slate-50 py-2 pl-9 pr-3 text-[10px] font-bold text-slate-900 focus:border-blue-400 focus:bg-white outline-none transition-all placeholder:text-slate-300"
+          />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300"
+            size={14}
+          />
         </div>
 
-        <div className="flex items-center gap-6">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Cari..."
-              className="rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm w-64 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-          </div>
+        <button className="relative h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-primary transition-all border border-slate-100">
+          <Bell size={18} />
+          <span className="absolute top-2.5 right-2.5 h-1.5 w-1.5 rounded-full bg-red-500 border border-white"></span>
+        </button>
 
-          <button className="relative text-slate-500 hover:text-primary-dark">
-            <Bell size={22} />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-            </span>
+        {/* Profil Dropdown */}
+        <div className="relative ml-1">
+          <button
+            onClick={() => setDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-2.5 p-1 pr-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100"
+          >
+            <div className="relative h-8 w-8">
+              <img
+                src={profileImg}
+                alt="User"
+                className="h-8 w-8 rounded-full object-cover border border-white shadow-sm"
+              />
+              <div className="absolute bottom-0 right-0 h-2 w-2 bg-emerald-500 border border-white rounded-full"></div>
+            </div>
+            <div className="hidden sm:block text-left">
+              <p className="text-[10px] font-black text-slate-800 leading-none mb-0.5 uppercase truncate max-w-[80px]">
+                {user?.name || "User"}
+              </p>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">
+                {user?.role || "Staff"}
+              </p>
+            </div>
           </button>
 
-          <div className="relative">
-            <button
-              onClick={() => setDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-3"
-            >
-              <Image
-                src="/img/potrait/man.jpg" // Placeholder, bisa diganti nanti
-                alt="User Profile"
-                width={36}
-                height={36}
-                className="rounded-full object-cover"
-              />
-            </button>
-            {isDropdownOpen && (
-              <div
-                className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
-                role="menu"
-                aria-orientation="vertical"
-                aria-labelledby="user-menu-button"
-              >
-                <div className="px-4 py-3 border-b border-slate-200">
-                  <p
-                    className="text-sm font-semibold text-slate-900 truncate"
-                    title={user?.name}
-                  >
-                    {user?.name || "Nama Pengguna"}
-                  </p>
-                  <p
-                    className="text-xs text-slate-500 truncate"
-                    title={user?.role}
-                  >
-                    {user?.role || "Role Pengguna"}
-                  </p>
-                </div>
-                <div className="py-1">
-                  <Link
-                    href="/admin/profile"
-                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                    role="menuitem"
-                  >
-                    <User size={16} />
-                    Profil
-                  </Link>
-                  <button
-                    onClick={() => {
-                      openLogoutModal();
-                      setDropdownOpen(false);
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                    role="menuitem"
-                  >
-                    <LogOut size={16} />
-                    Keluar
-                  </button>
-                </div>
+          {isDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-52 origin-top-right rounded-2xl bg-white shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden animate-in zoom-in duration-200">
+              <div className="px-4 py-3 bg-slate-50/50 border-b border-slate-100">
+                <p className="text-[10px] font-black text-slate-900 uppercase truncate">
+                  {user?.name}
+                </p>
+                <p className="text-[8px] font-bold text-primary uppercase tracking-widest mt-0.5">
+                  {user?.role}
+                </p>
               </div>
-            )}
-          </div>
+              <div className="p-1.5">
+                <Link
+                  href="/admin/profile"
+                  className="flex items-center gap-3 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-blue-50 hover:text-primary rounded-xl transition-all"
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  <User size={14} /> Profil Saya
+                </Link>
+                <button
+                  onClick={() => {
+                    openLogoutModal();
+                    setDropdownOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                >
+                  <LogOut size={14} /> Keluar Sistem
+                </button>
+              </div>
+              <div className="px-4 py-2 border-t border-slate-50 flex items-center gap-2 text-slate-300">
+                <Shield size={10} />
+                <span className="text-[7px] font-black uppercase tracking-[0.2em]">
+                  Alice Secure
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

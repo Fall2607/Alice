@@ -13,7 +13,10 @@ export async function GET(request: Request) {
     const roleId = searchParams.get("roleId");
 
     if (!roleId) {
-      return NextResponse.json({ message: "Role ID diperlukan." }, { status: 400 });
+      return NextResponse.json(
+        { message: "Role ID diperlukan." },
+        { status: 400 },
+      );
     }
 
     // 1. Ambil semua menu yang diizinkan untuk role ini
@@ -29,30 +32,38 @@ export async function GET(request: Request) {
        INNER JOIN public.role_menu_access rma ON m.id = rma.menu_id
        WHERE rma.role_id = $1 AND rma.can_view = true AND m.is_active = true
        ORDER BY m.urutan ASC`,
-      [roleId]
+      [roleId],
     );
 
     const allMenus = menuResult.rows;
 
     // 2. Susun hirarki (Parent & Sub-menu)
     const menuTree = allMenus
-      .filter(m => !m.parent_id) // Ambil yang tidak punya parent (Level Utama)
-      .map(parent => {
+      .filter((m) => !m.parent_id) // Ambil yang tidak punya parent (Level Utama)
+      .map((parent) => {
         const subItems = allMenus
-          .filter(child => child.parent_id === parent.id)
-          .sort((a, b) => a.urutan - b.urutan);
-          
+          .filter((child) => child.parent_id === parent.id)
+          .sort((a, b) => a.urutan - b.urutan)
+          .map((child) => ({
+            label: child.label,
+            href: child.href,
+            icon: child.icon,
+          }));
+
         return {
           label: parent.label,
-          href: parent.href === '#' ? null : parent.href,
+          href: parent.href === "#" ? null : parent.href,
           icon: parent.icon,
-          subItems: subItems.length > 0 ? subItems : null
+          subItems: subItems.length > 0 ? subItems : null,
         };
       });
 
     return NextResponse.json(menuTree);
   } catch (error) {
     console.error("Menu API Error:", error);
-    return NextResponse.json({ message: "Gagal memuat menu navigasi." }, { status: 500 });
+    return NextResponse.json(
+      { message: "Gagal memuat menu navigasi." },
+      { status: 500 },
+    );
   }
 }
