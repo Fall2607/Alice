@@ -1,5 +1,6 @@
-/** * Path: app/(admin)/admin/layout.tsx
- * Deskripsi: Layout utama admin dengan proteksi AuthGuard global.
+/**
+ * Path: app/(admin)/admin/layout.tsx
+ * Deskripsi: Layout utama admin dengan proteksi AuthGuard global + font khusus admin.
  */
 
 "use client";
@@ -10,6 +11,14 @@ import Sidebar from "@/app/components/admin/Sidebar";
 import HeaderAdmin from "@/app/components/admin/HeaderAdmin";
 import AuthGuard from "@/app/components/admin/AuthGuard";
 import { Loader2 } from "lucide-react";
+import { Inter } from "next/font/google";
+
+// ✅ Font khusus admin (tidak global)
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-admin",
+  display: "swap",
+});
 
 interface LoggedInUser {
   id: string;
@@ -35,7 +44,7 @@ export default function AdminLayout({
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   /**
-   * Logika Logout untuk membersihkan sesi
+   * Logout handler
    */
   const handleLogout = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -51,7 +60,7 @@ export default function AdminLayout({
     const token = localStorage.getItem("authToken");
     const userDataString = localStorage.getItem("user");
 
-    // 1. Validasi keberadaan sesi dasar
+    // 1. Validasi sesi
     if (!token || !userDataString) {
       router.push("/login");
     } else {
@@ -65,8 +74,9 @@ export default function AdminLayout({
       }
     }
 
-    // 2. Setup Timer Inaktivitas (Auto Logout setelah 15 Menit)
+    // 2. Auto logout (15 menit idle)
     let inactivityTimer: NodeJS.Timeout;
+
     const resetTimer = () => {
       clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(handleLogout, 15 * 60 * 1000);
@@ -74,6 +84,7 @@ export default function AdminLayout({
 
     const events = ["mousemove", "keydown", "click", "scroll"];
     events.forEach((event) => window.addEventListener(event, resetTimer));
+
     resetTimer();
 
     return () => {
@@ -83,7 +94,7 @@ export default function AdminLayout({
   }, [router, handleLogout]);
 
   /**
-   * Mencegah Hydration Error dan memastikan verifikasi sesi selesai
+   * Prevent hydration error
    */
   if (!mounted || isVerifying) {
     return (
@@ -97,7 +108,10 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    // ✅ Font hanya aktif di admin
+    <div
+      className={`${inter.variable} font-sans flex h-screen bg-slate-50 overflow-hidden`}
+    >
       <Sidebar
         isCollapsed={isCollapsed}
         openLogoutModal={() => setIsLogoutModalOpen(true)}
@@ -113,17 +127,13 @@ export default function AdminLayout({
           user={user as any}
         />
 
-        {/* AREA PROTEKSI UTAMA:
-            AuthGuard diletakkan di sini untuk memproteksi konten halaman (children).
-            Penggunaan key={pathname} sangat krusial agar komponen AuthGuard melakukan 
-            verifikasi ulang ke API setiap kali URL berubah, sehingga mencegah user 
-            mengakses menu terlarang via URL langsung.
-        */}
+        {/* Proteksi halaman */}
         <main className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
           <AuthGuard key={pathname}>{children}</AuthGuard>
         </main>
       </div>
 
+      {/* Custom Scrollbar */}
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
