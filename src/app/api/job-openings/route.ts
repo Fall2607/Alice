@@ -1,24 +1,23 @@
-// File: src/app/api/job-openings/route.ts
+/**
+ * Path: src/app/api/job-openings/route.ts
+ * Deskripsi: API untuk mengambil data lowongan pekerjaan dengan penghitung kandidat otomatis.
+ * Perbaikan: Memastikan subquery applicant_count menggunakan job_opening_id yang benar.
+ */
+
 import { NextResponse, NextRequest } from "next/server";
 import pool from "@/app/lib/db";
 
 // Memaksa route ini agar selalu dirender secara dinamis
 export const dynamic = 'force-dynamic';
 
-/**
- * GET: Mengambil data lowongan pekerjaan.
- * FITUR BARU: Otomatis mengubah status menjadi 'Closed' jika closing_date sudah lewat.
- */
 export async function GET(req: NextRequest) {
   const client = await pool.connect();
 
   try {
-    const { searchParams } = new URL(req.url); // Menggunakan konstruktor URL standar untuk parsing
+    const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get('status');
 
     // --- LANGKAH 1: AUTO-CLOSE LOWONGAN KADALUARSA ---
-    // Sebelum mengambil data, kita update dulu lowongan yang sudah expired.
-    // Logic: Ubah ke 'Closed' JIKA status sekarang 'Published' DAN closing_date < HARI INI
     await client.query(`
       UPDATE job_openings
       SET status = 'Closed', updated_at = CURRENT_TIMESTAMP
@@ -27,7 +26,8 @@ export async function GET(req: NextRequest) {
       AND closing_date < CURRENT_DATE
     `);
 
-    // --- LANGKAH 2: AMBIL DATA ---
+    // --- LANGKAH 2: AMBIL DATA DENGAN JUMLAH PELAMAR ---
+    // Subquery menghitung jumlah baris di application_status yang merujuk ke ID lowongan ini.
     let query = `
       SELECT
         jo.id,
@@ -36,14 +36,18 @@ export async function GET(req: NextRequest) {
         jo.posted_date,
         jo.closing_date,
         j.jenis_job AS category,
-        j.nama_job AS position_name
+        j.nama_job AS position_name,
+        (
+          SELECT COUNT(*)::int 
+          FROM application_status 
+          WHERE job_opening_id = jo.id
+        ) AS applicant_count
       FROM job_openings jo
       LEFT JOIN job j ON jo.job_id = j.id
     `;
 
     const values: any[] = [];
 
-    // Jika ada filter status, tambahkan klausa WHERE
     if (statusFilter) {
       query += ` WHERE jo.status::text = $1`;
       values.push(statusFilter);
@@ -64,6 +68,6 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   } finally {
-    client.release(); // Jangan lupa release client koneksi
+    client.release();
   }
 }
