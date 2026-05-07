@@ -17,7 +17,7 @@ export default function AssessmentLayout({
             A
           </div>
           <span className="font-black text-slate-800 tracking-tighter uppercase text-sm">
-            Alice Assessment
+            User Test
           </span>
         </div>
         <div className="flex items-center gap-2 text-slate-400 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-100">

@@ -1,7 +1,4 @@
-/** Path: src/app/(public)/assessment/[token]/dashboard/page.tsx
- * Deskripsi: Halaman utama pengerjaan tes dengan struktur yang disatukan untuk Pratinjau.
- * Perbaikan: Mengatasi error resolusi modul dengan internal shim dan penggabungan data.
- */
+//Path: src/app/(public)/assessment/[token]/dashboard/page.tsx
 
 "use client";
 
@@ -24,16 +21,16 @@ import {
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { getMbtiResult } from "@/app/utils/mbtiUtils";
+import { calculateDISCResult } from "@/app/utils/discUtils";
+import { calculatePAPIResult } from "@/app/utils/papiUtils";
 import MBTITestContent from "@/app/components/tests/MBTITest";
 import DISCTestContent from "@/app/components/tests/DISCTest";
 import PAPITestContent from "@/app/components/tests/PAPITest";
 
-// ==============================================================================
-// 4. MAIN ASSESSMENT DASHBOARD
-// ==============================================================================
 export default function AssessmentDashboard() {
   const params = useParams() as any;
   const token = params?.token || "ALICE-PREVIEW";
+  const [currentTest, setCurrentTest] = useState<"mbti" | "disc" | "papi" | null>(null);
 
   const [view, setView] = useState<
     "dashboard" | "mbti" | "disc" | "papi" | "result"
@@ -61,6 +58,7 @@ export default function AssessmentDashboard() {
 
   const handleStartTest = (type: "mbti" | "disc" | "papi") => {
     setView(type);
+    setCurrentTest(type);
     setActiveStage(type === "mbti" ? 1 : 0);
     setAnswers({});
     // Set durasi berdasarkan jenis tes
@@ -281,15 +279,11 @@ export default function AssessmentDashboard() {
               <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] mb-3">
                 Hasil Psikometri
               </p>
-              {Object.keys(answers).length > 20 ? (
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-10 uppercase">
-                  Data Berhasil Disimpan
-                </h2>
-              ) : (
-                <h2 className="text-7xl font-black text-[#0173b6] tracking-tighter mb-10 leading-none">
-                  {getMbtiResult(answers)}
-                </h2>
-              )}
+              <h2 className="text-5xl font-black text-[#0173b6] tracking-tight leading-none mb-10 uppercase">
+                {currentTest === "mbti" && getMbtiResult(answers)}
+                {currentTest === "disc" && "Hasil Sudah Tersimpan"}
+                {currentTest === "papi" && "Hasil Sudah Tersimpan"}
+              </h2>
               <button
                 onClick={() => {
                   setView("dashboard");
