@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ChevronLeft, Briefcase, MapPin, Clock, Eye, Loader2, 
-  AlertTriangle, User, Phone, Mail, Calendar, FileText, CheckCircle, X,
+  AlertTriangle, User, Phone, Mail, Calendar, FileText, CheckCircle, X, XCircle,
   GraduationCap, Heart, Users, Download, Paperclip, ClipboardList,
   Target, Info
 } from 'lucide-react';
@@ -78,8 +78,143 @@ export default function DetailLowonganPage() {
     const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
     const [candidateDetail, setCandidateDetail] = useState<any>(null);
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+    const [invitingId, setInvitingId] = useState<string | null>(null);
+    const [rejectingId, setRejectingId] = useState<string | null>(null);
+    const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+    const [isBulkInviting, setIsBulkInviting] = useState(false);
+    const [dialog, setDialog] = useState<{
+        isOpen: boolean; type: 'alert' | 'confirm'; title: string; message: string;
+        onConfirm?: () => void; confirmText?: string; cancelText?: string; isDanger?: boolean;
+    }>({ isOpen: false, type: 'alert', title: '', message: '' });
 
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+    const processInvite = async (applicant: any, quiet = false) => {
+        setInvitingId(applicant.id);
+        try {
+            const response = await fetch(`/api/assessment/invite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    candidate_id: applicant.id,
+                    job_opening_id: slug,
+                    email: applicant.email,
+                    candidate_name: applicant.nama,
+                    job_title: job?.title
+                })
+            });
+            
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || "Gagal mengirim undangan tes.");
+            
+            if (!quiet) setDialog({ isOpen: true, type: 'alert', title: 'Sukses', message: data.message || "Undangan tes berhasil dikirim beserta Token & Kode Akses!" });
+            
+            // Update UI status secara lokal agar tidak perlu refresh halaman
+            setApplicants(prev => prev.map(a => a.id === applicant.id ? { ...a, status: 'ASSESSMENT' } : a));
+            return true;
+        } catch (err: any) {
+            if (!quiet) setDialog({ isOpen: true, type: 'alert', title: 'Gagal', message: err.message || "Terjadi kesalahan saat mengirim undangan.", isDanger: true });
+            return false;
+        } finally {
+            setInvitingId(null);
+        }
+    };
+
+    const handleReject = (candidateId: string) => {
+        const applicant = applicants.find(a => a.id === candidateId);
+        if (!applicant || !job) return;
+
+        setDialog({
+            isOpen: true,
+            type: 'confirm',
+            title: 'Tolak Kandidat',
+            message: `Apakah Anda yakin ingin MENOLAK ${applicant.nama}? Status pelamar akan diubah menjadi REJECTED.`,
+            confirmText: 'Ya, Tolak',
+            isDanger: true,
+            onConfirm: async () => {
+                setDialog(prev => ({ ...prev, isOpen: false }));
+                setRejectingId(candidateId);
+                try {
+                    const response = await fetch(`/api/apply/${candidateId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'REJECTED', job_opening_id: slug })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || "Gagal mengubah status.");
+                    
+                    setApplicants(prev => prev.map(a => a.id === candidateId ? { ...a, status: 'REJECTED' } : a));
+                    setDialog({ isOpen: true, type: 'alert', title: 'Sukses', message: `Kandidat ${applicant.nama} berhasil ditolak.` });
+                } catch (err: any) {
+                    setDialog({ isOpen: true, type: 'alert', title: 'Gagal', message: err.message || "Terjadi kesalahan saat menolak kandidat.", isDanger: true });
+                } finally {
+                    setRejectingId(null);
+                }
+            }
+        });
+    };
+
+    const handleSendInvite = (candidateId: string) => {
+        const applicant = applicants.find(a => a.id === candidateId);
+        if (!applicant || !job) return;
+
+        setDialog({
+            isOpen: true,
+            type: 'confirm',
+            title: 'Kirim Undangan Tes',
+            message: `Apakah Anda yakin ingin meloloskan ${applicant.nama} ke tahap Assessment dan mengirimkan email undangan?`,
+            confirmText: 'Kirim Email',
+            onConfirm: () => {
+                setDialog(prev => ({ ...prev, isOpen: false }));
+                processInvite(applicant);
+            }
+        });
+    };
+
+    const handleBulkSendInvite = () => {
+        if (selectedCandidates.length === 0 || !job) return;
+        
+        setDialog({
+            isOpen: true,
+            type: 'confirm',
+            title: 'Kirim Undangan Massal',
+            message: `Apakah Anda yakin ingin mengirim undangan massal ke ${selectedCandidates.length} kandidat?`,
+            confirmText: 'Kirim Semua',
+            onConfirm: async () => {
+                setDialog(prev => ({ ...prev, isOpen: false }));
+                setIsBulkInviting(true);
+                let successCount = 0;
+                for (const candidateId of selectedCandidates) {
+                    const applicant = applicants.find(a => a.id === candidateId);
+                    if (applicant) {
+                        const success = await processInvite(applicant, true);
+                        if (success) successCount++;
+                    }
+                }
+                setIsBulkInviting(false);
+                setSelectedCandidates([]);
+                setDialog({ isOpen: true, type: 'alert', title: 'Proses Selesai', message: `Selesai! Berhasil mengirim ${successCount} dari ${selectedCandidates.length} undangan tes.` });
+            }
+        });
+    };
+
+    const toggleSelectAll = () => {
+        const processableCandidates = applicants.filter(a => !a.status || ['SUBMITTED', 'APPLIED', 'PENDING'].includes(a.status.toUpperCase()));
+        
+        if (selectedCandidates.length === processableCandidates.length && processableCandidates.length > 0) {
+            setSelectedCandidates([]);
+        } else {
+            setSelectedCandidates(processableCandidates.map(a => a.id));
+        }
+    };
+
+    const toggleSelect = (candidateId: string) => {
+        if (selectedCandidates.includes(candidateId)) {
+            setSelectedCandidates(prev => prev.filter(id => id !== candidateId));
+        } else {
+            setSelectedCandidates(prev => [...prev, candidateId]);
+        }
+    };
 
     useEffect(() => {
         if (!slug) return;
@@ -110,6 +245,7 @@ export default function DetailLowonganPage() {
         } catch (err) {
             console.error(err);
             setCandidateDetail(null);
+            setDialog({ isOpen: true, type: 'alert', title: 'Error', message: 'Gagal memuat profil kandidat.', isDanger: true });
         } finally { setIsLoadingDetail(false); }
     };
 
@@ -194,13 +330,31 @@ export default function DetailLowonganPage() {
                         <Users size={18} className="text-blue-300" />
                         Daftar Kandidat Pelamar
                     </h2>
+                    {selectedCandidates.length > 0 && (
+                        <button 
+                            onClick={handleBulkSendInvite}
+                            disabled={isBulkInviting}
+                            className="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2 rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
+                        >
+                            {isBulkInviting ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                            Kirim Undangan Massal ({selectedCandidates.length})
+                        </button>
+                    )}
                 </div>
                 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                <th className="px-8 py-5">Nama Lengkap</th>
+                                <th className="px-6 py-5 w-[50px] text-center">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={applicants.length > 0 && selectedCandidates.length === applicants.length}
+                                        onChange={toggleSelectAll}
+                                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+                                    />
+                                </th>
+                                <th className="px-4 py-5">Nama Lengkap</th>
                                 <th className="px-8 py-5">Informasi Kontak</th>
                                 <th className="px-8 py-5 text-center">Tanggal Apply</th>
                                 <th className="px-8 py-5 text-center">Status Pipeline</th>
@@ -210,8 +364,18 @@ export default function DetailLowonganPage() {
                         <tbody className="divide-y divide-slate-100">
                             {applicants.length > 0 ? (
                                 applicants.map((applicant) => (
-                                    <tr key={applicant.id} className="hover:bg-slate-50 transition-all group">
-                                        <td className="px-8 py-6">
+                                    <tr key={applicant.id} className={`hover:bg-slate-50 transition-all group ${selectedCandidates.includes(applicant.id) ? 'bg-blue-50/30' : ''}`}>
+                                        <td className="px-6 py-6 text-center">
+                                            {(!applicant.status || ['SUBMITTED', 'APPLIED', 'PENDING'].includes(applicant.status.toUpperCase())) && (
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={selectedCandidates.includes(applicant.id)}
+                                                    onChange={() => toggleSelect(applicant.id)}
+                                                    className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+                                                />
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-6">
                                             <div className="font-bold text-slate-800 text-base tracking-tight">{applicant.nama}</div>
                                         </td>
                                         <td className="px-8 py-6">
@@ -231,13 +395,45 @@ export default function DetailLowonganPage() {
                                             </span>
                                         </td>
                                         <td className="px-8 py-6 text-center">
-                                            <button 
-                                                onClick={() => handleViewCandidate(applicant.id)} 
-                                                className="p-3 text-primary hover:text-white border border-slate-100 hover:bg-primary rounded-md shadow-sm transition-all active:scale-95"
-                                                title="Lihat Profil Lengkap"
-                                            >
-                                                <Eye size={18} />
-                                            </button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button 
+                                                    onClick={() => handleViewCandidate(applicant.id)} 
+                                                    className="p-3 text-primary hover:text-white border border-slate-100 hover:bg-primary rounded-md shadow-sm transition-all active:scale-95"
+                                                    title="Lihat Profil Lengkap"
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                                {(!applicant.status || ['SUBMITTED', 'APPLIED', 'PENDING'].includes(applicant.status.toUpperCase())) && (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => handleSendInvite(applicant.id)} 
+                                                            disabled={invitingId === applicant.id}
+                                                            className="p-3 text-emerald-600 hover:text-white border border-slate-100 hover:bg-emerald-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title="Loloskan Administrasi (Kirim Undangan Tes)"
+                                                        >
+                                                            {invitingId === applicant.id ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleReject(applicant.id)} 
+                                                            disabled={rejectingId === applicant.id}
+                                                            className="p-3 text-rose-500 hover:text-white border border-slate-100 hover:bg-rose-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title="Tolak Kandidat (Gagal Administrasi)"
+                                                        >
+                                                            {rejectingId === applicant.id ? <Loader2 size={18} className="animate-spin" /> : <XCircle size={18} />}
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {applicant.status?.toUpperCase() === 'ASSESSMENT' && (
+                                                    <button 
+                                                        onClick={() => setDialog({ isOpen: true, type: 'alert', title: 'Status Assessment', message: 'Kandidat sedang/akan dalam tahap pengerjaan Assessment. Fitur lihat skor akan segera tersedia setelah rilis.' })}
+                                                        className="p-3 text-blue-500 hover:text-white border border-slate-100 hover:bg-blue-500 rounded-md shadow-sm transition-all active:scale-95"
+                                                        title="Lihat Hasil Assessment"
+                                                    >
+                                                        <ClipboardList size={18} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -265,20 +461,30 @@ export default function DetailLowonganPage() {
                     </div>
                 ) : candidateDetail ? (
                     <div className="flex flex-col gap-8">
-                        {/* Summary Header */}
-                        <div className="bg-slate-50 p-6 rounded-md border border-slate-100 flex flex-col md:flex-row items-center md:items-start gap-8 shadow-inner">
-                            <div className="w-28 h-28 bg-white rounded-md border-4 border-white shadow-md flex items-center justify-center shrink-0 overflow-hidden relative group">
-                                {candidateDetail.documents?.pas_foto_url ? (
-                                    <img src={candidateDetail.documents.pas_foto_url} alt="Foto" className="w-full h-full object-cover" />
-                                ) : <User size={48} className="text-slate-200" />}
-                            </div>
-                            <div className="flex-1 text-center md:text-left pt-2">
-                                <h2 className="text-3xl font-black text-primary-dark tracking-tighter uppercase mb-2 leading-none">{candidateDetail.nama}</h2>
-                                <div className="flex flex-wrap justify-center md:justify-start gap-x-8 gap-y-2 text-xs font-bold text-slate-400">
-                                    <span className="flex items-center gap-2"><Mail size={14} className="text-primary"/> {candidateDetail.email}</span>
-                                    <span className="flex items-center gap-2"><Phone size={14} className="text-primary"/> {candidateDetail.no_whatsapp}</span>
+                        {/* HEADER PROFILE */}
+                        <div className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                            {/* Banner Background */}
+                            <div className="h-24 bg-gradient-to-r from-primary-dark to-primary/80"></div>
+                            
+                            <div className="bg-white px-6 pb-6 pt-0 relative flex flex-col md:flex-row gap-6 md:items-end -mt-12">
+                                {/* Photo */}
+                                <div className="w-24 h-24 bg-white rounded-xl border-4 border-slate-50 shadow-lg flex items-center justify-center shrink-0 overflow-hidden z-10 mx-auto md:mx-0">
+                                    {candidateDetail.documents?.pas_foto_url ? (
+                                        <img src={candidateDetail.documents.pas_foto_url} alt="Foto" className="w-full h-full object-cover" />
+                                    ) : <User size={40} className="text-slate-200" />}
                                 </div>
-                                <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-2">
+                                
+                                {/* Info */}
+                                <div className="flex-1 text-center md:text-left pt-2 md:pt-0 md:pb-1">
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase mb-1">{candidateDetail.nama}</h2>
+                                    <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-1 text-[11px] font-bold text-slate-500">
+                                        <span className="flex items-center gap-1.5"><Mail size={12} className="text-primary"/> {candidateDetail.email}</span>
+                                        <span className="flex items-center gap-1.5"><Phone size={12} className="text-primary"/> {candidateDetail.no_whatsapp}</span>
+                                    </div>
+                                </div>
+
+                                {/* Badges */}
+                                <div className="flex flex-wrap justify-center md:justify-end gap-2 md:pb-1">
                                     <Badge label={candidateDetail.status_pernikahan} icon={Heart} />
                                     <Badge label={candidateDetail.agama} icon={Target} />
                                     <Badge label={`${new Date().getFullYear() - new Date(candidateDetail.tanggal_lahir).getFullYear()} Thn`} color="primary" />
@@ -286,86 +492,116 @@ export default function DetailLowonganPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-6">
-                                <section>
-                                    <h4 className="font-bold text-slate-800 text-[11px] mb-4 flex items-center gap-3 uppercase tracking-widest border-b pb-2">
-                                        <Briefcase size={16} className="text-primary"/> Pengalaman Kerja
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50/50 p-2 rounded-xl">
+                            {/* KOLOM KIRI */}
+                            <div className="space-y-4">
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                                    <h4 className="font-bold text-primary-dark text-xs mb-4 flex items-center gap-2 uppercase tracking-widest pb-3 border-b border-slate-100">
+                                        <div className="p-1.5 bg-blue-50 rounded text-primary"><Briefcase size={14}/></div> Pengalaman Kerja
                                     </h4>
-                                    <div className="space-y-4">
+                                    <div className="space-y-5">
                                         {candidateDetail.experience?.length > 0 ? candidateDetail.experience.map((exp: any, i: number) => (
-                                            <div key={i} className="border-l-2 border-primary/20 pl-4 py-1">
-                                                <p className="font-bold text-slate-800 text-sm">{exp.jabatan_terakhir}</p>
-                                                <p className="text-primary font-bold text-xs uppercase">{exp.nama_instansi}</p>
-                                                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">{exp.tahun_mulai} — {exp.tahun_selesai}</p>
+                                            <div key={i} className="relative pl-6 before:content-[''] before:absolute before:left-[5px] before:top-1.5 before:w-2 before:h-2 before:bg-primary before:rounded-full after:content-[''] after:absolute after:left-[8px] after:top-3.5 after:bottom-[-16px] after:w-[2px] after:bg-slate-100 last:after:hidden">
+                                                <p className="font-black text-slate-800 text-sm leading-tight">{exp.jabatan_terakhir}</p>
+                                                <p className="text-primary font-bold text-xs uppercase mt-0.5">{exp.nama_instansi}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-wider bg-slate-50 inline-block px-2 py-0.5 rounded border border-slate-100">{exp.tahun_mulai} — {exp.tahun_selesai}</p>
                                             </div>
-                                        )) : <p className="text-xs italic text-slate-300">Data belum tersedia.</p>}
+                                        )) : <div className="flex items-center gap-2 text-xs italic text-slate-400 bg-slate-50 p-3 rounded-lg"><Info size={14} /> Belum ada pengalaman kerja.</div>}
                                     </div>
-                                </section>
-                                <section>
-                                    <h4 className="font-bold text-slate-800 text-[11px] mb-4 flex items-center gap-3 uppercase tracking-widest border-b pb-2">
-                                        <GraduationCap size={16} className="text-primary"/> Pendidikan Terakhir
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                                    <h4 className="font-bold text-primary-dark text-xs mb-4 flex items-center gap-2 uppercase tracking-widest pb-3 border-b border-slate-100">
+                                        <div className="p-1.5 bg-emerald-50 rounded text-emerald-600"><GraduationCap size={14}/></div> Pendidikan Terakhir
                                     </h4>
                                     <div className="space-y-4">
                                         {candidateDetail.education?.formal?.length > 0 ? candidateDetail.education.formal.map((edu: any, i: number) => (
-                                            <div key={i} className="border-l-2 border-blue-400/30 pl-4 py-1">
-                                                <p className="font-bold text-slate-800 text-sm uppercase">{edu.nama_sekolah}</p>
-                                                <p className="text-blue-500 font-bold text-xs mt-1">Lulus {edu.tahun_lulus} {edu.ipk && <span className="ml-2 bg-blue-50 px-2 py-0.5 rounded text-[10px] border border-blue-100">IPK: {edu.ipk}</span>}</p>
+                                            <div key={i} className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                                                <p className="font-black text-slate-800 text-sm uppercase leading-tight mb-1">{edu.nama_sekolah}</p>
+                                                <div className="flex items-center gap-3">
+                                                    <p className="text-emerald-600 font-bold text-[11px] uppercase tracking-wider">Lulus {edu.tahun_lulus}</p>
+                                                    {edu.ipk && <span className="bg-white px-2 py-0.5 rounded text-[10px] border border-emerald-100 font-black text-emerald-700 shadow-sm">IPK: {edu.ipk}</span>}
+                                                </div>
                                             </div>
-                                        )) : <p className="text-xs italic text-slate-300">Data belum tersedia.</p>}
+                                        )) : <div className="flex items-center gap-2 text-xs italic text-slate-400 bg-slate-50 p-3 rounded-lg"><Info size={14} /> Belum ada data pendidikan.</div>}
                                     </div>
-                                </section>
+                                </div>
                             </div>
 
-                            <div className="space-y-6">
-                                <section className="bg-slate-50 p-6 rounded-md border border-slate-100">
-                                    <h4 className="font-bold text-slate-800 text-[11px] mb-4 flex items-center gap-3 uppercase tracking-widest border-b border-slate-200 pb-2">
-                                        <Users size={16} className="text-primary"/> Data Keluarga
+                            {/* KOLOM KANAN */}
+                            <div className="space-y-4">
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                                    <h4 className="font-bold text-primary-dark text-xs mb-4 flex items-center gap-2 uppercase tracking-widest pb-3 border-b border-slate-100">
+                                        <div className="p-1.5 bg-purple-50 rounded text-purple-600"><Users size={14}/></div> Data Keluarga
                                     </h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white p-3 rounded-md border border-slate-100 shadow-sm">
-                                            <p className="text-[9px] font-bold text-slate-300 uppercase mb-1">Ayah</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Ayah</p>
                                             <p className="text-xs font-bold text-slate-700 truncate">{candidateDetail.parents?.nama_ayah || '-'}</p>
                                         </div>
-                                        <div className="bg-white p-3 rounded-md border border-slate-100 shadow-sm">
-                                            <p className="text-[9px] font-bold text-slate-300 uppercase mb-1">Ibu</p>
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Ibu</p>
                                             <p className="text-xs font-bold text-slate-700 truncate">{candidateDetail.parents?.nama_ibu || '-'}</p>
                                         </div>
                                         {candidateDetail.spouse && (
-                                            <div className="col-span-2 bg-blue-50/50 p-3 rounded-md border border-blue-100">
-                                                <p className="text-[9px] font-bold text-blue-400 uppercase mb-1">Pasangan</p>
-                                                <p className="text-xs font-bold text-blue-800">{candidateDetail.spouse.nama}</p>
+                                            <div className="col-span-2 bg-purple-50/30 p-3 rounded-lg border border-purple-100">
+                                                <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest mb-0.5">Pasangan</p>
+                                                <p className="text-xs font-bold text-purple-800">{candidateDetail.spouse.nama}</p>
                                             </div>
                                         )}
                                     </div>
-                                </section>
+                                </div>
 
-                                <section>
-                                    <h4 className="font-bold text-slate-800 text-[11px] mb-4 flex items-center gap-3 uppercase tracking-widest border-b pb-2">
-                                        <FileText size={16} className="text-primary"/> Berkas Pendukung
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                                    <h4 className="font-bold text-primary-dark text-xs mb-4 flex items-center gap-2 uppercase tracking-widest pb-3 border-b border-slate-100">
+                                        <div className="p-1.5 bg-amber-50 rounded text-amber-600"><FileText size={14}/></div> Berkas Pendukung
                                     </h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {candidateDetail.documents && Object.entries(candidateDetail.documents).map(([k, v]) => {
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                        {candidateDetail.documents && Object.entries(candidateDetail.documents).some(([k,v]) => v && !k.includes('id') && !k.includes('candidate')) ? Object.entries(candidateDetail.documents).map(([k, v]) => {
                                             if (!v || k.includes('id') || k.includes('candidate')) return null;
                                             const label = k.replace('_url', '').replace('_', ' ').toUpperCase();
                                             return (
-                                                <a key={k} href={v as string} target="_blank" className="p-2.5 bg-white border border-slate-200 rounded flex justify-between items-center hover:bg-slate-50 transition-all group">
-                                                    <span className="text-[10px] font-bold text-slate-600 uppercase truncate group-hover:text-primary">{label}</span> 
-                                                    <Download size={14} className="text-slate-300 group-hover:text-primary shrink-0"/>
+                                                <a key={k} href={v as string} target="_blank" className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg flex items-center gap-2 hover:bg-primary hover:text-white hover:border-primary transition-colors group">
+                                                    <div className="bg-white p-1.5 rounded text-slate-400 group-hover:text-primary"><Paperclip size={12}/></div>
+                                                    <span className="text-[10px] font-bold text-slate-600 uppercase truncate flex-1 group-hover:text-white">{label}</span> 
+                                                    <Download size={14} className="text-slate-300 group-hover:text-white shrink-0"/>
                                                 </a>
                                             )
-                                        })}
+                                        }) : <div className="col-span-2 flex items-center gap-2 text-xs italic text-slate-400 bg-slate-50 p-3 rounded-lg"><Info size={14} /> Berkas belum diunggah.</div>}
                                     </div>
-                                </section>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-                            <button onClick={()=>setSelectedCandidateId(null)} className="px-8 py-2.5 bg-slate-100 text-slate-500 font-bold rounded-md hover:bg-slate-200 transition-all text-xs uppercase tracking-widest">Tutup</button>
-                            <button onClick={()=>alert("Status rekrutmen diproses")} className="px-8 py-2.5 bg-primary text-white font-bold rounded-md hover:bg-primary-dark transition-all text-xs uppercase tracking-widest shadow-md shadow-primary/20">Setujui Kandidat</button>
+                        <div className="pt-2 flex justify-end">
+                            <button onClick={()=>setSelectedCandidateId(null)} className="px-8 py-2.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition-all text-xs uppercase tracking-widest shadow-md">Tutup Profil</button>
                         </div>
                     </div>
                 ) : null}
+            </Modal>
+
+            {/* DIALOG MODAL (Alert & Confirm) */}
+            <Modal isOpen={dialog.isOpen} onClose={() => setDialog(prev => ({ ...prev, isOpen: false }))} title={dialog.title} size="md">
+                <p className="text-slate-600 font-medium mb-8 leading-relaxed text-sm">{dialog.message}</p>
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    {dialog.type === 'confirm' && (
+                        <button 
+                            onClick={() => setDialog(prev => ({ ...prev, isOpen: false }))} 
+                            className="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-md hover:bg-slate-200 transition-all text-xs uppercase tracking-widest"
+                        >
+                            {dialog.cancelText || 'Batal'}
+                        </button>
+                    )}
+                    <button 
+                        onClick={() => {
+                            if (dialog.onConfirm) dialog.onConfirm();
+                            if (dialog.type === 'alert') setDialog(prev => ({ ...prev, isOpen: false }));
+                        }} 
+                        className={`px-6 py-2.5 text-white font-bold rounded-md transition-all text-xs uppercase tracking-widest shadow-md ${dialog.isDanger ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20' : 'bg-primary hover:bg-primary-dark shadow-primary/20'}`}
+                    >
+                        {dialog.confirmText || 'OK Mengerti'}
+                    </button>
+                </div>
             </Modal>
 
             <style jsx global>{`

@@ -19,7 +19,7 @@ import {
   Zap,
   Check,
 } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { getMbtiResult } from "@/app/utils/mbtiUtils";
 import { calculateDISCResult } from "@/app/utils/discUtils";
 import { calculatePAPIResult } from "@/app/utils/papiUtils";
@@ -29,6 +29,7 @@ import PAPITestContent from "@/app/components/tests/PAPITest";
 
 export default function AssessmentDashboard() {
   const params = useParams() as any;
+  const router = useRouter();
   const token = params?.token || "ALICE-PREVIEW";
   const [currentTest, setCurrentTest] = useState<"mbti" | "disc" | "papi" | null>(null);
 
@@ -44,7 +45,12 @@ export default function AssessmentDashboard() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Verifikasi keamanan rute: Pastikan kandidat masuk lewat halaman verifikasi OTP
+    const verifiedToken = sessionStorage.getItem("verified_token");
+    if (verifiedToken !== token && token !== "ALICE-PREVIEW") {
+      router.replace(`/assessment/${token}`);
+    }
+  }, [token, router]);
 
   useEffect(() => {
     let timer: any;

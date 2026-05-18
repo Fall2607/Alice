@@ -62,6 +62,8 @@ const DynamicIcon = ({
 export default function Sidebar({
   isCollapsed,
   openLogoutModal,
+  closeLogoutModal,
+  isLogoutModalOpen,
   user,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -70,7 +72,6 @@ export default function Sidebar({
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-
   const currentPath = pathname.replace(/\/$/, "") || "/admin";
 
   useEffect(() => {

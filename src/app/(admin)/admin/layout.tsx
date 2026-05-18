@@ -12,6 +12,7 @@ import HeaderAdmin from "@/app/components/admin/HeaderAdmin";
 import AuthGuard from "@/app/components/admin/AuthGuard";
 import { Loader2 } from "lucide-react";
 import { Inter } from "next/font/google";
+import Modal from "@/app/components/modal";
 
 // ✅ Font khusus admin (tidak global)
 const inter = Inter({
@@ -132,6 +133,33 @@ export default function AdminLayout({
           <AuthGuard key={pathname}>{children}</AuthGuard>
         </main>
       </div>
+
+      <Modal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        title="Konfirmasi Logout"
+        size="sm" // Menggunakan ukuran "sm" agar kotak tidak terlalu lebar
+      >
+        <div>
+          <p className="mb-6 text-sm text-slate-500 font-medium">
+            Apakah Anda yakin ingin keluar dari sistem? Anda harus login kembali untuk mengakses halaman ini.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setIsLogoutModalOpen(false)}
+              className="rounded-md px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleLogout}
+              className="rounded-md bg-red-500 px-4 py-2 text-sm font-bold text-white hover:bg-red-600 transition-colors shadow-md shadow-red-100"
+            >
+              Ya, Keluar
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Custom Scrollbar */}
       <style jsx global>{`

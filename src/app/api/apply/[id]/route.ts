@@ -70,3 +70,34 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     );
   }
 }
+
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const { status, job_opening_id } = await req.json();
+
+    if (!status || !job_opening_id) {
+      return NextResponse.json({ message: "Status dan job_opening_id wajib diisi" }, { status: 400 });
+    }
+
+    const result = await pool.query(
+      `UPDATE application_status 
+       SET status = $1, updated_at = NOW() 
+       WHERE candidate_id = $2 AND job_opening_id = $3 
+       RETURNING *`,
+      [status, id, job_opening_id]
+    );
+
+    if ((result.rowCount ?? 0) === 0) {
+      return NextResponse.json({ message: "Data aplikasi tidak ditemukan" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: "Status berhasil diperbarui", data: result.rows[0] });
+  } catch (error: any) {
+    console.error("Update Status Error:", error.message);
+    return NextResponse.json(
+      { message: "Gagal memperbarui status.", error: error.message }, 
+      { status: 500 }
+    );
+  }
+}
