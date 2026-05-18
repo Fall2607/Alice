@@ -54,6 +54,7 @@ type ApplyState = {
   experiences: ExperienceItem[];
   documents: Documents;
   otherDocuments: OtherDocumentItem[]; // Menambahkan state ini
+  assessmentAnswers: Record<string, any>; // NEW: State untuk Assessment
 };
 
 type ApplyContextType = {
@@ -86,6 +87,9 @@ type ApplyContextType = {
   updateOtherDocument: (id: string, data: Partial<OtherDocumentItem>) => void;
   removeOtherDocument: (id: string) => void;
 
+  // NEW: Assessment Action
+  setAssessmentAnswer: (questionId: string, value: any) => void;
+
   resetAll: () => void;
 };
 
@@ -107,6 +111,7 @@ const initialState: ApplyState = {
   experiences: [],
   documents: defaultDocuments,
   otherDocuments: [], // Inisialisasi array kosong agar tidak undefined
+  assessmentAnswers: {}, // NEW: Inisialisasi awal empty object
 };
 
 const STORAGE_KEY = "apply_form_v2";
@@ -125,6 +130,7 @@ export const ApplyProvider = ({ children }: { children: React.ReactNode }) => {
         // Pastikan structure documents & otherDocuments ada meskipun dari storage lama
         parsed.documents = defaultDocuments;
         parsed.otherDocuments = parsed.otherDocuments || []; 
+        parsed.assessmentAnswers = parsed.assessmentAnswers || {}; // NEW
         setState((s) => ({ ...s, ...parsed }));
       }
     } catch (e) { console.warn(e); }
@@ -181,13 +187,23 @@ export const ApplyProvider = ({ children }: { children: React.ReactNode }) => {
     otherDocuments: (s.otherDocuments || []).filter(it => it.id !== id) 
   }));
 
+  const setAssessmentAnswer = (questionId: string, value: any) => {
+    setState(s => ({
+      ...s,
+      assessmentAnswers: {
+        ...s.assessmentAnswers,
+        [questionId]: value
+      }
+    }));
+  };
+
   const resetAll = () => {
     setState(initialState);
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
   };
 
   return (
-    <ApplyContext.Provider value={{ state, setIdentityField, addSibling, updateSibling, removeSibling, addEducationFormal, updateEducationFormal, removeEducationFormal, addEducationNonFormal, updateEducationNonFormal, removeEducationNonFormal, addExperience, updateExperience, removeExperience, setDocumentFile, addOtherDocument, updateOtherDocument, removeOtherDocument, resetAll }}>
+    <ApplyContext.Provider value={{ state, setIdentityField, addSibling, updateSibling, removeSibling, addEducationFormal, updateEducationFormal, removeEducationFormal, addEducationNonFormal, updateEducationNonFormal, removeEducationNonFormal, addExperience, updateExperience, removeExperience, setDocumentFile, addOtherDocument, updateOtherDocument, removeOtherDocument, setAssessmentAnswer, resetAll }}>
       {children}
     </ApplyContext.Provider>
   );

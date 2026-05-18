@@ -27,7 +27,8 @@ export default function ApplyLayout({ children }: { children: React.ReactNode })
     { id: 3, label: "Riwayat Pendidikan", path: "/step3" },
     { id: 4, label: "Pengalaman Kerja", path: "/step4" },
     { id: 5, label: "Upload Dokumen", path: "/step5" },
-    { id: 6, label: "Review & Kirim", path: "/step6" },
+    { id: 6, label: "Assessment", path: "/step6" },
+    { id: 7, label: "Review & Kirim", path: "/step7" },
   ];
 
   // Logika Menentukan Step Aktif

@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { applicant, documents, otherDocuments, jobSlug } = body;
+    const { applicant, documents, otherDocuments, jobSlug, assessmentAnswers } = body;
 
     // jobSlug di sini diasumsikan sebagai UUID dari job_openings.id
     if (!jobSlug)
@@ -168,11 +168,79 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 10. Set Status (PERBAIKAN: Gunakan job_opening_id dan hapus parseInt)
-    await client.query(
-      `INSERT INTO application_status (candidate_id, job_opening_id, status) VALUES ($1, $2, 'submitted')`,
+    // 10. Set Status dan Simpan ID Lamaran
+    const appStatusRes = await client.query(
+      `INSERT INTO application_status (candidate_id, job_opening_id, status) VALUES ($1, $2, 'submitted') RETURNING id`,
       [candidateId, jobSlug],
     );
+    const applicationStatusId = appStatusRes.rows[0].id;
+
+    // 11. Proses Kalkulasi Fuzzy Logic & Simpan Assessment
+    if (assessmentAnswers && Object.keys(assessmentAnswers).length > 0) {
+        const assessmentsRes = await client.query(
+            `SELECT id, type, fuzzy_config, weight FROM job_assessments WHERE job_id = $1`,
+            [jobSlug]
+        );
+
+        let totalScore = 0;
+        let totalWeight = 0;
+
+        for (const assessment of assessmentsRes.rows) {
+            const answer = assessmentAnswers[assessment.id];
+            let fuzzyScore = 0.0;
+            const weight = parseFloat(assessment.weight) || 1.0;
+            const config = assessment.fuzzy_config || {};
+
+            if (answer !== undefined && answer !== "") {
+                if (assessment.type === 'NUMBER') {
+                    const val = parseFloat(answer);
+                    if (val >= config.ideal_min && val <= config.ideal_max) {
+                        fuzzyScore = 100.0;
+                    } else if (val >= config.tolerance_min && val < config.ideal_min) {
+                        const range = config.ideal_min - config.tolerance_min;
+                        fuzzyScore = range > 0 ? ((val - config.tolerance_min) / range) * 100 : 0;
+                    } else if (val > config.ideal_max && val <= config.tolerance_max) {
+                        const range = config.tolerance_max - config.ideal_max;
+                        fuzzyScore = range > 0 ? ((config.tolerance_max - val) / range) * 100 : 0;
+                    } else {
+                        fuzzyScore = 0.0;
+                    }
+                } else if (assessment.type === 'SCALE') {
+                    const val = parseFloat(answer);
+                    if (val >= config.target_score) {
+                        fuzzyScore = 100.0;
+                    } else if (val <= config.min_score) {
+                        fuzzyScore = 0.0;
+                    } else {
+                        const range = config.target_score - config.min_score;
+                        fuzzyScore = range > 0 ? ((val - config.min_score) / range) * 100 : 0;
+                    }
+                } else if (assessment.type === 'CHOICE') {
+                    fuzzyScore = parseFloat(config[answer]) || 0.0;
+                }
+            }
+
+            // Batasi skor maksimal 100 dan minimal 0
+            fuzzyScore = Math.max(0, Math.min(100, fuzzyScore));
+
+            totalScore += fuzzyScore * weight;
+            totalWeight += weight;
+
+            // Simpan ke applicant_assessments
+            await client.query(
+                `INSERT INTO applicant_assessments (application_status_id, assessment_id, answer_value, fuzzy_score) 
+                 VALUES ($1, $2, $3, $4)`,
+                [applicationStatusId, assessment.id, String(answer || ""), fuzzyScore]
+            );
+        }
+
+        // Update total suitability_match
+        const suitabilityMatch = totalWeight > 0 ? (totalScore / totalWeight) : 0.0;
+        await client.query(
+            `UPDATE application_status SET suitability_match = $1 WHERE id = $2`,
+            [suitabilityMatch, applicationStatusId]
+        );
+    }
 
     await client.query("COMMIT");
     return NextResponse.json({
@@ -202,6 +270,8 @@ export async function GET(req: NextRequest) {
         c.no_whatsapp, 
         c.created_at, 
         as_stat.status, 
+        as_stat.suitability_match,
+        as_stat.id as application_status_id,
         jo.title as job_title, 
         jo.id as job_opening_id
       FROM candidates c

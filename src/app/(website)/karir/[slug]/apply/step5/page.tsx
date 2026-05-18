@@ -163,7 +163,7 @@ export default function Step5Page() {
 
       <div className="flex justify-between pt-8 border-t border-slate-100 mt-12">
         <button onClick={() => router.push(`/karir/${slug}/apply/step4`)} className="px-6 py-3 rounded-xl text-slate-500 font-bold hover:bg-slate-100 hover:text-slate-800 transition-colors flex items-center gap-2 group text-sm"><ArrowLeft size={18}/> Kembali</button>
-        <button onClick={() => router.push(`/karir/${slug}/apply/step6`)} className="px-8 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-lg shadow-primary/25 active:scale-95 transition-all flex items-center gap-2 group text-sm">Review Lamaran <ArrowRight size={18}/></button>
+        <button onClick={() => router.push(`/karir/${slug}/apply/step6`)} className="px-8 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-dark shadow-lg shadow-primary/25 active:scale-95 transition-all flex items-center gap-2 group text-sm">Lanjut ke Assessment <ArrowRight size={18}/></button>
       </div>
     </div>
   );
