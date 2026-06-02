@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Eye,
   Info,
+  ScanFace,
 } from "lucide-react";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
@@ -42,6 +43,7 @@ interface Karyawan {
   nama_departemen: string;
   nama_level: string;
   sipStatus?: SipStatus;
+  has_face_descriptor?: boolean;
 }
 
 interface Departemen {
@@ -326,6 +328,15 @@ export default function EmployeeManagementPage() {
             <StatusBadge status={employee.status_kepegawaian} />
           </td>
           <td className="px-6 py-4 flex items-center justify-center gap-2">
+            {!employee.has_face_descriptor && (
+               <Link
+                 href={`/admin/pegawai/enroll-face?nip=${employee.nip}`}
+                 className="text-emerald-600 hover:text-emerald-800"
+                 title="Daftarkan Wajah Karyawan (Enroll Face)"
+               >
+                 <ScanFace size={18} />
+               </Link>
+            )}
             <button
               onClick={() => handleOpenDetailModal(employee)}
               className="text-slate-500 hover:text-primary"

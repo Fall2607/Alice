@@ -19,6 +19,7 @@ import {
   QrCode,
   Download,
   Info,
+  ScanFace,
 } from "lucide-react";
 
 /** * BAGIAN INTERNAL: Fix untuk pratinjau (Shim untuk modul Next.js) */
@@ -44,6 +45,7 @@ interface ProfileData {
   nama_departemen: string;
   nama_level: string;
   profesi: string;
+  has_face_descriptor?: boolean;
 }
 
 export default function ProfilePage() {
@@ -284,6 +286,41 @@ export default function ProfilePage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Biometrik Mini Card */}
+          <div className="rounded-[40px] bg-slate-900 p-8 text-white shadow-xl relative overflow-hidden group">
+            <h3 className="mb-6 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+              Akses Biometrik Wajah
+            </h3>
+            <div className="flex items-center gap-5 relative z-10 mb-6">
+              <div className={`h-14 w-14 rounded-2xl flex items-center justify-center border ${profile.has_face_descriptor ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-rose-500/20 border-rose-500/30'}`}>
+                <ScanFace size={28} className={profile.has_face_descriptor ? 'text-emerald-400' : 'text-rose-400'} />
+              </div>
+              <div>
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${profile.has_face_descriptor ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>
+                  Status
+                </p>
+                <p className="text-xl font-black tracking-tight text-white">
+                  {profile.has_face_descriptor ? "Terdaftar" : "Belum Daftar"}
+                </p>
+              </div>
+            </div>
+            {!profile.has_face_descriptor ? (
+               <Link 
+                 href={`/admin/pegawai/enroll-face?nip=${profile.nip}`}
+                 className="block w-full text-center bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] uppercase tracking-widest py-3 rounded-2xl transition-colors"
+               >
+                 Daftar Sekarang
+               </Link>
+            ) : (
+               <Link 
+                 href={`/admin/pegawai/enroll-face?nip=${profile.nip}`}
+                 className="block w-full text-center bg-white/10 hover:bg-white/20 text-white font-black text-[10px] uppercase tracking-widest py-3 rounded-2xl transition-colors"
+               >
+                 Perbarui Wajah
+               </Link>
+            )}
           </div>
         </div>
 

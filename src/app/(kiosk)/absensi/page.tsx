@@ -1,100 +1,145 @@
-/**
- * Path: app/(kiosk)/absensi/page.tsx
- * Deskripsi: Halaman khusus Kiosk Absensi dengan perbaikan Hydration Error
- */
-
 "use client";
 
-import React, { useState, useEffect } from "react";
-import {
-  QrCode,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  MapPin,
-  Wifi,
-  User,
-  ShieldCheck,
-} from "lucide-react";
-
-type KioskStatus = "standby" | "scanning" | "success" | "error";
+import React, { useEffect, useState, useRef } from "react";
+import { Camera, Clock, CheckCircle2, AlertCircle, ScanFace, MapPin, Wifi, Loader2, User, ShieldCheck } from "lucide-react";
 
 export default function KioskAbsensiPage() {
-  const [status, setStatus] = useState<KioskStatus>("standby");
-  const [currentTime, setCurrentTime] = useState<Date | null>(null); // Mulai dengan null untuk hindari hydration mismatch
-  const [mounted, setMounted] = useState(false);
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "success" | "error">("idle");
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [mockUser, setMockUser] = useState<any>(null);
+  const faceapiRef = useRef<any>(null);
 
-  // 1. Pastikan komponen sudah mounted di browser
+  // Hydration fix & Live Clock
   useEffect(() => {
-    setMounted(true);
+    setIsClient(true);
     setCurrentTime(new Date());
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    // Load AI Models dynamically to avoid SSR TextEncoder error
+    const loadModels = async () => {
+      try {
+        const fa = await import("@vladmandic/face-api");
+        faceapiRef.current = fa;
+        const MODEL_URL = "/models";
+        await Promise.all([
+          fa.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          fa.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          fa.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        ]);
+        console.log("Model Kiosk AI Loaded");
+      } catch (err) {
+        console.error("Gagal memuat model:", err);
+      }
+    };
+    loadModels();
 
     return () => clearInterval(timer);
   }, []);
 
-  // Simulasi Proses Scan
-  const simulateScan = (isSuccessful: boolean) => {
-    setStatus("scanning");
-
-    setTimeout(() => {
-      if (isSuccessful) {
-        setMockUser({
-          nama: "Naufal Habib Hakim",
-          nip: "1208573",
-          jabatan: "Koordinator IT",
-          waktu: new Date().toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+  // Membuka akses kamera (Visualisasi)
+  useEffect(() => {
+    if (isClient && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((stream) => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        })
+        .catch((err) => {
+          console.error("Akses kamera ditolak atau tidak tersedia:", err);
         });
-        setStatus("success");
+    }
+  }, [isClient]);
 
-        setTimeout(() => {
-          setStatus("standby");
-          setMockUser(null);
-        }, 4000);
-      } else {
-        setStatus("error");
-        setTimeout(() => setStatus("standby"), 3000);
+  // Proses absensi (AI Scan)
+  const handleScanAbsen = async (type: "in" | "out") => {
+    if (scanStatus === "scanning") return;
+    if (!videoRef.current) return;
+    
+    setScanStatus("scanning");
+    
+    try {
+      const faceapi = faceapiRef.current;
+      if (!faceapi) return;
+
+      // 1. Deteksi Wajah dari Kiosk
+      const detection = await faceapi
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        setScanStatus("error");
+        setMockUser({ errorMessage: "Wajah tidak terdeteksi. Silakan coba lagi." });
+        setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 4000);
+        return;
       }
-    }, 1500);
+
+      const faceDescriptor = Array.from(detection.descriptor);
+
+      // 2. Kirim descriptor ke API Backend untuk pencocokan & absensi
+      const response = await fetch("/api/absensi/verify-face", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descriptor: faceDescriptor, type }),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok) {
+        setScanStatus("error");
+        setMockUser({ errorMessage: resData.message || "Wajah tidak dikenali." });
+      } else {
+        setScanStatus("success");
+        setMockUser({
+          nama: resData.user.nama,
+          jabatan: resData.user.jabatan,
+          waktu: resData.user.waktu,
+          status: resData.user.status,
+          type: resData.type
+        });
+      }
+
+    } catch (error) {
+      console.error(error);
+      setScanStatus("error");
+      setMockUser({ errorMessage: "Terjadi kesalahan sistem." });
+    } finally {
+      // Reset state setelah delay
+      setTimeout(() => {
+        setScanStatus("idle");
+        setMockUser(null);
+      }, 5000);
+    }
   };
 
-  // Jangan render konten yang bergantung pada waktu/client-side sebelum mounted
-  if (!mounted || !currentTime) {
-    return (
-      <div className="min-h-screen bg-[#001b3a] flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary-dark" size={48} />
-      </div>
-    );
-  }
+  if (!isClient || !currentTime) return (
+    <div className="min-h-screen bg-[#001b3a] flex items-center justify-center">
+      <Loader2 className="animate-spin text-blue-500" size={48} />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#001b3a] text-white font-sans flex flex-col overflow-hidden relative">
-      {/* Background Ornamen */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-blue-600/10 rounded-full blur-[120px]"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-primary/10 rounded-full blur-[100px]"></div>
+    <div className="min-h-screen bg-[#001b3a] flex flex-col font-sans text-slate-100 overflow-hidden relative selection:bg-blue-500/30">
+      {/* Background Decor */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-[#0173b6]/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-      {/* Header Kiosk */}
-      <header className="p-8 flex justify-between items-center relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-xl">
-            <span className="text-primary-dark font-black text-2xl italic">
-              A
-            </span>
+      {/* HEADER */}
+      <header className="relative z-10 px-8 py-6 flex justify-between items-center bg-[#001b3a]/50 backdrop-blur-md border-b border-white/5">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+            <ScanFace size={24} className="text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-black tracking-tighter leading-none uppercase">
-              Alice Attendance
-            </h2>
+            <h1 className="text-2xl font-black tracking-tighter uppercase leading-none text-white">
+              Alice
+            </h1>
             <p className="text-[10px] font-bold text-blue-400 uppercase tracking-[0.3em] mt-1">
-              RSU Avisena Kiosk System
+              Smart Attendance System
             </p>
           </div>
         </div>
@@ -102,7 +147,7 @@ export default function KioskAbsensiPage() {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3 bg-white/5 px-5 py-2.5 rounded-2xl border border-white/10 backdrop-blur-md">
             <MapPin size={16} className="text-blue-400" />
-            <span className="text-xs font-black uppercase tracking-widest">
+            <span className="text-xs font-black uppercase tracking-widest text-white">
               Lobby Utama
             </span>
           </div>
@@ -115,177 +160,179 @@ export default function KioskAbsensiPage() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
-        {/* JAM DIGITAL (SENSITIF HYDRATION) */}
-        <div className="text-center mb-16">
-          <div className="flex items-center justify-center gap-3 text-blue-400 mb-4 font-bold uppercase tracking-[0.6em] text-xs">
-            <Clock size={16} />
+      {/* MAIN CONTENT */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center p-6">
+        
+        {/* Waktu Digital */}
+        <div className="text-center mb-10 mt-[-40px]">
+          <div className="flex items-center justify-center gap-3 text-blue-400 mb-2 font-bold uppercase tracking-[0.6em] text-[10px]">
+            <Clock size={14} />
             <span>
               {currentTime.toLocaleDateString("id-ID", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                year: "numeric",
+                weekday: "long", day: "numeric", month: "long", year: "numeric",
               })}
             </span>
           </div>
-          <h1 className="text-[140px] font-black leading-none tracking-tighter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">
+          <h1 className="text-7xl font-black leading-none tracking-tighter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] font-mono">
             {currentTime.toLocaleTimeString("id-ID", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
+              hour: "2-digit", minute: "2-digit", second: "2-digit"
             })}
           </h1>
         </div>
 
-        {/* AREA SCANNER / FEEDBACK */}
-        <div className="w-full max-w-3xl">
-          {status === "standby" && (
-            <div
-              onClick={() => simulateScan(true)}
-              className="bg-white/5 backdrop-blur-xl border-2 border-dashed border-white/10 rounded-[60px] p-20 text-center cursor-pointer hover:bg-white/10 hover:border-primary transition-all group"
-            >
-              <div className="relative inline-block mb-10">
-                <QrCode
-                  size={140}
-                  className="text-white/10 group-hover:text-primary transition-colors duration-500"
-                />
-                <div className="absolute inset-0 border-4 border-primary/30 rounded-3xl animate-ping opacity-20"></div>
-                <div className="absolute inset-0 border-2 border-primary rounded-3xl animate-pulse"></div>
-              </div>
-              <h3 className="text-3xl font-black tracking-tighter mb-3 uppercase">
-                Siap Memindai
-              </h3>
-              <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">
-                Tunjukkan QR Code Anda ke Kamera
-              </p>
+        {/* Camera Container */}
+        <div className="relative group mx-auto w-fit">
+          {/* Border Frame for Camera */}
+          <div className={`absolute -inset-2 rounded-[40px] blur-xl transition-all duration-700 ${
+            scanStatus === "idle" ? "bg-blue-600/20 group-hover:bg-blue-500/40" :
+            scanStatus === "scanning" ? "bg-blue-500/60 animate-pulse" :
+            scanStatus === "success" ? "bg-emerald-500/60" :
+            "bg-rose-500/60"
+          }`}></div>
+          
+          <div className="relative w-[400px] h-[500px] bg-black/50 rounded-[32px] overflow-hidden border-2 border-white/10 shadow-2xl flex items-center justify-center backdrop-blur-md cursor-pointer">
+            
+            {/* Video Element */}
+            <video 
+              ref={videoRef}
+              autoPlay 
+              playsInline 
+              muted 
+              className="w-full h-full object-cover transform scale-x-[-1] opacity-80" 
+            />
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  simulateScan(false);
-                }}
-                className="mt-12 text-[10px] font-black text-white/10 uppercase tracking-[0.3em] hover:text-red-500 transition-colors"
-              >
-                Simulasi Gagal
-              </button>
-            </div>
-          )}
+            {/* Placeholder jika tidak ada video */}
+            {!videoRef.current?.srcObject && scanStatus !== "error" && scanStatus !== "success" && (
+               <div className="absolute inset-0 flex flex-col items-center justify-center text-white/20">
+                 <Camera size={80} className="mb-6 opacity-30" />
+                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-center px-10">Kamera tidak terdeteksi.<br/><span className="text-[10px] text-white/30">Klik untuk simulasi absensi.</span></p>
+               </div>
+            )}
 
-          {status === "scanning" && (
-            <div className="bg-white/5 backdrop-blur-xl border-2 border-white/10 rounded-[60px] p-24 text-center flex flex-col items-center shadow-2xl">
-              <div className="relative">
-                <Loader2
-                  size={100}
-                  className="text-primary animate-spin mb-10"
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-4 h-4 bg-primary rounded-full animate-pulse"></div>
-                </div>
-              </div>
-              <h3 className="text-4xl font-black tracking-tighter uppercase mb-2">
-                Memproses...
-              </h3>
-              <p className="text-blue-400 font-bold uppercase tracking-widest text-xs">
-                Sedang Memverifikasi Keamanan
-              </p>
-            </div>
-          )}
-
-          {status === "success" && mockUser && (
-            <div className="bg-emerald-600 rounded-[60px] p-12 text-white shadow-[0_20px_50px_rgba(16,185,129,0.3)] animate-in zoom-in duration-500 relative overflow-hidden">
-              <div className="absolute top-[-20%] right-[-10%] opacity-10">
-                <CheckCircle2 size={300} />
-              </div>
-
-              <div className="flex items-center gap-12 relative z-10">
-                <div className="w-56 h-56 rounded-[48px] border-[12px] border-white/20 overflow-hidden shadow-2xl bg-white/10 backdrop-blur-md">
-                  <div className="w-full h-full flex items-center justify-center">
-                    <User size={100} className="text-white/50" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-6 bg-white/20 w-fit px-5 py-2 rounded-2xl border border-white/30 backdrop-blur-md">
-                    <ShieldCheck size={18} />
-                    <span className="text-xs font-black uppercase tracking-[0.2em]">
-                      Absensi Berhasil
-                    </span>
-                  </div>
-                  <h2 className="text-6xl font-black tracking-tighter mb-2 leading-none">
-                    {mockUser.nama}
-                  </h2>
-                  <p className="text-2xl font-bold text-emerald-100 mb-8 uppercase tracking-widest">
-                    {mockUser.jabatan}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-10 border-t border-white/20 pt-8">
-                    <div>
-                      <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">
-                        Pukul
-                      </p>
-                      <p className="text-4xl font-mono font-black">
-                        {mockUser.waktu}
-                      </p>
+            {/* Standby Overlay UI */}
+            {scanStatus === "idle" && (
+                <div className="absolute inset-0 pointer-events-none">
+                    {/* Face Guide Bracket */}
+                    <div className="absolute top-[20%] bottom-[20%] left-[15%] right-[15%] border-2 border-dashed border-white/20 rounded-[100px] transition-all"></div>
+                    <div className="absolute bottom-10 w-full text-center">
+                        <span className="bg-black/50 text-white/80 backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-white/10 shadow-xl">
+                            Posisikan Wajah Di Tengah
+                        </span>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">
-                        Keterangan
-                      </p>
-                      <p className="text-2xl font-black uppercase tracking-tight">
-                        Tepat Waktu
-                      </p>
-                    </div>
+                </div>
+            )}
+
+            {/* Scanning Overlay (HUD) */}
+            {scanStatus === "scanning" && (
+              <div className="absolute inset-0 pointer-events-none z-20">
+                <div className="w-full h-full relative">
+                  {/* Scanner line */}
+                  <div className="absolute left-0 right-0 h-1 bg-blue-400 shadow-[0_0_20px_rgba(96,165,250,1)] animate-[scan_2s_ease-in-out_infinite]"></div>
+                  
+                  {/* Face Guide Highlighted */}
+                  <div className="absolute top-[20%] bottom-[20%] left-[15%] right-[15%] border-2 border-blue-500 shadow-[inset_0_0_20px_rgba(59,130,246,0.3)] rounded-[100px]"></div>
+                  
+                  {/* Grid / Dots overlay to make it look like AI */}
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
+                </div>
+                <div className="absolute inset-0 bg-blue-900/30 backdrop-blur-[2px]"></div>
+                <div className="absolute bottom-10 left-0 right-0 flex justify-center">
+                  <div className="bg-blue-600 text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest flex items-center gap-3 shadow-[0_0_30px_rgba(37,99,235,0.5)] border border-blue-400/30">
+                    <Loader2 size={18} className="animate-spin" /> Mengidentifikasi Biometrik...
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {status === "error" && (
-            <div className="bg-red-600 rounded-[60px] p-20 text-white text-center shadow-[0_20px_50px_rgba(220,38,38,0.3)] animate-shake">
-              <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-10 backdrop-blur-md border border-white/30">
-                <XCircle size={60} />
+            {/* Success Overlay */}
+            {scanStatus === "success" && mockUser && (
+              <div className="absolute inset-0 bg-emerald-900/90 backdrop-blur-md flex flex-col items-center justify-center text-white p-8 text-center animate-in fade-in zoom-in duration-300 z-30">
+                <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.5)] mb-6">
+                  <CheckCircle2 size={40} />
+                </div>
+                <div className="flex items-center gap-2 mb-4 bg-white/10 px-4 py-1.5 rounded-full border border-white/20">
+                    <ShieldCheck size={14} className="text-emerald-400"/>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100">Identity Verified</span>
+                </div>
+                <h2 className="text-3xl font-black uppercase tracking-tight mb-1">{mockUser.nama}</h2>
+                <p className="text-emerald-200 text-xs font-bold tracking-widest uppercase mb-8">{mockUser.jabatan}</p>
+                
+                <div className="w-full bg-black/20 p-4 rounded-2xl border border-emerald-500/30 flex justify-between items-center">
+                  <div className="text-left">
+                     <span className="text-[10px] uppercase tracking-widest text-emerald-400 block mb-1">{mockUser.type || "Check-In"}</span>
+                     <span className="text-2xl font-mono font-black leading-none">{mockUser.waktu}</span>
+                  </div>
+                  <div className="text-right">
+                     <span className="text-[10px] uppercase tracking-widest text-emerald-400 block mb-1">Status Kehadiran</span>
+                     <span className="text-sm font-black uppercase tracking-widest text-white">{mockUser.status || "Tepat Waktu"}</span>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-5xl font-black tracking-tighter mb-4 uppercase">
-                Akses Ditolak
-              </h3>
-              <p className="text-red-100 text-xl font-bold px-12 leading-relaxed">
-                QR Code tidak dikenal atau sesi Anda telah berakhir. Silakan
-                muat ulang halaman profil di ponsel Anda.
-              </p>
-              <div className="mt-12 flex items-center justify-center gap-2 text-white/40">
-                <Loader2 size={14} className="animate-spin" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
-                  Mereset dalam 3 detik
+            )}
+
+            {/* Error Overlay */}
+            {scanStatus === "error" && (
+              <div className="absolute inset-0 bg-rose-900/95 backdrop-blur-md flex flex-col items-center justify-center text-white p-8 text-center animate-in fade-in zoom-in duration-300 z-30 animate-shake">
+                <div className="w-20 h-20 bg-rose-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(244,63,94,0.5)] mb-6 border-4 border-rose-400/50">
+                  <AlertCircle size={40} />
+                </div>
+                <h2 className="text-2xl font-black uppercase tracking-tight mb-3">Wajah Tidak Dikenali</h2>
+                <p className="text-rose-200 text-xs font-bold leading-relaxed px-4 opacity-80">
+                  {mockUser?.errorMessage || "Sistem tidak dapat mencocokkan profil wajah. Pastikan Anda tidak menggunakan masker/kacamata gelap, atau pencahayaan cukup."}
                 </p>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setScanStatus("idle"); setMockUser(null); }}
+                  className="mt-8 bg-white/10 hover:bg-white/20 border border-white/20 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-colors"
+                >
+                  Kembali
+                </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {/* Action Controls */}
+        <div className="mt-12 flex gap-6 w-full max-w-lg mx-auto">
+           <button 
+             onClick={() => handleScanAbsen("in")} 
+             disabled={scanStatus === "scanning"}
+             className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-[#001b3a] py-5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+           >
+               Check In
+           </button>
+           <button 
+             onClick={() => handleScanAbsen("out")} 
+             disabled={scanStatus === "scanning"}
+             className="flex-1 bg-rose-500 hover:bg-rose-400 disabled:opacity-50 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-lg shadow-rose-500/20 active:scale-95"
+           >
+               Check Out
+           </button>
+        </div>
+
       </main>
 
-      <footer className="p-10 text-center relative z-10 border-t border-white/5">
-        <p className="text-white/10 text-[11px] font-black uppercase tracking-[0.8em]">
-          RSU Avisena • Fallen Digital Solution • 2026
+      {/* FOOTER */}
+      <footer className="relative z-10 p-6 text-center border-t border-white/5">
+        <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.5em]">
+          RSU Avisena &bull; Alice Vision System &bull; {currentTime.getFullYear()}
         </p>
       </footer>
 
+      {/* ANIMATIONS */}
       <style jsx global>{`
+        @keyframes scan {
+          0% { top: 0%; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
         @keyframes shake {
-          0%,
-          100% {
-            transform: translateX(0);
-          }
-          25% {
-            transform: translateX(-15px);
-          }
-          75% {
-            transform: translateX(15px);
-          }
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-10px); }
+          75% { transform: translateX(10px); }
         }
         .animate-shake {
-          animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+          animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
         }
       `}</style>
     </div>
