@@ -5,7 +5,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   CalendarDays,
   Clock,
@@ -57,12 +57,70 @@ export default function SelfServicePage() {
     },
   ];
 
-  const attendanceLog = [
-    { date: "Senin, 06 Apr", in: "07:55", out: "16:05", status: "Tepat Waktu" },
-    { date: "Jumat, 03 Apr", in: "08:15", out: "16:10", status: "Terlambat" },
-    { date: "Kamis, 02 Apr", in: "07:50", out: "16:00", status: "Tepat Waktu" },
-    { date: "Rabu, 01 Apr", in: "07:58", out: "15:45", status: "Pulang Cepat" },
-  ];
+  const [attendanceLog, setAttendanceLog] = useState<any[]>([]);
+  const [stats, setStats] = useState({ hadir: 0, terlambat: 0, score: 0 });
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+  useEffect(() => {
+    const fetchAbsensi = async () => {
+      try {
+        const userString = localStorage.getItem("user");
+        if (!userString) return;
+        const user = JSON.parse(userString);
+        if (!user.karyawan_id) return;
+
+        const response = await fetch(`${baseUrl}/absensi/${user.karyawan_id}`);
+        if (response.ok) {
+          const data = await response.json();
+          
+          let hadir = 0;
+          let terlambat = 0;
+
+          const formattedLogs = data.map((item: any) => {
+            const dateObj = new Date(item.tanggal);
+            const dateStr = dateObj.toLocaleDateString("id-ID", { weekday: 'long', day: '2-digit', month: 'short' });
+            
+            const jamMasukObj = item.jam_masuk ? new Date(item.jam_masuk) : null;
+            const inTime = jamMasukObj ? jamMasukObj.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-";
+            
+            const jamKeluarObj = item.jam_keluar ? new Date(item.jam_keluar) : null;
+            const outTime = jamKeluarObj ? jamKeluarObj.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-";
+            
+            let status = "Tepat Waktu";
+            if (item.menit_terlambat > 0) {
+               status = "Terlambat";
+               terlambat++;
+            } else if (item.jam_keluar && jamKeluarObj && jamMasukObj) {
+               // Pulang cepat logic
+               if (jamKeluarObj.getHours() < 17) {
+                   status = "Pulang Cepat";
+               }
+            }
+            
+            hadir++;
+
+            return {
+              date: dateStr,
+              in: inTime,
+              out: outTime,
+              status: status
+            };
+          });
+
+          setAttendanceLog(formattedLogs);
+          setStats({
+            hadir,
+            terlambat,
+            score: hadir === 0 ? 0 : Math.round(((hadir - terlambat) / hadir) * 100)
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch absensi", err);
+      }
+    };
+
+    fetchAbsensi();
+  }, [baseUrl]);
 
   return (
     <div className="p-8 font-sans max-w-7xl mx-auto min-h-screen">
@@ -185,6 +243,13 @@ export default function SelfServicePage() {
                           </td>
                         </tr>
                       ))}
+                      {attendanceLog.length === 0 && (
+                         <tr>
+                            <td colSpan={4} className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                               Belum ada log absensi bulan ini.
+                            </td>
+                         </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -328,7 +393,7 @@ export default function SelfServicePage() {
                       Hadir
                     </p>
                     <span className="text-3xl font-black leading-none">
-                      20{" "}
+                      {stats.hadir < 10 ? `0${stats.hadir}` : stats.hadir}{" "}
                       <span className="text-[10px] text-slate-500">HARI</span>
                     </span>
                   </div>
@@ -337,14 +402,14 @@ export default function SelfServicePage() {
                       Terlambat
                     </p>
                     <span className="text-3xl font-black text-amber-500 leading-none">
-                      02{" "}
+                      {stats.terlambat < 10 ? `0${stats.terlambat}` : stats.terlambat}{" "}
                       <span className="text-[10px] text-slate-500">KALI</span>
                     </span>
                   </div>
                   <div className="pt-4 border-t border-white/5 flex items-center gap-2 text-emerald-400">
                     <ArrowUpRight size={14} />
                     <span className="text-[9px] font-black uppercase tracking-widest">
-                      Skor Kehadiran: 98%
+                      Skor Kehadiran: {stats.score}%
                     </span>
                   </div>
                 </div>
@@ -478,5 +543,6 @@ export default function SelfServicePage() {
 
 // Helper function
 function logDateOnly(fullDate: string) {
+  if (!fullDate || !fullDate.includes(",")) return fullDate;
   return fullDate.split(",")[1].trim();
 }

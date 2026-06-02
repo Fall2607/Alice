@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@vladmandic/face-api": "^1.7.15",
     "bcrypt": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.536.0",

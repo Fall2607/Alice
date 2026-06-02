@@ -48,7 +48,8 @@ export async function GET() {
         lj.nama_level,
         k.user_id, -- UUID
         k.atasan_id, -- Menggunakan ID UUID, bukan NIP
-        atasan.nama_lengkap AS nama_atasan
+        atasan.nama_lengkap AS nama_atasan,
+        CASE WHEN k.face_descriptor IS NOT NULL THEN true ELSE false END AS has_face_descriptor
       FROM karyawan k
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
       LEFT JOIN departemen d ON j.departemen_id = d.id

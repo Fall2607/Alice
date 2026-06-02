@@ -1,6 +1,6 @@
 import { mbtiPairs } from "@/app/data/tests/mbtiData";
 
-export function getMbtiResult(answers: Record<number, 'A' | 'B'>): string {
+export function getMbtiResult(answers: Record<number, 'A' | 'B'>) {
   const score = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
 
   mbtiPairs.forEach((p) => {
@@ -19,11 +19,11 @@ export function getMbtiResult(answers: Record<number, 'A' | 'B'>): string {
     }
   });
 
-  const result =
+  const type =
     (score.E >= score.I ? 'E' : 'I') +
     (score.S >= score.N ? 'S' : 'N') +
     (score.T >= score.F ? 'T' : 'F') +
     (score.J >= score.P ? 'J' : 'P');
 
-  return result;
+  return { type, score };
 }

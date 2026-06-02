@@ -42,6 +42,7 @@ export default function AssessmentDashboard() {
   const [globalTimeLeft, setGlobalTimeLeft] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [completedTests, setCompletedTests] = useState({ mbti: false, disc: false, papi: false });
 
   useEffect(() => {
     setMounted(true);
@@ -49,6 +50,16 @@ export default function AssessmentDashboard() {
     const verifiedToken = sessionStorage.getItem("verified_token");
     if (verifiedToken !== token && token !== "ALICE-PREVIEW") {
       router.replace(`/assessment/${token}`);
+    }
+
+    const assessmentId = sessionStorage.getItem("assessment_id");
+    if (assessmentId) {
+      fetch(`/api/assessment/status?id=${assessmentId}`)
+        .then(res => res.json())
+        .then(data => {
+           if (data.success) setCompletedTests(data.completed);
+        })
+        .catch(err => console.error(err));
     }
   }, [token, router]);
 
@@ -74,8 +85,34 @@ export default function AssessmentDashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleFinishTest = () => {
+  const handleFinishTest = async () => {
     setIsTimerRunning(false);
+    
+    const assessmentId = sessionStorage.getItem("assessment_id");
+    if (currentTest && assessmentId) {
+      let result;
+      if (currentTest === 'mbti') result = getMbtiResult(answers);
+      else if (currentTest === 'disc') result = calculateDISCResult(answers);
+      else if (currentTest === 'papi') result = calculatePAPIResult(answers);
+      
+      try {
+        await fetch('/api/assessment/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assessment_id: assessmentId,
+            test_type: currentTest,
+            answers,
+            result
+          })
+        });
+        
+        setCompletedTests(prev => ({ ...prev, [currentTest]: true }));
+      } catch (err) {
+        console.error("Gagal menyimpan hasil tes", err);
+      }
+    }
+
     setView("result");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -129,9 +166,10 @@ export default function AssessmentDashboard() {
                 </div>
                 <button
                   onClick={() => handleStartTest("mbti")}
-                  className="w-full sm:w-auto px-10 py-4 bg-[#0173b6] text-white font-black rounded-md uppercase text-[10px] tracking-widest hover:bg-[#015a8f] transition-all shadow-blue-900/10 active:scale-95"
+                  disabled={completedTests.mbti}
+                  className={`w-full sm:w-auto px-10 py-4 font-black rounded-md uppercase text-[10px] tracking-widest transition-all shadow-blue-900/10 active:scale-95 ${completedTests.mbti ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-[#0173b6] text-white hover:bg-[#015a8f]'}`}
                 >
-                  Mulai
+                  {completedTests.mbti ? 'Selesai' : 'Mulai'}
                 </button>
               </div>
 
@@ -151,9 +189,10 @@ export default function AssessmentDashboard() {
                 </div>
                 <button
                   onClick={() => handleStartTest("disc")}
-                  className="w-full sm:w-auto px-10 py-4 bg-orange-500 text-white font-black rounded-md uppercase text-[10px] tracking-widest hover:bg-orange-600 transition-all shadow-orange-900/10 active:scale-95"
+                  disabled={completedTests.disc}
+                  className={`w-full sm:w-auto px-10 py-4 font-black rounded-md uppercase text-[10px] tracking-widest transition-all shadow-orange-900/10 active:scale-95 ${completedTests.disc ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
                 >
-                  Mulai
+                  {completedTests.disc ? 'Selesai' : 'Mulai'}
                 </button>
               </div>
 
@@ -173,9 +212,10 @@ export default function AssessmentDashboard() {
                 </div>
                 <button
                   onClick={() => handleStartTest("papi")}
-                  className="w-full sm:w-auto px-10 py-4 bg-emerald-600 text-white font-black rounded-md uppercase text-[10px] tracking-widest hover:bg-emerald-700 transition-all shadow-emerald-900/10 active:scale-95"
+                  disabled={completedTests.papi}
+                  className={`w-full sm:w-auto px-10 py-4 font-black rounded-md uppercase text-[10px] tracking-widest transition-all shadow-emerald-900/10 active:scale-95 ${completedTests.papi ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
                 >
-                  Mulai
+                  {completedTests.papi ? 'Selesai' : 'Mulai'}
                 </button>
               </div>
 
@@ -283,13 +323,14 @@ export default function AssessmentDashboard() {
                 <CheckCircle2 size={40} />
               </div>
               <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] mb-3">
-                Hasil Psikometri
+                Status Pengisian
               </p>
-              <h2 className="text-5xl font-black text-[#0173b6] tracking-tight leading-none mb-10 uppercase">
-                {currentTest === "mbti" && getMbtiResult(answers)}
-                {currentTest === "disc" && "Hasil Sudah Tersimpan"}
-                {currentTest === "papi" && "Hasil Sudah Tersimpan"}
+              <h2 className="text-3xl md:text-4xl font-black text-[#0173b6] tracking-tight leading-none mb-6 uppercase">
+                Test Selesai
               </h2>
+              <p className="text-sm font-medium text-slate-500 mb-10 leading-relaxed px-4">
+                Jawaban Anda telah berhasil dienkripsi dan disimpan dengan aman ke dalam sistem kami.
+              </p>
               <button
                 onClick={() => {
                   setView("dashboard");

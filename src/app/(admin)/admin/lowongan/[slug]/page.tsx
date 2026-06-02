@@ -10,7 +10,7 @@ import {
   ChevronLeft, Briefcase, MapPin, Clock, Eye, Loader2, 
   AlertTriangle, User, Phone, Mail, Calendar, FileText, CheckCircle, X, XCircle,
   GraduationCap, Heart, Users, Download, Paperclip, ClipboardList,
-  Target, Info
+  Target, Info, LayoutGrid, Zap
 } from 'lucide-react';
 
 /** --- SHIM NAVIGASI CANVAS --- */
@@ -77,6 +77,7 @@ export default function DetailLowonganPage() {
     const [error, setError] = useState<string | null>(null);
     const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
     const [candidateDetail, setCandidateDetail] = useState<any>(null);
+    const [selectedAssessmentId, setSelectedAssessmentId] = useState<string | null>(null);
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
     const [invitingId, setInvitingId] = useState<string | null>(null);
     const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -237,6 +238,20 @@ export default function DetailLowonganPage() {
 
     const handleViewCandidate = async (candidateId: string) => {
         setSelectedCandidateId(candidateId);
+        setIsLoadingDetail(true);
+        try {
+            const res = await fetch(`${baseUrl}/apply/${candidateId}`);
+            if (!res.ok) throw new Error("Gagal memuat profil.");
+            setCandidateDetail(await res.json());
+        } catch (err) {
+            console.error(err);
+            setCandidateDetail(null);
+            setDialog({ isOpen: true, type: 'alert', title: 'Error', message: 'Gagal memuat profil kandidat.', isDanger: true });
+        } finally { setIsLoadingDetail(false); }
+    };
+
+    const handleViewAssessment = async (candidateId: string) => {
+        setSelectedAssessmentId(candidateId);
         setIsLoadingDetail(true);
         try {
             const res = await fetch(`${baseUrl}/apply/${candidateId}`);
@@ -424,9 +439,9 @@ export default function DetailLowonganPage() {
                                                     </>
                                                 )}
 
-                                                {applicant.status?.toUpperCase() === 'ASSESSMENT' && (
+                                                {(applicant.status?.toUpperCase() === 'ASSESSMENT' || applicant.status?.toUpperCase() === 'COMPLETED') && (
                                                     <button 
-                                                        onClick={() => setDialog({ isOpen: true, type: 'alert', title: 'Status Assessment', message: 'Kandidat sedang/akan dalam tahap pengerjaan Assessment. Fitur lihat skor akan segera tersedia setelah rilis.' })}
+                                                        onClick={() => handleViewAssessment(applicant.id)}
                                                         className="p-3 text-blue-500 hover:text-white border border-slate-100 hover:bg-blue-500 rounded-md shadow-sm transition-all active:scale-95"
                                                         title="Lihat Hasil Assessment"
                                                     >
@@ -609,6 +624,91 @@ export default function DetailLowonganPage() {
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
             `}</style>
+            {/* MODAL HASIL ASSESSMENT */}
+            <Modal isOpen={!!selectedAssessmentId} onClose={() => setSelectedAssessmentId(null)} title="Hasil Psikometri Kandidat" size="5xl">
+                {isLoadingDetail ? (
+                    <div className="p-20 text-center">
+                        <Loader2 className="animate-spin h-10 w-10 text-primary mx-auto mb-4" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Memuat Hasil Evaluasi...</p>
+                    </div>
+                ) : candidateDetail && candidateDetail.assessment_results ? (
+                    <div className="flex flex-col gap-6">
+                        {/* Header info */}
+                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
+                           <div>
+                              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">{candidateDetail.nama}</h3>
+                              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1 font-mono">Token: {candidateDetail.assessment_results.session.token}</p>
+                           </div>
+                           <Badge label={candidateDetail.assessment_results.session.status} color={candidateDetail.assessment_results.session.status === 'COMPLETED' ? 'success' : 'primary'} />
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           {/* MBTI Card */}
+                           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><LayoutGrid size={100}/></div>
+                              <h4 className="font-bold text-blue-600 text-[10px] mb-2 uppercase tracking-widest flex items-center gap-2"><LayoutGrid size={14}/> MBTI Personality</h4>
+                              {candidateDetail.assessment_results.mbti ? (
+                                  <>
+                                     <h2 className="text-5xl font-black text-slate-800 tracking-tight leading-none mb-4">{candidateDetail.assessment_results.mbti.final_result}</h2>
+                                     <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-bold text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                        <div><span className="text-blue-600">E:</span> {candidateDetail.assessment_results.mbti.score_e}</div>
+                                        <div><span className="text-blue-600">I:</span> {candidateDetail.assessment_results.mbti.score_i}</div>
+                                        <div><span className="text-blue-600">S:</span> {candidateDetail.assessment_results.mbti.score_s}</div>
+                                        <div><span className="text-blue-600">N:</span> {candidateDetail.assessment_results.mbti.score_n}</div>
+                                        <div><span className="text-blue-600">T:</span> {candidateDetail.assessment_results.mbti.score_t}</div>
+                                        <div><span className="text-blue-600">F:</span> {candidateDetail.assessment_results.mbti.score_f}</div>
+                                        <div><span className="text-blue-600">J:</span> {candidateDetail.assessment_results.mbti.score_j}</div>
+                                        <div><span className="text-blue-600">P:</span> {candidateDetail.assessment_results.mbti.score_p}</div>
+                                     </div>
+                                  </>
+                              ) : <p className="text-xs italic text-slate-400 mt-4">Belum diselesaikan.</p>}
+                           </div>
+
+                           {/* DISC Card */}
+                           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><Zap size={100}/></div>
+                              <h4 className="font-bold text-orange-500 text-[10px] mb-4 uppercase tracking-widest flex items-center gap-2"><Zap size={14}/> DISC Profile</h4>
+                              {candidateDetail.assessment_results.disc ? (
+                                  <div className="grid grid-cols-4 gap-2 text-center">
+                                      {['d','i','s','c'].map((k) => (
+                                          <div key={k} className="bg-slate-50 rounded-lg p-2 border border-slate-100 flex flex-col items-center justify-center shadow-inner">
+                                              <span className="text-lg font-black text-orange-500 uppercase">{k}</span>
+                                              <div className="text-[9px] font-bold text-slate-400 uppercase mt-1 w-full border-t border-slate-200 pt-1">
+                                                Diff: {candidateDetail.assessment_results.disc[`diff_${k}`]}
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              ) : <p className="text-xs italic text-slate-400 mt-4">Belum diselesaikan.</p>}
+                           </div>
+
+                           {/* PAPI Card */}
+                           <div className="col-span-1 md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform"><ClipboardList size={100}/></div>
+                              <h4 className="font-bold text-emerald-600 text-[10px] mb-4 uppercase tracking-widest flex items-center gap-2"><ClipboardList size={14}/> PAPI Kostick (Roles & Needs)</h4>
+                              {candidateDetail.assessment_results.papi ? (
+                                  <div className="flex flex-wrap gap-2">
+                                      {['g','l','i','t','v','s','r','d','c','e','n','a','p','x','b','o','k','z','f','w'].map((k) => (
+                                          <div key={k} className="bg-slate-50 px-3 py-1.5 rounded border border-slate-100 flex items-center gap-2 shadow-sm">
+                                              <span className="text-[11px] font-black text-slate-800 uppercase">{k}</span>
+                                              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 rounded">{candidateDetail.assessment_results.papi[`score_${k}`]}</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              ) : <p className="text-xs italic text-slate-400 mt-4">Belum diselesaikan.</p>}
+                           </div>
+                        </div>
+                        <div className="pt-2 flex justify-end">
+                            <button onClick={()=>setSelectedAssessmentId(null)} className="px-8 py-2.5 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition-all text-xs uppercase tracking-widest shadow-md">Tutup Laporan</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-10 text-center">
+                        <p className="text-sm font-bold text-slate-500">Belum ada sesi tes (Assessment) yang dibuat untuk kandidat ini atau tes belum dimulai.</p>
+                        <button onClick={()=>setSelectedAssessmentId(null)} className="mt-4 px-6 py-2 bg-slate-100 text-slate-600 font-bold rounded-md hover:bg-slate-200 text-xs uppercase tracking-widest">Kembali</button>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 }

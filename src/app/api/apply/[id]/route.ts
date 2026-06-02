@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     // 2. Ambil semua detail terkait (Gunakan Promise.all untuk performa)
     // PERBAIKAN: Query appData diubah dari job_id ke job_opening_id
-    const [spouse, parents, siblings, eduFormal, eduNonFormal, experience, docs, otherDocs, appData] = await Promise.all([
+    const [spouse, parents, siblings, eduFormal, eduNonFormal, experience, docs, otherDocs, appData, assessmentRes] = await Promise.all([
       pool.query(`SELECT * FROM candidate_spouse WHERE candidate_id = $1`, [id]),
       pool.query(`SELECT * FROM candidate_parents WHERE candidate_id = $1`, [id]),
       pool.query(`SELECT * FROM candidate_siblings WHERE candidate_id = $1`, [id]),
@@ -39,7 +39,24 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         LEFT JOIN job_openings jo ON ast.job_opening_id = jo.id 
         WHERE ast.candidate_id = $1
       `, [id]),
+      pool.query(`SELECT id, status, created_at, expires_at FROM candidate_assessments WHERE candidate_id = $1 ORDER BY created_at DESC LIMIT 1`, [id])
     ]);
+
+    let assessmentResults = null;
+    if (assessmentRes && (assessmentRes.rowCount ?? 0) > 0) {
+      const assessmentId = assessmentRes.rows[0].id;
+      const [mbti, disc, papi] = await Promise.all([
+        pool.query(`SELECT * FROM mbti_test_results WHERE assessment_id = $1`, [assessmentId]),
+        pool.query(`SELECT * FROM disc_test_results WHERE assessment_id = $1`, [assessmentId]),
+        pool.query(`SELECT * FROM papi_test_results WHERE assessment_id = $1`, [assessmentId]),
+      ]);
+      assessmentResults = {
+        session: assessmentRes.rows[0],
+        mbti: mbti.rows[0] || null,
+        disc: disc.rows[0] || null,
+        papi: papi.rows[0] || null,
+      };
+    }
 
     // 3. Susun objek JSON yang rapi untuk Frontend
     const fullData = {
@@ -59,6 +76,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       experience: experience.rows,
       documents: docs.rows[0] || null,
       otherDocuments: otherDocs.rows,
+      assessment_results: assessmentResults
     };
 
     return NextResponse.json(fullData);

@@ -39,7 +39,8 @@ export async function GET(
         k.handphone, k.email, k.tanggal_lahir, k.jenis_kelamin, k.alamat,
         k.tanggal_masuk, k.status_kepegawaian, k.gaji_pokok, k.jabatan_id,
         d.nama_departemen, lj.nama_level, k.user_id, k.atasan_id,
-        atasan.nama_lengkap AS nama_atasan
+        atasan.nama_lengkap AS nama_atasan,
+        CASE WHEN k.face_descriptor IS NOT NULL THEN true ELSE false END AS has_face_descriptor
       FROM karyawan k
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
       LEFT JOIN departemen d ON j.departemen_id = d.id
