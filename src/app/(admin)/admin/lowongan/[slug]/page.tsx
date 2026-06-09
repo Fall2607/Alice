@@ -31,30 +31,13 @@ import {
   Target,
   Info,
   FileSpreadsheet,
+  LayoutGrid,
+  Zap
 } from "lucide-react";
 import AssessmentBuilder from "./AssessmentBuilder";
 
-/** --- SHIM NAVIGASI CANVAS --- */
-const useParams = () => {
-  const path = typeof window !== "undefined" ? window.location.pathname : "";
-  const segments = path.split("/");
-  return { slug: segments[segments.length - 1] };
-};
-
-const Link = ({ href, children, className }: any) => (
-  <a
-    href={href}
-    className={className}
-    onClick={(e) => {
-      e.preventDefault();
-      window.history.pushState({}, "", href);
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    }}
-  >
-    {children}
-  </a>
-);
-
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
 /** --- MODAL COMPONENT (Gaya Lancip/Sharp) --- */
 const Modal = ({ isOpen, onClose, title, children, size = "md" }: any) => {
   if (!isOpen) return null;
@@ -511,10 +494,10 @@ export default function DetailLowonganPage() {
                 <Calendar size={14} className="text-primary" /> Posted:{" "}
                 {job.posted_date
                   ? new Date(job.posted_date).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })
                   : "-"}
               </div>
               <div className="flex items-center gap-2">
@@ -651,15 +634,15 @@ export default function DetailLowonganPage() {
                             ["SUBMITTED", "APPLIED", "PENDING"].includes(
                               applicant.status.toUpperCase(),
                             )) && (
-                            <input
-                              type="checkbox"
-                              checked={selectedCandidates.includes(
-                                applicant.id,
-                              )}
-                              onChange={() => toggleSelect(applicant.id)}
-                              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
-                            />
-                          )}
+                              <input
+                                type="checkbox"
+                                checked={selectedCandidates.includes(
+                                  applicant.id,
+                                )}
+                                onChange={() => toggleSelect(applicant.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+                              />
+                            )}
                         </td>
                         <td className="px-4 py-6">
                           <div className="font-bold text-slate-800 text-base tracking-tight">
@@ -696,7 +679,7 @@ export default function DetailLowonganPage() {
                         </td>
                         <td className="px-8 py-6 text-center w-[150px]">
                           {applicant.suitability_match !== null &&
-                          applicant.suitability_match !== undefined ? (
+                            applicant.suitability_match !== undefined ? (
                             <div
                               className="flex flex-col items-center gap-1.5 cursor-pointer hover:bg-slate-100 p-2 rounded-lg transition-all"
                               onClick={() =>
@@ -744,52 +727,43 @@ export default function DetailLowonganPage() {
                               ["SUBMITTED", "APPLIED", "PENDING"].includes(
                                 applicant.status.toUpperCase(),
                               )) && (
-                              <>
-                                <button
-                                  onClick={() => handleSendInvite(applicant.id)}
-                                  disabled={invitingId === applicant.id}
-                                  className="p-3 text-emerald-600 hover:text-white border border-slate-100 hover:bg-emerald-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Loloskan Administrasi (Kirim Undangan Tes)"
-                                >
-                                  {invitingId === applicant.id ? (
-                                    <Loader2
-                                      size={18}
-                                      className="animate-spin"
-                                    />
-                                  ) : (
-                                    <Mail size={18} />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => handleReject(applicant.id)}
-                                  disabled={rejectingId === applicant.id}
-                                  className="p-3 text-rose-500 hover:text-white border border-slate-100 hover:bg-rose-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Tolak Kandidat (Gagal Administrasi)"
-                                >
-                                  {rejectingId === applicant.id ? (
-                                    <Loader2
-                                      size={18}
-                                      className="animate-spin"
-                                    />
-                                  ) : (
-                                    <XCircle size={18} />
-                                  )}
-                                </button>
-                              </>
-                            )}
+                                <>
+                                  <button
+                                    onClick={() => handleSendInvite(applicant.id)}
+                                    disabled={invitingId === applicant.id}
+                                    className="p-3 text-emerald-600 hover:text-white border border-slate-100 hover:bg-emerald-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Loloskan Administrasi (Kirim Undangan Tes)"
+                                  >
+                                    {invitingId === applicant.id ? (
+                                      <Loader2
+                                        size={18}
+                                        className="animate-spin"
+                                      />
+                                    ) : (
+                                      <Mail size={18} />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(applicant.id)}
+                                    disabled={rejectingId === applicant.id}
+                                    className="p-3 text-rose-500 hover:text-white border border-slate-100 hover:bg-rose-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Tolak Kandidat (Gagal Administrasi)"
+                                  >
+                                    {rejectingId === applicant.id ? (
+                                      <Loader2
+                                        size={18}
+                                        className="animate-spin"
+                                      />
+                                    ) : (
+                                      <XCircle size={18} />
+                                    )}
+                                  </button>
+                                </>
+                              )}
 
-                            {applicant.status?.toUpperCase() ===
-                              "ASSESSMENT" && (
+                            {(applicant.status?.toUpperCase() === 'ASSESSMENT' || applicant.status?.toUpperCase() === 'COMPLETED') && (
                               <button
-                                onClick={() =>
-                                  setDialog({
-                                    isOpen: true,
-                                    type: "alert",
-                                    title: "Status Assessment",
-                                    message:
-                                      "Kandidat sedang/akan dalam tahap pengerjaan Assessment. Fitur lihat skor akan segera tersedia setelah rilis.",
-                                  })
-                                }
+                                onClick={() => handleViewAssessment(applicant.id)}
                                 className="p-3 text-blue-500 hover:text-white border border-slate-100 hover:bg-blue-500 rounded-md shadow-sm transition-all active:scale-95"
                                 title="Lihat Hasil Assessment"
                               >
@@ -1012,10 +986,10 @@ export default function DetailLowonganPage() {
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {candidateDetail.documents &&
-                    Object.entries(candidateDetail.documents).some(
-                      ([k, v]) =>
-                        v && !k.includes("id") && !k.includes("candidate"),
-                    ) ? (
+                      Object.entries(candidateDetail.documents).some(
+                        ([k, v]) =>
+                          v && !k.includes("id") && !k.includes("candidate"),
+                      ) ? (
                       Object.entries(candidateDetail.documents).map(
                         ([k, v]) => {
                           if (!v || k.includes("id") || k.includes("candidate"))
@@ -1202,7 +1176,7 @@ export default function DetailLowonganPage() {
                 label={candidateDetail.assessment_results.session.status}
                 color={
                   candidateDetail.assessment_results.session.status ===
-                  "COMPLETED"
+                    "COMPLETED"
                     ? "success"
                     : "primary"
                 }
@@ -1339,7 +1313,7 @@ export default function DetailLowonganPage() {
                         <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 rounded">
                           {
                             candidateDetail.assessment_results.papi[
-                              `score_${k}`
+                            `score_${k}`
                             ]
                           }
                         </span>

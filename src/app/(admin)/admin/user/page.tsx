@@ -16,6 +16,7 @@ interface User {
   nama_role: string;
   nip: string;
   role_id: number;
+  karyawan_id: string;
 }
 
 interface Role {
@@ -25,6 +26,7 @@ interface Role {
 
 // Menambahkan field email & user_id ke interface Karyawan
 interface Karyawan {
+  id: string;
   nip: string;
   nama_lengkap: string;
   email: string;
@@ -40,7 +42,7 @@ export default function UserManagementPage() {
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
-    nip: "",
+    karyawan_id: "",
     email: "",
     password: "",
     role_id: "",
@@ -109,7 +111,7 @@ export default function UserManagementPage() {
     setSelectedUser(null);
     // Reset form data
     setFormData({
-      nip: "",
+      karyawan_id: "",
       email: "",
       password: "",
       role_id: "",
@@ -118,7 +120,7 @@ export default function UserManagementPage() {
 
   const handleOpenAddModal = () => {
     setFormData({
-      nip: "",
+      karyawan_id: "",
       email: "",
       password: "",
       role_id: roles.length > 0 ? roles[0].id.toString() : "",
@@ -129,7 +131,7 @@ export default function UserManagementPage() {
   const handleOpenEditModal = (user: User) => {
     setSelectedUser(user);
     setFormData({
-      nip: user.nip,
+      karyawan_id: user.karyawan_id || "",
       email: user.email,
       password: "", // Password dikosongkan untuk keamanan
       role_id: user.role_id ? user.role_id.toString() : "",
@@ -144,16 +146,16 @@ export default function UserManagementPage() {
 
   const handleKaryawanSelect = (option: Option | null) => {
     if (option) {
-      const selected = karyawan.find((k) => k.nip === option.value);
+      const selected = karyawan.find((k) => k.id === option.value);
       setFormData({
         ...formData,
-        nip: selected?.nip || "",
+        karyawan_id: selected?.id || "",
         email: selected?.email || "",
       });
     } else {
       setFormData({
         ...formData,
-        nip: "",
+        karyawan_id: "",
         email: "",
       });
     }
@@ -183,7 +185,7 @@ export default function UserManagementPage() {
         const errorData = await response.json();
         throw new Error(
           errorData.message ||
-            `Gagal ${isEditing ? "memperbarui" : "menambah"} user.`
+          `Gagal ${isEditing ? "memperbarui" : "menambah"} user.`
         );
       }
 
@@ -319,23 +321,23 @@ export default function UserManagementPage() {
                 options={
                   isEditModalOpen
                     ? karyawan.map((k) => ({
-                        // Saat edit, tampilkan semua
-                        value: k.nip,
-                        label: `${k.nama_lengkap} (${k.nip})`,
-                      }))
+                      // Saat edit, tampilkan semua
+                      value: k.id,
+                      label: `${k.nama_lengkap} (${k.nip})`,
+                    }))
                     : availableKaryawan.map((k) => ({
-                        // Saat tambah, hanya yang tersedia
-                        value: k.nip,
-                        label: `${k.nama_lengkap} (${k.nip})`,
-                      }))
+                      // Saat tambah, hanya yang tersedia
+                      value: k.id,
+                      label: `${k.nama_lengkap} (${k.nip})`,
+                    }))
                 }
                 value={
                   karyawan
                     .map((k) => ({
-                      value: k.nip,
+                      value: k.id,
                       label: `${k.nama_lengkap} (${k.nip})`,
                     }))
-                    .find((k) => k.value === formData.nip) || null
+                    .find((k) => k.value === formData.karyawan_id) || null
                 }
                 onChange={handleKaryawanSelect}
                 placeholder="Cari pegawai..."
