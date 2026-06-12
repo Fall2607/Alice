@@ -35,6 +35,7 @@ import {
   Zap
 } from "lucide-react";
 import AssessmentBuilder from "./AssessmentBuilder";
+import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -1192,47 +1193,111 @@ export default function DetailLowonganPage() {
                 <h4 className="font-bold text-blue-600 text-[10px] mb-2 uppercase tracking-widest flex items-center gap-2">
                   <LayoutGrid size={14} /> MBTI Personality
                 </h4>
-                {candidateDetail.assessment_results.mbti ? (
-                  <>
-                    <h2 className="text-5xl font-black text-slate-800 tracking-tight leading-none mb-4">
-                      {candidateDetail.assessment_results.mbti.final_result}
-                    </h2>
-                    <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-bold text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                      <div>
-                        <span className="text-blue-600">E:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_e}
+                {candidateDetail.assessment_results.mbti ? (() => {
+                  const mbti = candidateDetail.assessment_results.mbti;
+                  const scoreE = Number(mbti.score_e || 0);
+                  const scoreI = Number(mbti.score_i || 0);
+                  const scoreS = Number(mbti.score_s || 0);
+                  const scoreN = Number(mbti.score_n || 0);
+                  const scoreT = Number(mbti.score_t || 0);
+                  const scoreF = Number(mbti.score_f || 0);
+                  const scoreJ = Number(mbti.score_j || 0);
+                  const scoreP = Number(mbti.score_p || 0);
+
+                  const totalEI = scoreE + scoreI || 1;
+                  const totalSN = scoreS + scoreN || 1;
+                  const totalTF = scoreT + scoreF || 1;
+                  const totalJP = scoreJ + scoreP || 1;
+
+                  const ePct = Math.round((scoreE / totalEI) * 100);
+                  const iPct = 100 - ePct;
+                  const sPct = Math.round((scoreS / totalSN) * 100);
+                  const nPct = 100 - sPct;
+                  const tPct = Math.round((scoreT / totalTF) * 100);
+                  const fPct = 100 - tPct;
+                  const jPct = Math.round((scoreJ / totalJP) * 100);
+                  const pPct = 100 - jPct;
+
+                  return (
+                    <>
+                      <div className="flex items-baseline gap-3 mb-5 border-b border-slate-100 pb-3">
+                        <h2 className="text-5xl font-black text-slate-800 tracking-tight leading-none">
+                          {mbti.final_result}
+                        </h2>
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          Tipe Kepribadian
+                        </span>
                       </div>
-                      <div>
-                        <span className="text-blue-600">I:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_i}
+                      
+                      {/* Comparison lists */}
+                      <div className="space-y-3.5">
+                        {/* E vs I */}
+                        <div>
+                          <div className="flex justify-between items-center text-xs mb-1">
+                            <span className={`flex items-center gap-1 ${scoreE >= scoreI ? "font-bold text-indigo-600" : "text-slate-400"}`}>
+                              E (Extraversion) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreE >= scoreI ? "bg-indigo-100 text-indigo-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{ePct}%</span>
+                            </span>
+                            <span className={`flex items-center gap-1 ${scoreI > scoreE ? "font-bold text-indigo-600" : "text-slate-400"}`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreI > scoreE ? "bg-indigo-100 text-indigo-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{iPct}%</span> (Introversion) I
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
+                            <div className={`h-full transition-all duration-500 ${scoreE >= scoreI ? "bg-indigo-500" : "bg-slate-300"}`} style={{ width: `${ePct}%` }} />
+                            <div className={`h-full transition-all duration-500 ${scoreI > scoreE ? "bg-indigo-500" : "bg-slate-300"}`} style={{ width: `${iPct}%` }} />
+                          </div>
+                        </div>
+
+                        {/* S vs N */}
+                        <div>
+                          <div className="flex justify-between items-center text-xs mb-1">
+                            <span className={`flex items-center gap-1 ${scoreS >= scoreN ? "font-bold text-emerald-600" : "text-slate-400"}`}>
+                              S (Sensing) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreS >= scoreN ? "bg-emerald-100 text-emerald-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{sPct}%</span>
+                            </span>
+                            <span className={`flex items-center gap-1 ${scoreN > scoreS ? "font-bold text-emerald-600" : "text-slate-400"}`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreN > scoreS ? "bg-emerald-100 text-emerald-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{nPct}%</span> (Intuition) N
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
+                            <div className={`h-full transition-all duration-500 ${scoreS >= scoreN ? "bg-emerald-500" : "bg-slate-300"}`} style={{ width: `${sPct}%` }} />
+                            <div className={`h-full transition-all duration-500 ${scoreN > scoreS ? "bg-emerald-500" : "bg-slate-300"}`} style={{ width: `${nPct}%` }} />
+                          </div>
+                        </div>
+
+                        {/* T vs F */}
+                        <div>
+                          <div className="flex justify-between items-center text-xs mb-1">
+                            <span className={`flex items-center gap-1 ${scoreT >= scoreF ? "font-bold text-amber-600" : "text-slate-400"}`}>
+                              T (Thinking) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreT >= scoreF ? "bg-amber-100 text-amber-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{tPct}%</span>
+                            </span>
+                            <span className={`flex items-center gap-1 ${scoreF > scoreT ? "font-bold text-amber-600" : "text-slate-400"}`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreF > scoreT ? "bg-amber-100 text-amber-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{fPct}%</span> (Feeling) F
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
+                            <div className={`h-full transition-all duration-500 ${scoreT >= scoreF ? "bg-amber-500" : "bg-slate-300"}`} style={{ width: `${tPct}%` }} />
+                            <div className={`h-full transition-all duration-500 ${scoreF > scoreT ? "bg-amber-500" : "bg-slate-300"}`} style={{ width: `${fPct}%` }} />
+                          </div>
+                        </div>
+
+                        {/* J vs P */}
+                        <div>
+                          <div className="flex justify-between items-center text-xs mb-1">
+                            <span className={`flex items-center gap-1 ${scoreJ >= scoreP ? "font-bold text-cyan-600" : "text-slate-400"}`}>
+                              J (Judging) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreJ >= scoreP ? "bg-cyan-100 text-cyan-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{jPct}%</span>
+                            </span>
+                            <span className={`flex items-center gap-1 ${scoreP > scoreJ ? "font-bold text-cyan-600" : "text-slate-400"}`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreP > scoreJ ? "bg-cyan-100 text-cyan-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{pPct}%</span> (Perceiving) P
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
+                            <div className={`h-full transition-all duration-500 ${scoreJ >= scoreP ? "bg-cyan-500" : "bg-slate-300"}`} style={{ width: `${jPct}%` }} />
+                            <div className={`h-full transition-all duration-500 ${scoreP > scoreJ ? "bg-cyan-500" : "bg-slate-300"}`} style={{ width: `${pPct}%` }} />
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-blue-600">S:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_s}
-                      </div>
-                      <div>
-                        <span className="text-blue-600">N:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_n}
-                      </div>
-                      <div>
-                        <span className="text-blue-600">T:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_t}
-                      </div>
-                      <div>
-                        <span className="text-blue-600">F:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_f}
-                      </div>
-                      <div>
-                        <span className="text-blue-600">J:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_j}
-                      </div>
-                      <div>
-                        <span className="text-blue-600">P:</span>{" "}
-                        {candidateDetail.assessment_results.mbti.score_p}
-                      </div>
-                    </div>
-                  </>
-                ) : (
+                    </>
+                  );
+                })() : (
                   <p className="text-xs italic text-slate-400 mt-4">
                     Belum diselesaikan.
                   </p>
@@ -1270,63 +1335,138 @@ export default function DetailLowonganPage() {
                   </p>
                 )}
               </div>
-
               {/* PAPI Card */}
               <div className="col-span-1 md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
                   <ClipboardList size={100} />
                 </div>
                 <h4 className="font-bold text-emerald-600 text-[10px] mb-4 uppercase tracking-widest flex items-center gap-2">
-                  <ClipboardList size={14} /> PAPI Kostick (Roles & Needs)
+                  <ClipboardList size={14} /> PAPI Kostik (Roles & Needs Profile)
                 </h4>
-                {candidateDetail.assessment_results.papi ? (
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "g",
-                      "l",
-                      "i",
-                      "t",
-                      "v",
-                      "s",
-                      "r",
-                      "d",
-                      "c",
-                      "e",
-                      "n",
-                      "a",
-                      "p",
-                      "x",
-                      "b",
-                      "o",
-                      "k",
-                      "z",
-                      "f",
-                      "w",
-                    ].map((k) => (
-                      <div
-                        key={k}
-                        className="bg-slate-50 px-3 py-1.5 rounded border border-slate-100 flex items-center gap-2 shadow-sm"
-                      >
-                        <span className="text-[11px] font-black text-slate-800 uppercase">
-                          {k}
-                        </span>
-                        <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 rounded">
-                          {
-                            candidateDetail.assessment_results.papi[
-                            `score_${k}`
-                            ]
-                          }
-                        </span>
+                {candidateDetail.assessment_results.papi ? (() => {
+                  const papi = candidateDetail.assessment_results.papi;
+                  const papiCategories = [
+                    {
+                      title: "Kepemimpinan & Pengaruh (Leadership)",
+                      color: "text-blue-600 bg-blue-50 border-blue-100",
+                      barColor: "bg-blue-500",
+                      traits: [
+                        { key: "l", code: "L", label: "Peran Kepemimpinan" },
+                        { key: "p", code: "P", label: "Kebutuhan Mengontrol Orang Lain" },
+                        { key: "i", code: "I", label: "Kemampuan Mengambil Keputusan" },
+                      ]
+                    },
+                    {
+                      title: "Arah Kerja (Work Direction)",
+                      color: "text-emerald-600 bg-emerald-50 border-emerald-100",
+                      barColor: "bg-emerald-500",
+                      traits: [
+                        { key: "g", code: "G", label: "Peran Pekerja Keras" },
+                        { key: "a", code: "A", label: "Kebutuhan Berprestasi" },
+                        { key: "n", code: "N", label: "Kebutuhan Menyelesaikan Tugas" },
+                      ]
+                    },
+                    {
+                      title: "Gaya Kerja (Work Style)",
+                      color: "text-purple-600 bg-purple-50 border-purple-100",
+                      barColor: "bg-purple-500",
+                      traits: [
+                        { key: "r", code: "R", label: "Tipe Berpikir Teoritis" },
+                        { key: "d", code: "D", label: "Minat pada Detail" },
+                        { key: "c", code: "C", label: "Peran Keteraturan" },
+                      ]
+                    },
+                    {
+                      title: "Sifat Sosial (Social Nature)",
+                      color: "text-pink-600 bg-pink-50 border-pink-100",
+                      barColor: "bg-pink-500",
+                      traits: [
+                        { key: "x", code: "X", label: "Kebutuhan Diperhatikan" },
+                        { key: "s", code: "S", label: "Hubungan Sosial" },
+                        { key: "b", code: "B", label: "Kebutuhan Kelompok" },
+                        { key: "o", code: "O", label: "Kebutuhan Kedekatan & Kasih Sayang" },
+                      ]
+                    },
+                    {
+                      title: "Temperamen (Temperament)",
+                      color: "text-amber-600 bg-amber-50 border-amber-100",
+                      barColor: "bg-amber-500",
+                      traits: [
+                        { key: "e", code: "E", label: "Pengendalian Emosi" },
+                        { key: "k", code: "K", label: "Kebutuhan Perubahan" },
+                        { key: "z", code: "Z", label: "Kebutuhan Struktur" },
+                      ]
+                    },
+                    {
+                      title: "Hubungan Atasan (Followership)",
+                      color: "text-indigo-600 bg-indigo-50 border-indigo-100",
+                      barColor: "bg-indigo-500",
+                      traits: [
+                        { key: "f", code: "F", label: "Kebutuhan Mengikuti Atasan" },
+                        { key: "w", code: "W", label: "Kebutuhan Arahan" },
+                      ]
+                    },
+                    {
+                      title: "Aktivitas Kerja (Activity)",
+                      color: "text-cyan-600 bg-cyan-50 border-cyan-100",
+                      barColor: "bg-cyan-500",
+                      traits: [
+                        { key: "t", code: "T", label: "Kecepatan Kerja" },
+                        { key: "v", code: "V", label: "Energi & Vitalitas" },
+                      ]
+                    }
+                  ];
+
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                      {/* Left: Diagram */}
+                      <div className="lg:col-span-5 flex flex-col items-center justify-center">
+                        <PAPIRadarChart scores={papi} />
                       </div>
-                    ))}
-                  </div>
-                ) : (
+
+                      {/* Right: Detailed Breakdown */}
+                      <div className="lg:col-span-7 space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                        {papiCategories.map((cat, idx) => (
+                          <div key={idx} className="border border-slate-100 rounded-lg p-3 bg-slate-50/30">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 border-b border-slate-100 pb-1.5">
+                              {cat.title}
+                            </span>
+                            <div className="space-y-2.5">
+                              {cat.traits.map((t) => {
+                                const score = Number(papi[`score_${t.key}`] || 0);
+                                const pct = (score / 9) * 100;
+                                return (
+                                  <div key={t.key}>
+                                    <div className="flex justify-between items-center text-xs mb-1">
+                                      <span className="text-slate-600 font-medium flex items-center gap-1.5">
+                                        <span className="font-black text-[10px] bg-slate-800 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">
+                                          {t.code}
+                                        </span>
+                                        {t.label}
+                                      </span>
+                                      <span className="font-bold text-slate-800">{score} / 9</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200/50 rounded-full h-1.5 overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-500 ${cat.barColor}`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })() : (
                   <p className="text-xs italic text-slate-400 mt-4">
                     Belum diselesaikan.
                   </p>
                 )}
-              </div>
-            </div>
+              </div></div>
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setSelectedAssessmentId(null)}
