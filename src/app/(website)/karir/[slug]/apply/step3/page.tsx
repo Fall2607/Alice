@@ -136,19 +136,55 @@ export default function Step3Page() {
                             </h4>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+                                {/* Tingkat Pendidikan - 3 Kolom */}
+                                <div className="lg:col-span-3 group">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1 group-focus-within:text-primary transition-colors">Tingkat <span className="text-red-500">*</span></label>
+                                    <div className="relative">
+                                        <select 
+                                            value={edu.level || ""} 
+                                            onChange={(e) => updateEducationFormal(edu.id, { level: e.target.value })}
+                                            className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all duration-300 text-sm font-medium text-slate-800 appearance-none"
+                                        >
+                                            <option value="" disabled>Pilih</option>
+                                            <option value="SD">SD</option>
+                                            <option value="SMP">SMP</option>
+                                            <option value="SMA">SMA</option>
+                                            <option value="SMK">SMK</option>
+                                            <option value="D1">D1</option>
+                                            <option value="D2">D2</option>
+                                            <option value="D3">D3</option>
+                                            <option value="D4">D4</option>
+                                            <option value="S1">S1</option>
+                                            <option value="S2">S2</option>
+                                            <option value="S3">S3</option>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 {/* Nama Sekolah - 5 Kolom */}
                                 <div className="lg:col-span-5">
                                     <InputField 
-                                        label="Nama Sekolah / Universitas" 
+                                        label="Nama Institusi" 
                                         value={edu.school} 
                                         onChange={(e)=> updateEducationFormal(edu.id, { school: e.target.value })} 
                                         placeholder="Contoh: Universitas Indonesia"
                                         icon={School}
                                     />
                                 </div>
+
+                                {/* Jurusan - 4 Kolom */}
+                                <div className="lg:col-span-4">
+                                    <InputField 
+                                        label="Jurusan" 
+                                        value={edu.major || ""} 
+                                        onChange={(e)=> updateEducationFormal(edu.id, { major: e.target.value })} 
+                                        placeholder="Contoh: Teknik Informatika"
+                                        icon={BookOpen}
+                                    />
+                                </div>
                                 
-                                {/* Tahun Masuk - 2 Kolom */}
-                                <div className="lg:col-span-2">
+                                {/* Tahun Masuk - 3 Kolom */}
+                                <div className="lg:col-span-3">
                                     <InputField 
                                         label="Thn Masuk" 
                                         value={edu.yearFrom} 
@@ -158,8 +194,8 @@ export default function Step3Page() {
                                     />
                                 </div>
 
-                                {/* Tahun Keluar - 2 Kolom */}
-                                <div className="lg:col-span-2">
+                                {/* Tahun Keluar - 3 Kolom */}
+                                <div className="lg:col-span-3">
                                     <InputField 
                                         label="Thn Lulus" 
                                         value={edu.yearTo} 
@@ -169,8 +205,8 @@ export default function Step3Page() {
                                     />
                                 </div>
 
-                                {/* IPK - 3 Kolom */}
-                                <div className="lg:col-span-3">
+                                {/* IPK - 6 Kolom */}
+                                <div className="lg:col-span-6">
                                     <InputField 
                                         label="IPK / Nilai Rata-rata" 
                                         value={edu.ipk || ""} 

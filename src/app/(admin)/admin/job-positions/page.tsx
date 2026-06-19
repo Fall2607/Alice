@@ -2,10 +2,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { PlusCircle, Edit, Trash2, Loader2, Eye, Search } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Loader2, Eye, Search, Target } from "lucide-react";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import DynamicInputList from "@/app/components/admin/DynamicInputList";
+import AssessmentBuilder from "@/app/components/admin/AssessmentBuilder";
 
 interface JobPosition {
   id: number;
@@ -34,6 +35,7 @@ export default function JobPositionsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
 
   // State pencarian terpisah
   const [searchTermMedis, setSearchTermMedis] = useState("");
@@ -78,6 +80,7 @@ export default function JobPositionsPage() {
     setIsEditModalOpen(false);
     setIsDetailsModalOpen(false);
     setIsDeleteModalOpen(false);
+    setIsAssessmentModalOpen(false);
     setSelectedPosition(null);
   };
 
@@ -251,8 +254,19 @@ export default function JobPositionsPage() {
                       <button
                         onClick={() => handleOpenDeleteModal(pos)}
                         className="text-red-600 hover:text-red-800"
+                        title="Hapus"
                       >
                         <Trash2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedPosition(pos);
+                          setIsAssessmentModalOpen(true);
+                        }}
+                        className="text-indigo-600 hover:text-indigo-800"
+                        title="Konfigurasi Assessment"
+                      >
+                        <Target size={18} />
                       </button>
                     </td>
                   </tr>
@@ -510,6 +524,18 @@ export default function JobPositionsPage() {
               Ya, Hapus
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal Konfigurasi Assessment */}
+      <Modal
+        isOpen={isAssessmentModalOpen}
+        onClose={handleCloseModals}
+        title={`Konfigurasi Assessment untuk ${selectedPosition?.nama_job}`}
+        size="5xl"
+      >
+        <div className="max-h-[80vh] overflow-y-auto">
+          {selectedPosition && <AssessmentBuilder jobId={selectedPosition.id.toString()} />}
         </div>
       </Modal>
     </div>

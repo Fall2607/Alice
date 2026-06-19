@@ -15,6 +15,7 @@ export async function GET(
       `
       SELECT
         jo.id,
+        jo.job_id,
         jo.title,
         jo.status,
         jo.posted_date,

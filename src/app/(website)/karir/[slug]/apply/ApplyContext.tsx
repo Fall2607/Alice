@@ -15,7 +15,9 @@ export type Sibling = {
 
 export type EducationItem = {
   id: string;
+  level?: string; // SD, SMP, SMA, SMK, D3, S1, S2, S3
   school: string;
+  major?: string; // Jurusan (IPA, IPS, Teknik Informatika, dll)
   yearFrom: string;
   yearTo: string;
   certificateNo: string;
@@ -55,6 +57,7 @@ type ApplyState = {
   documents: Documents;
   otherDocuments: OtherDocumentItem[]; // Menambahkan state ini
   assessmentAnswers: Record<string, any>; // NEW: State untuk Assessment
+  existingDocs?: Record<string, boolean>; // NEW: To track already uploaded docs via OTP
 };
 
 type ApplyContextType = {
@@ -89,6 +92,8 @@ type ApplyContextType = {
 
   // NEW: Assessment Action
   setAssessmentAnswer: (questionId: string, value: any) => void;
+
+  bulkSetData: (data: Partial<ApplyState>) => void;
 
   resetAll: () => void;
 };
@@ -202,8 +207,12 @@ export const ApplyProvider = ({ children }: { children: React.ReactNode }) => {
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
   };
 
+  const bulkSetData = (data: Partial<ApplyState>) => {
+      setState(s => ({ ...s, ...data }));
+  };
+
   return (
-    <ApplyContext.Provider value={{ state, setIdentityField, addSibling, updateSibling, removeSibling, addEducationFormal, updateEducationFormal, removeEducationFormal, addEducationNonFormal, updateEducationNonFormal, removeEducationNonFormal, addExperience, updateExperience, removeExperience, setDocumentFile, addOtherDocument, updateOtherDocument, removeOtherDocument, setAssessmentAnswer, resetAll }}>
+    <ApplyContext.Provider value={{ state, setIdentityField, addSibling, updateSibling, removeSibling, addEducationFormal, updateEducationFormal, removeEducationFormal, addEducationNonFormal, updateEducationNonFormal, removeEducationNonFormal, addExperience, updateExperience, removeExperience, setDocumentFile, addOtherDocument, updateOtherDocument, removeOtherDocument, setAssessmentAnswer, resetAll, bulkSetData }}>
       {children}
     </ApplyContext.Provider>
   );

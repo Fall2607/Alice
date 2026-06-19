@@ -166,7 +166,7 @@ export default function Step6Page() {
         const applyData = await applyRes.json();
 
         if (!applyRes.ok) {
-            throw new Error(applyData.message || "Gagal menyimpan data lamaran.");
+            throw new Error(applyData.error ? `Server Error: ${applyData.error}` : (applyData.message || "Gagal menyimpan data lamaran."));
         }
 
         // 5. Sukses
@@ -255,8 +255,9 @@ export default function Step6Page() {
                 <div className="space-y-3">
                     {state.educationFormal.map(edu => (
                         <div key={edu.id} className="relative pl-4 border-l-2 border-blue-200">
-                            <p className="text-sm font-bold">{edu.school}</p>
-                            <p className="text-xs text-slate-500">{edu.yearFrom} - {edu.yearTo} {edu.ipk ? `• IPK: ${edu.ipk}` : ''}</p>
+                            <p className="text-sm font-bold">{edu.level ? `${edu.level} - ` : ''}{edu.school}</p>
+                            <p className="text-xs text-primary font-medium">{edu.major || '-'}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{edu.yearFrom} - {edu.yearTo} {edu.ipk ? `• IPK: ${edu.ipk}` : ''}</p>
                         </div>
                     ))}
                 </div>
@@ -284,15 +285,18 @@ export default function Step6Page() {
         <ReviewSection title="Dokumen" icon={FileText} onEdit={() => router.push(`/karir/${slug}/apply/step5`)}>
             {/* Dokumen Utama */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                {Object.entries(state.documents).map(([key, file]) => (
-                    <div key={key} className={`flex items-center gap-2 p-2 rounded border ${file ? 'border-green-200 bg-green-50' : 'border-slate-100'}`}>
-                        {file ? <CheckCircle size={16} className="text-green-600"/> : <AlertCircle size={16} className="text-slate-300"/>}
+                {Object.entries(state.documents).map(([key, file]) => {
+                    const hasExisting = state.existingDocs?.[key];
+                    const isOk = file || hasExisting;
+                    return (
+                    <div key={key} className={`flex items-center gap-2 p-2 rounded border ${isOk ? 'border-green-200 bg-green-50' : 'border-slate-100'}`}>
+                        {isOk ? <CheckCircle size={16} className="text-green-600"/> : <AlertCircle size={16} className="text-slate-300"/>}
                         <div className="min-w-0">
                             <p className="text-xs font-bold uppercase text-slate-600">{key}</p>
-                            <p className="text-[10px] text-slate-400 truncate">{file ? file.name : "Kosong"}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{file ? file.name : (hasExisting ? "File Lama Tersimpan" : "Kosong")}</p>
                         </div>
                     </div>
-                ))}
+                )})}
             </div>
 
             {/* Dokumen Tambahan */}

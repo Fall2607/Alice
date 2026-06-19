@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { 
   User, Mail, Phone, MapPin, Calendar, CreditCard, 
-  Heart, Users, ChevronRight, Search, ChevronDown, Map, ArrowRight, Baby
+  Heart, Users, ChevronRight, Search, ChevronDown, Map, ArrowRight, Baby, Loader2, KeyRound
 } from "lucide-react";
 import { useApply } from "./ApplyContext";
 
@@ -109,8 +109,80 @@ const InputField = ({
 export default function Step1Page() {
   const router = useRouter();
   const params = useParams();
-  const { state, setIdentityField } = useApply();
+  const { state, setIdentityField, bulkSetData } = useApply();
   const slug = params?.slug as string;
+
+  // --- OTP States ---
+  const [showOtpSection, setShowOtpSection] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [isOtpLoading, setIsOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [otpSuccess, setOtpSuccess] = useState("");
+
+  const handleSendOtp = async () => {
+    if (!loginEmail) {
+      setOtpError("Masukkan email Anda terlebih dahulu.");
+      return;
+    }
+    setIsOtpLoading(true);
+    setOtpError("");
+    setOtpSuccess("");
+    try {
+      const res = await fetch("/api/candidate-auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setOtpSent(true);
+      setOtpSuccess(data.message);
+    } catch (err: any) {
+      setOtpError(err.message);
+    } finally {
+      setIsOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode) {
+      setOtpError("Masukkan kode OTP.");
+      return;
+    }
+    setIsOtpLoading(true);
+    setOtpError("");
+    try {
+      const res = await fetch("/api/candidate-auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, otp: otpCode })
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.message);
+      
+      // Auto fill data
+      const d = resData.data;
+      const updates: any = {};
+
+      if (d.identity) updates.identity = { ...state.identity, ...d.identity };
+      if (d.siblings) updates.siblings = d.siblings;
+      if (d.education?.formal) updates.educationFormal = d.education.formal;
+      if (d.education?.nonFormal) updates.educationNonFormal = d.education.nonFormal;
+      if (d.experience) updates.experiences = d.experience;
+      if (d.existingDocs) updates.existingDocs = d.existingDocs;
+      
+      bulkSetData(updates);
+      
+      setOtpSuccess("Data berhasil dimuat! Silakan periksa kembali.");
+      setTimeout(() => setShowOtpSection(false), 3000);
+    } catch (err: any) {
+      setOtpError(err.message);
+    } finally {
+      setIsOtpLoading(false);
+    }
+  };
 
   // Options Data
   const religionOptions = [
@@ -131,13 +203,84 @@ export default function Step1Page() {
   ];
 
   const handleNext = () => {
-    // Validasi sederhana
     if (!state.identity.fullName) return alert("Nama lengkap wajib diisi");
     router.push(`/karir/${slug}/apply/step2`);
   };
 
   return (
     <div className="animate-in fade-in slide-in-from-right-8 duration-500">
+      
+      {/* OTP Banner */}
+      {!showOtpSection && !otpSuccess && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+                <h4 className="text-blue-800 font-bold text-sm">Pernah Melamar Sebelumnya?</h4>
+                <p className="text-blue-600 text-xs mt-1">Masukkan email untuk memuat data riwayat Anda secara otomatis.</p>
+            </div>
+            <button 
+                onClick={() => setShowOtpSection(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-xs font-bold transition-colors whitespace-nowrap"
+            >
+                Gunakan Data Lama
+            </button>
+        </div>
+      )}
+
+      {showOtpSection && (
+        <div className="mb-8 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><KeyRound size={18} className="text-primary"/> Tarik Data Pelamar</h3>
+                    <p className="text-xs text-slate-500 mt-1">Verifikasi email Anda untuk mengisi form ini secara otomatis.</p>
+                </div>
+                <button onClick={() => setShowOtpSection(false)} className="text-slate-400 hover:text-slate-600 text-xs font-bold">Tutup</button>
+            </div>
+
+            {otpError && <div className="mb-4 p-3 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100">{otpError}</div>}
+            {otpSuccess && <div className="mb-4 p-3 bg-green-50 text-green-700 text-xs font-bold rounded-lg border border-green-100">{otpSuccess}</div>}
+
+            {!otpSent ? (
+                <div className="flex flex-col md:flex-row gap-3">
+                    <input 
+                        type="email" 
+                        value={loginEmail} 
+                        onChange={e => setLoginEmail(e.target.value)} 
+                        placeholder="Masukkan alamat email Anda" 
+                        className="flex-1 p-3 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    />
+                    <button 
+                        onClick={handleSendOtp} 
+                        disabled={isOtpLoading}
+                        className="bg-primary text-white px-6 py-3 rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors disabled:opacity-50 flex justify-center items-center gap-2 min-w-[120px]"
+                    >
+                        {isOtpLoading ? <Loader2 size={16} className="animate-spin" /> : "Kirim OTP"}
+                    </button>
+                </div>
+            ) : (
+                <div className="flex flex-col md:flex-row gap-3">
+                    <div className="flex-1">
+                        <input 
+                            type="text" 
+                            maxLength={4}
+                            value={otpCode} 
+                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))} 
+                            placeholder="Masukkan 4 Digit Kode OTP" 
+                            className="w-full p-3 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary/20 outline-none font-bold tracking-widest text-center md:text-left"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1.5">Kode dikirim ke {loginEmail}</p>
+                    </div>
+                    <button 
+                        onClick={handleVerifyOtp} 
+                        disabled={isOtpLoading || otpCode.length < 4}
+                        className="bg-green-600 text-white px-6 py-3 rounded-lg text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 h-fit md:h-auto min-w-[120px]"
+                    >
+                        {isOtpLoading ? <Loader2 size={16} className="animate-spin" /> : "Verifikasi"}
+                    </button>
+                </div>
+            )}
+        </div>
+      )}
+
       <div className="mb-8 border-b border-slate-100 pb-6">
         <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <User className="text-primary" size={28}/> Identitas Diri

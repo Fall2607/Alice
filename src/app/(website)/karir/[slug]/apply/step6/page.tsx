@@ -29,7 +29,7 @@ export default function Step6AssessmentPage() {
   React.useEffect(() => {
       const fetchQuestions = async () => {
           try {
-              const res = await fetch(`/api/job-assessments/${slug}`);
+              const res = await fetch(`/api/job-openings/${slug}/assessments`);
               if (res.ok) {
                   const data = await res.json();
                   setQuestions(data);

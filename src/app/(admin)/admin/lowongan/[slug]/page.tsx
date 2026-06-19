@@ -34,7 +34,7 @@ import {
   LayoutGrid,
   Zap
 } from "lucide-react";
-import AssessmentBuilder from "./AssessmentBuilder";
+import AssessmentSelector from "@/app/components/admin/AssessmentSelector";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
 
 import { useParams } from 'next/navigation';
@@ -76,6 +76,7 @@ const Modal = ({ isOpen, onClose, title, children, size = "md" }: any) => {
 // --- INTERFACES ---
 interface JobDetail {
   id: string;
+  job_id: string;
   title: string;
   status: string;
   posted_date: string | null;
@@ -793,7 +794,7 @@ export default function DetailLowonganPage() {
           </div>
         </>
       ) : (
-        <AssessmentBuilder jobId={slug} />
+        <AssessmentSelector jobOpeningId={slug as string} jobId={job.job_id} />
       )}
 
       {/* MODAL PROFIL KANDIDAT */}

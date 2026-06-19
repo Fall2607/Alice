@@ -12,10 +12,10 @@ export async function GET(
         const { jobId } = params;
 
         const result = await pool.query(
-            `SELECT id, job_id, question, type, fuzzy_config, weight 
+            `SELECT id, job_id, question, type, fuzzy_config, weight, category 
              FROM job_assessments 
              WHERE job_id = $1 
-             ORDER BY created_at ASC`,
+             ORDER BY category ASC, created_at ASC`,
             [jobId]
         );
         return NextResponse.json(result.rows);
@@ -50,14 +50,15 @@ export async function PUT(
         for (const item of assessments) {
             // Parameterized query: sangat aman dari SQL Injection
             await client.query(
-                `INSERT INTO job_assessments (job_id, question, type, fuzzy_config, weight) 
-                 VALUES ($1, $2, $3::assessment_type, $4::jsonb, $5)`,
+                `INSERT INTO job_assessments (job_id, question, type, fuzzy_config, weight, category) 
+                 VALUES ($1, $2, $3::assessment_type, $4::jsonb, $5, $6)`,
                 [
                     jobId,
                     item.question,
                     item.type,
                     item.fuzzy_config ? JSON.stringify(item.fuzzy_config) : null,
-                    item.weight || 1.0
+                    item.weight || 1.0,
+                    item.category || 'Umum'
                 ]
             );
         }

@@ -5,44 +5,45 @@ async function updateDB() {
   try {
     await client.query("BEGIN");
 
-    console.log("Menambahkan kolom sisa_cuti pada tabel karyawan...");
-    // Tambahkan sisa_cuti, default 12 hari
+    console.log("Membuat tabel job_opening_assessments...");
     await client.query(`
-      ALTER TABLE karyawan 
-      ADD COLUMN IF NOT EXISTS sisa_cuti INTEGER DEFAULT 12;
+      CREATE TABLE IF NOT EXISTS job_opening_assessments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        job_opening_id UUID NOT NULL REFERENCES job_openings(id) ON DELETE CASCADE,
+        job_assessment_id UUID NOT NULL REFERENCES job_assessments(id) ON DELETE CASCADE,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(job_opening_id, job_assessment_id)
+      );
     `);
 
-    console.log("Membuat tipe ENUM status_cuti...");
-    // Cek apakah tipe ENUM status_cuti sudah ada
-    const typeExists = await client.query(`
-      SELECT 1 FROM pg_type WHERE typname = 'status_cuti';
-    `);
-    
-    if (typeExists.rows.length === 0) {
-      await client.query(`
-        CREATE TYPE status_cuti AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
-      `);
-    }
-
-    console.log("Mengubah tipe kolom status pada tabel pengajuan_cuti menjadi ENUM...");
-    // Drop default dulu
+    console.log("Membuat tabel candidate_otps...");
     await client.query(`
-      ALTER TABLE pengajuan_cuti 
-      ALTER COLUMN status DROP DEFAULT;
+      CREATE TABLE IF NOT EXISTS candidate_otps (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) NOT NULL,
+        otp_code VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        is_used BOOLEAN DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
     `);
 
-    // Ubah kolom status menjadi ENUM. Jika sebelumnya VARCHAR, kita konversi (USING status::text::status_cuti)
-    await client.query(`
-      ALTER TABLE pengajuan_cuti 
-      ALTER COLUMN status TYPE status_cuti 
-      USING status::text::status_cuti;
-    `);
-
-    // Tambahkan default value PENDING
-    await client.query(`
-      ALTER TABLE pengajuan_cuti 
-      ALTER COLUMN status SET DEFAULT 'PENDING';
-    `);
+  // CANDIDATE EDUCATION FORMAL
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS candidate_education_formal (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
+      tingkat VARCHAR(50),
+      nama_sekolah VARCHAR(255) NOT NULL,
+      jurusan VARCHAR(255),
+      tahun_masuk INT,
+      tahun_lulus INT,
+      nomor_ijazah VARCHAR(100),
+      ipk VARCHAR(10),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 
     await client.query("COMMIT");
     console.log("✅ Update Database Berhasil!");
@@ -56,3 +57,4 @@ async function updateDB() {
 }
 
 updateDB();
+

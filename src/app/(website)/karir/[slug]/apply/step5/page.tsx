@@ -83,7 +83,9 @@ export default function Step5Page() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {fields.map((f) => {
                     const file = state.documents[f.key];
-                    const isUploaded = !!file;
+                    const hasExisting = state.existingDocs?.[f.key];
+                    const isUploaded = !!file || hasExisting;
+                    
                     return (
                         <div key={f.key} className={`relative rounded-2xl border-2 transition-all duration-300 p-4 flex items-center gap-4 group ${isUploaded ? "bg-green-50/50 border-green-200" : "bg-white border-slate-200"}`}>
                             <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${isUploaded ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400"}`}>
@@ -91,16 +93,18 @@ export default function Step5Page() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className={`font-bold text-sm truncate ${isUploaded ? "text-green-800" : "text-slate-700"}`}>{f.label} {f.required && <span className="text-red-500">*</span>}</p>
-                                {isUploaded ? (
+                                {file ? (
                                     <div><p className="text-xs text-green-600 truncate font-medium">{file.name}</p><p className="text-[10px] text-green-500/80">{formatFileSize(file.size)}</p></div>
+                                ) : hasExisting ? (
+                                    <div><p className="text-xs text-green-600 truncate font-medium">File Lama Tersimpan</p><p className="text-[10px] text-green-500/80">Tidak perlu upload ulang jika sama</p></div>
                                 ) : <p className="text-xs text-slate-400">{f.desc}</p>}
                             </div>
                             <div className="shrink-0">
-                                {isUploaded ? (
+                                {file ? (
                                     <button onClick={() => setDocumentFile(f.key, null)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full"><Trash2 size={18} /></button>
                                 ) : (
                                     <label className="cursor-pointer bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-primary transition-colors flex items-center gap-1">
-                                        Upload <input type="file" className="hidden" accept={f.key === 'photo' ? "image/*" : ".pdf,image/*"} onChange={(e) => handleFileChange(f.key, e.target.files)} />
+                                        {hasExisting ? "Ganti File" : "Upload"} <input type="file" className="hidden" accept={f.key === 'photo' ? "image/*" : ".pdf,image/*"} onChange={(e) => handleFileChange(f.key, e.target.files)} />
                                     </label>
                                 )}
                             </div>
