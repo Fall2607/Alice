@@ -1,7 +1,7 @@
 // File: app/(admin)/admin/departemen/page.tsx
 "use client";
 
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { PlusCircle, Edit, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import Modal from "@/app/components/modal"; // Menggunakan komponen Modal eksternal
 import Pagination from "@/app/components/admin/Pagination"; // Menggunakan komponen Pagination eksternal
@@ -58,6 +58,7 @@ export default function DepartmentManagementPage() {
 
   useEffect(() => {
     fetchDepartments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCloseModals = () => {

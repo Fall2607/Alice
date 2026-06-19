@@ -19,6 +19,7 @@ interface JobPosition {
 export default function JobPositionsPage() {
   const [positions, setPositions] = useState<JobPosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState<string | null>(null);
 
   const [selectedPosition, setSelectedPosition] = useState<JobPosition | null>(
@@ -64,6 +65,7 @@ export default function JobPositionsPage() {
 
   useEffect(() => {
     fetchPositions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reset paginasi saat filter pencarian berubah

@@ -69,7 +69,7 @@ export default function AdminLayout({
         const userData = JSON.parse(userDataString);
         setUser(userData);
         setIsVerifying(false);
-      } catch (error) {
+      } catch {
         handleLogout();
         return;
       }

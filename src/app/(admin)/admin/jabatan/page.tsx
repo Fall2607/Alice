@@ -52,6 +52,7 @@ export default function JabatanManagementPage() {
 
   useEffect(() => {
     fetchJabatans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseUrl]);
 
   const handleCloseModals = () => {
