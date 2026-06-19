@@ -6,7 +6,7 @@ import pool from "@/app/lib/db";
 // Handler untuk GET (mendapatkan satu role by ID)
 export async function GET(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> | { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params;
@@ -32,7 +32,7 @@ export async function GET(
 // Handler untuk PUT (memperbarui role by ID)
 export async function PUT(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> | { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params;
@@ -71,7 +71,7 @@ export async function PUT(
 // Handler untuk DELETE (menghapus role by ID)
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> | { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params;

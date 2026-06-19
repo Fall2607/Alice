@@ -4,7 +4,7 @@ import { PoolClient } from "pg";
 
 export async function GET(
     request: Request,
-    context: { params: Promise<{ jobId: string }> } | { params: { jobId: string } }
+    context: { params: Promise<{ jobId: string }> }
 ) {
     try {
         // Handle Next.js 15 promise-based params and older sync params
@@ -30,7 +30,7 @@ export async function GET(
 
 export async function PUT(
     request: Request,
-    context: { params: Promise<{ jobId: string }> } | { params: { jobId: string } }
+    context: { params: Promise<{ jobId: string }> }
 ) {
     const client: PoolClient = await pool.connect();
     try {

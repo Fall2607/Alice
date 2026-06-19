@@ -34,7 +34,7 @@ interface Job {
 export async function GET(
   request: NextRequest,
   // Tipe diubah untuk mencerminkan bahwa params mungkin perlu di-await
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Menambahkan await untuk mengatasi error di environment tertentu
@@ -101,7 +101,7 @@ export async function GET(
 export async function PUT(
   request: NextRequest,
   // Tipe diubah untuk mencerminkan bahwa params mungkin perlu di-await
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Menambahkan await untuk mengatasi error di environment tertentu
@@ -172,7 +172,7 @@ export async function PUT(
 export async function DELETE(
   request: NextRequest,
   // Tipe diubah untuk mencerminkan bahwa params mungkin perlu di-await
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Menambahkan await untuk mengatasi error di environment tertentu

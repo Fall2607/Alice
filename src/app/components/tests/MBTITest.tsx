@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { mbtiPairs } from "@/app/data/tests/mbtiData";
 
 interface MBTIProps {
@@ -23,7 +23,7 @@ export default function MBTITestContent({
     () => mbtiPairs.filter((p) => p.stage === stage),
     [stage],
   );
-  const labels: any = { 1: "Satu", 2: "Dua", 3: "Tiga", 4: "Empat" };
+  const labels: Record<number, string> = { 1: "Satu", 2: "Dua", 3: "Tiga", 4: "Empat" };
 
   const handleSelect = (id: number, val: "A" | "B") => {
     setAnswers({ ...answers, [id]: val });

@@ -13,9 +13,9 @@ export function getMbtiResult(answers: Record<number, 'A' | 'B'>) {
     const charB = p.dim[1];
 
     if (ans === 'A') {
-      (score as any)[charA]++;
+      (score as Record<string, number>)[charA]++;
     } else {
-      (score as any)[charB]++;
+      (score as Record<string, number>)[charB]++;
     }
   });
 

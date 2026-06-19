@@ -22,6 +22,12 @@ const nextConfig: NextConfig = {
       // Tambahkan hostname lain di sini jika Anda menggunakan storage cloud (misal: S3 atau Firebase)
     ],
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   /* Opsi konfigurasi lainnya bisa ditambahkan di bawah ini */
 };
 

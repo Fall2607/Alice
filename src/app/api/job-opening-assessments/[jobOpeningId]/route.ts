@@ -4,7 +4,7 @@ import { PoolClient } from "pg";
 
 export async function GET(
     request: NextRequest,
-    context: { params: Promise<{ jobOpeningId: string }> } | { params: { jobOpeningId: string } }
+    context: { params: Promise<{ jobOpeningId: string }> }
 ) {
     try {
         const params = await context.params;
@@ -28,7 +28,7 @@ export async function GET(
 
 export async function PUT(
     request: NextRequest,
-    context: { params: Promise<{ jobOpeningId: string }> } | { params: { jobOpeningId: string } }
+    context: { params: Promise<{ jobOpeningId: string }> }
 ) {
     const client: PoolClient = await pool.connect();
     try {
