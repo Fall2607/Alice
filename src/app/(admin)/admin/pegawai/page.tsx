@@ -44,6 +44,8 @@ interface Karyawan {
   nama_level: string;
   sipStatus?: SipStatus;
   has_face_descriptor?: boolean;
+  rekening_bsi?: string;
+  alamat_domisili?: string;
 }
 
 interface Departemen {
@@ -601,6 +603,21 @@ export default function EmployeeManagementPage() {
                     </DetailRow>
                     <DetailRow label="No. Handphone">
                       {selectedEmployee.handphone}
+                    </DetailRow>
+                    <DetailRow label="Alamat Domisili">
+                      {selectedEmployee.alamat_domisili || selectedEmployee.alamat}
+                    </DetailRow>
+                  </dl>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-800 px-4">
+                  Informasi Finansial
+                </h3>
+                <div className="mt-2 overflow-hidden border border-slate-200 rounded-lg">
+                  <dl>
+                    <DetailRow label="Rekening BSI">
+                      {selectedEmployee.rekening_bsi || "-"}
                     </DetailRow>
                   </dl>
                 </div>

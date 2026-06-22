@@ -54,6 +54,7 @@ export default function EditPegawaiPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAlamatSama, setIsAlamatSama] = useState(false);
 
   const [formData, setFormData] = useState({
     id: "",
@@ -68,6 +69,7 @@ export default function EditPegawaiPage() {
     tanggal_lahir: null as Date | null,
     jenis_kelamin: { value: "Laki-laki", label: "Laki-laki" } as FormOption,
     alamat: "",
+    alamat_domisili: "",
     tanggal_masuk: null as Date | null,
     status_kepegawaian: {
       value: "Karyawan Kontrak",
@@ -76,6 +78,7 @@ export default function EditPegawaiPage() {
     gaji_pokok: 0,
     level_jabatan_id: null as FormOption | null,
     departemen_id: null as FormOption | null,
+    rekening_bsi: "",
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -146,7 +149,11 @@ export default function EditPegawaiPage() {
           },
           departemen_id: selectedDept || null,
           level_jabatan_id: selectedLevel || null,
+          rekening_bsi: karyawanData.rekening_bsi || "",
+          alamat_domisili: karyawanData.alamat_domisili || "",
         });
+        
+        setIsAlamatSama(!karyawanData.alamat_domisili || karyawanData.alamat_domisili === karyawanData.alamat);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Gagal memuat data.";
         setError(msg);
@@ -194,10 +201,12 @@ export default function EditPegawaiPage() {
           formData.tanggal_lahir?.toISOString().split("T")[0] || null,
         jenis_kelamin: formData.jenis_kelamin.value,
         alamat: formData.alamat,
+        alamat_domisili: isAlamatSama ? formData.alamat : formData.alamat_domisili,
         tanggal_masuk:
           formData.tanggal_masuk?.toISOString().split("T")[0] || null,
         status_kepegawaian: formData.status_kepegawaian.value,
         gaji_pokok: formData.gaji_pokok,
+        rekening_bsi: formData.rekening_bsi,
         jabatan_id: jabatan_id,
       };
 
@@ -356,15 +365,45 @@ export default function EditPegawaiPage() {
                   className={inputClass}
                 />
               </FormField>
-              <FormField label="Alamat">
+              <FormField label="Alamat (KTP)">
                 <textarea
                   value={formData.alamat || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, alamat: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, alamat: e.target.value });
+                    if (isAlamatSama) {
+                      setFormData((prev) => ({ ...prev, alamat_domisili: e.target.value }));
+                    }
+                  }}
                   rows={3}
                   className={inputClass}
                 ></textarea>
+              </FormField>
+              <FormField label="Alamat Domisili">
+                <div className="mb-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="alamatSama"
+                    checked={isAlamatSama}
+                    onChange={(e) => {
+                      setIsAlamatSama(e.target.checked);
+                      if (e.target.checked) {
+                        setFormData({ ...formData, alamat_domisili: formData.alamat });
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <label htmlFor="alamatSama" className="text-sm text-slate-600">Sama dengan alamat KTP</label>
+                </div>
+                {!isAlamatSama && (
+                  <textarea
+                    value={formData.alamat_domisili || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, alamat_domisili: e.target.value })
+                    }
+                    rows={3}
+                    className={inputClass}
+                  ></textarea>
+                )}
               </FormField>
             </div>
             <div>
@@ -477,6 +516,16 @@ export default function EditPegawaiPage() {
                       ...formData,
                       gaji_pokok: Number(e.target.value),
                     })
+                  }
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Rekening BSI">
+                <input
+                  type="text"
+                  value={formData.rekening_bsi || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, rekening_bsi: e.target.value })
                   }
                   className={inputClass}
                 />

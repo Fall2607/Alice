@@ -19,6 +19,8 @@ interface KaryawanInput {
   jabatan_id?: string | null; // UUID (string)
   user_id?: string | null; // UUID (string)
   atasan_id?: string | null; // UUID (string), penggantikan atasan_nip
+  rekening_bsi?: string | null;
+  alamat_domisili?: string | null;
 }
 
 /**
@@ -39,6 +41,7 @@ export async function GET(
         k.handphone, k.email, k.tanggal_lahir, k.jenis_kelamin, k.alamat,
         k.tanggal_masuk, k.status_kepegawaian, k.gaji_pokok, k.jabatan_id,
         d.nama_departemen, lj.nama_level, k.user_id, k.atasan_id, k.sisa_cuti,
+        k.rekening_bsi, k.alamat_domisili,
         atasan.nama_lengkap AS nama_atasan,
         CASE WHEN k.face_descriptor IS NOT NULL THEN true ELSE false END AS has_face_descriptor
       FROM karyawan k
@@ -95,6 +98,8 @@ export async function PUT(
       jabatan_id,
       user_id,
       atasan_id,
+      rekening_bsi,
+      alamat_domisili,
     }: KaryawanInput = await request.json();
 
     if (!nama_lengkap || !nik) {
@@ -109,8 +114,9 @@ export async function PUT(
         nama_lengkap = $1, nik = $2, profesi = $3, sip = $4, masa_berlaku_sip = $5,
         handphone = $6, email = $7, tanggal_lahir = $8, jenis_kelamin = $9,
         alamat = $10, tanggal_masuk = $11, status_kepegawaian = $12,
-        gaji_pokok = $13, jabatan_id = $14, user_id = $15, atasan_id = $16
-      WHERE id = $17 -- Update berdasarkan PK ID
+        gaji_pokok = $13, jabatan_id = $14, user_id = $15, atasan_id = $16,
+        rekening_bsi = $17, alamat_domisili = $18
+      WHERE id = $19 -- Update berdasarkan PK ID
       RETURNING *;
     `;
     const values = [
@@ -130,6 +136,8 @@ export async function PUT(
       jabatan_id,
       user_id,
       atasan_id,
+      rekening_bsi,
+      alamat_domisili,
       id,
     ];
 
@@ -178,6 +186,8 @@ export async function PATCH(
       "jabatan_id",
       "user_id",
       "atasan_id",
+      "rekening_bsi",
+      "alamat_domisili",
     ];
 
     const fieldsToUpdate = Object.keys(body).filter((field) =>

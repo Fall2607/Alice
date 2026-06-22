@@ -49,6 +49,7 @@ export default function TambahPegawaiPage() {
   const [employeeOptions, setEmployeeOptions] = useState<FormOption[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAlamatSama, setIsAlamatSama] = useState(false);
 
   const [formData, setFormData] = useState({
     nip: "",
@@ -62,6 +63,7 @@ export default function TambahPegawaiPage() {
     tanggal_lahir: null as Date | null,
     jenis_kelamin: { value: "Laki-laki", label: "Laki-laki" } as FormOption,
     alamat: "",
+    alamat_domisili: "",
     tanggal_masuk: null as Date | null,
     status_kepegawaian: {
       value: "Karyawan Kontrak",
@@ -71,6 +73,7 @@ export default function TambahPegawaiPage() {
     level_jabatan_id: null as FormOption | null,
     departemen_id: null as FormOption | null,
     atasan_id: null as FormOption | null,
+    rekening_bsi: "",
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -150,10 +153,12 @@ export default function TambahPegawaiPage() {
           formData.tanggal_lahir?.toISOString().split("T")[0] || null,
         jenis_kelamin: formData.jenis_kelamin.value,
         alamat: formData.alamat || null,
+        alamat_domisili: isAlamatSama ? formData.alamat : (formData.alamat_domisili || null),
         tanggal_masuk:
           formData.tanggal_masuk?.toISOString().split("T")[0] || null,
         status_kepegawaian: formData.status_kepegawaian.value,
         gaji_pokok: formData.gaji_pokok || null,
+        rekening_bsi: formData.rekening_bsi || null,
         jabatan_id: jabatan_uuid,
         atasan_id: formData.atasan_id?.value || null,
       };
@@ -297,16 +302,47 @@ export default function TambahPegawaiPage() {
                   placeholder="Contoh: nama@avisena.co.id"
                 />
               </FormField>
-              <FormField label="Alamat">
+              <FormField label="Alamat (KTP)">
                 <textarea
                   value={formData.alamat}
-                  onChange={(e) =>
-                    setFormData({ ...formData, alamat: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, alamat: e.target.value });
+                    if (isAlamatSama) {
+                      setFormData((prev) => ({ ...prev, alamat_domisili: e.target.value }));
+                    }
+                  }}
                   rows={3}
                   className={inputClass}
-                  placeholder="Masukkan alamat lengkap"
+                  placeholder="Masukkan alamat KTP lengkap"
                 ></textarea>
+              </FormField>
+              <FormField label="Alamat Domisili">
+                <div className="mb-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="alamatSama"
+                    checked={isAlamatSama}
+                    onChange={(e) => {
+                      setIsAlamatSama(e.target.checked);
+                      if (e.target.checked) {
+                        setFormData({ ...formData, alamat_domisili: formData.alamat });
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <label htmlFor="alamatSama" className="text-sm text-slate-600">Sama dengan alamat KTP</label>
+                </div>
+                {!isAlamatSama && (
+                  <textarea
+                    value={formData.alamat_domisili}
+                    onChange={(e) =>
+                      setFormData({ ...formData, alamat_domisili: e.target.value })
+                    }
+                    rows={3}
+                    className={inputClass}
+                    placeholder="Masukkan alamat domisili lengkap"
+                  ></textarea>
+                )}
               </FormField>
             </div>
             <div>
@@ -448,6 +484,17 @@ export default function TambahPegawaiPage() {
                   }
                   className={inputClass}
                   placeholder="Contoh: 5000000"
+                />
+              </FormField>
+              <FormField label="Rekening BSI">
+                <input
+                  type="text"
+                  value={formData.rekening_bsi}
+                  onChange={(e) =>
+                    setFormData({ ...formData, rekening_bsi: e.target.value })
+                  }
+                  className={inputClass}
+                  placeholder="Contoh: 7123456789"
                 />
               </FormField>
             </div>
