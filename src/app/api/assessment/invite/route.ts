@@ -88,7 +88,7 @@ export async function POST(request: Request) {
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 12px; color: #64748b;">
             <tr>
               <td style="padding: 6px 0; font-weight: bold; width: 150px;">Jadwal Pelaksanaan</td>
-              <td style="padding: 6px 0; font-weight: 800; color: #0173b6;">: \${new Date(scheduled_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (Hanya 1 Hari)</td>
+              <td style="padding: 6px 0; font-weight: 800; color: #0173b6;">: ${new Date(scheduled_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (Hanya 1 Hari)</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; font-weight: bold;">Durasi Tes</td>
