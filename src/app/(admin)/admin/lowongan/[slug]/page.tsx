@@ -135,6 +135,13 @@ export default function DetailLowonganPage() {
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [isBulkInviting, setIsBulkInviting] = useState(false);
   const [activeTab, setActiveTab] = useState<"detail" | "assessment">("detail");
+  const [inviteModal, setInviteModal] = useState<{
+    isOpen: boolean;
+    type: "single" | "bulk";
+    candidateId?: string;
+    scheduledDate: string;
+  }>({ isOpen: false, type: "single", scheduledDate: "" });
+
   const [dialog, setDialog] = useState<{
     isOpen: boolean;
     type: "alert" | "confirm";
@@ -186,7 +193,7 @@ export default function DetailLowonganPage() {
     }
   };
 
-  const processInvite = async (applicant: any, quiet = false) => {
+  const processInvite = async (applicant: any, scheduledDate: string, quiet = false) => {
     setInvitingId(applicant.id);
     try {
       const response = await fetch(`/api/assessment/invite`, {
@@ -198,6 +205,7 @@ export default function DetailLowonganPage() {
           email: applicant.email,
           candidate_name: applicant.nama,
           job_title: job?.title,
+          scheduled_date: scheduledDate,
         }),
       });
 
@@ -291,48 +299,21 @@ export default function DetailLowonganPage() {
     const applicant = applicants.find((a) => a.id === candidateId);
     if (!applicant || !job) return;
 
-    setDialog({
+    setInviteModal({
       isOpen: true,
-      type: "confirm",
-      title: "Kirim Undangan Tes",
-      message: `Apakah Anda yakin ingin meloloskan ${applicant.nama} ke tahap Assessment dan mengirimkan email undangan?`,
-      confirmText: "Kirim Email",
-      onConfirm: () => {
-        setDialog((prev) => ({ ...prev, isOpen: false }));
-        processInvite(applicant);
-      },
+      type: "single",
+      candidateId,
+      scheduledDate: new Date().toISOString().split('T')[0],
     });
   };
 
   const handleBulkSendInvite = () => {
     if (selectedCandidates.length === 0 || !job) return;
 
-    setDialog({
+    setInviteModal({
       isOpen: true,
-      type: "confirm",
-      title: "Kirim Undangan Massal",
-      message: `Apakah Anda yakin ingin mengirim undangan massal ke ${selectedCandidates.length} kandidat?`,
-      confirmText: "Kirim Semua",
-      onConfirm: async () => {
-        setDialog((prev) => ({ ...prev, isOpen: false }));
-        setIsBulkInviting(true);
-        let successCount = 0;
-        for (const candidateId of selectedCandidates) {
-          const applicant = applicants.find((a) => a.id === candidateId);
-          if (applicant) {
-            const success = await processInvite(applicant, true);
-            if (success) successCount++;
-          }
-        }
-        setIsBulkInviting(false);
-        setSelectedCandidates([]);
-        setDialog({
-          isOpen: true,
-          type: "alert",
-          title: "Proses Selesai",
-          message: `Selesai! Berhasil mengirim ${successCount} dari ${selectedCandidates.length} undangan tes.`,
-        });
-      },
+      type: "bulk",
+      scheduledDate: new Date().toISOString().split('T')[0],
     });
   };
 
@@ -1134,6 +1115,77 @@ export default function DetailLowonganPage() {
             className={`px-6 py-2.5 text-white font-bold rounded-md transition-all text-xs uppercase tracking-widest shadow-md ${dialog.isDanger ? "bg-red-500 hover:bg-red-600 shadow-red-500/20" : "bg-primary hover:bg-primary-dark shadow-primary/20"}`}
           >
             {dialog.confirmText || "OK Mengerti"}
+          </button>
+        </div>
+      </Modal>
+
+      {/* INVITE MODAL DENGAN PENJADWALAN */}
+      <Modal
+        isOpen={inviteModal.isOpen}
+        onClose={() => setInviteModal({ ...inviteModal, isOpen: false })}
+        title={inviteModal.type === "single" ? "Jadwalkan & Kirim Undangan Tes" : "Jadwalkan Undangan Massal"}
+        size="md"
+      >
+        <p className="text-slate-600 font-medium mb-4 leading-relaxed text-sm">
+          {inviteModal.type === "single"
+            ? `Tentukan tanggal tes psikometri untuk kandidat terpilih. Ujian hanya valid di tanggal tersebut.`
+            : `Tentukan tanggal tes psikometri untuk ${selectedCandidates.length} kandidat. Ujian hanya valid di tanggal tersebut.`}
+        </p>
+        <div className="mb-8">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+            Tanggal Ujian / Tes
+          </label>
+          <input
+            type="date"
+            min={new Date().toISOString().split('T')[0]}
+            value={inviteModal.scheduledDate}
+            onChange={(e) => setInviteModal({ ...inviteModal, scheduledDate: e.target.value })}
+            className="w-full text-base py-3 px-4 bg-slate-50 border border-slate-200 rounded-md focus:bg-white focus:border-primary outline-none transition-all font-bold text-slate-800"
+            required
+          />
+        </div>
+        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button
+            onClick={() => setInviteModal({ ...inviteModal, isOpen: false })}
+            className="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-md hover:bg-slate-200 transition-all text-xs uppercase tracking-widest"
+          >
+            Batal
+          </button>
+          <button
+            onClick={async () => {
+              if (!inviteModal.scheduledDate) {
+                 alert("Tanggal tes harus diisi!");
+                 return;
+              }
+              const schedDate = inviteModal.scheduledDate;
+              setInviteModal({ ...inviteModal, isOpen: false });
+              
+              if (inviteModal.type === "single" && inviteModal.candidateId) {
+                const applicant = applicants.find((a) => a.id === inviteModal.candidateId);
+                if (applicant) processInvite(applicant, schedDate);
+              } else if (inviteModal.type === "bulk") {
+                setIsBulkInviting(true);
+                let successCount = 0;
+                for (const candidateId of selectedCandidates) {
+                  const applicant = applicants.find((a) => a.id === candidateId);
+                  if (applicant) {
+                    const success = await processInvite(applicant, schedDate, true);
+                    if (success) successCount++;
+                  }
+                }
+                setIsBulkInviting(false);
+                setSelectedCandidates([]);
+                setDialog({
+                  isOpen: true,
+                  type: "alert",
+                  title: "Proses Selesai",
+                  message: `Selesai! Berhasil mengirim ${successCount} dari ${selectedCandidates.length} undangan tes.`,
+                });
+              }
+            }}
+            className="px-6 py-2.5 bg-primary text-white font-bold rounded-md hover:bg-primary-dark transition-all text-xs uppercase tracking-widest shadow-md shadow-primary/20"
+          >
+            Kirim Undangan
           </button>
         </div>
       </Modal>

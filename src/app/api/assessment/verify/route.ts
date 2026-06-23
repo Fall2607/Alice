@@ -23,7 +23,8 @@ export async function POST(request: Request) {
         id, 
         candidate_id, 
         status, 
-        expires_at 
+        expires_at,
+        valid_from 
        FROM public.candidate_assessments 
        WHERE token = $1 AND access_code = $2`,
       [token, access_code]
@@ -38,15 +39,32 @@ export async function POST(request: Request) {
 
     const assessment = result.rows[0];
 
-    // 2. Validasi Kedaluwarsa Sesi (Batas waktu 48 jam)
-    if (new Date(assessment.expires_at) < new Date()) {
+    // 2. Validasi Jadwal Pelaksanaan
+    const now = new Date();
+    
+    // Periksa apakah jadwal tes belum dimulai
+    if (assessment.valid_from && now < new Date(assessment.valid_from)) {
+      const formattedDate = new Date(assessment.valid_from).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      return NextResponse.json(
+        { message: `Ujian baru bisa diakses mulai ${formattedDate} pukul 00:00.` }, 
+        { status: 403 }
+      );
+    }
+
+    // Validasi Kedaluwarsa Sesi (Batas waktu 48 jam)
+    if (new Date(assessment.expires_at) < now) {
       // Update status otomatis menjadi EXPIRED di database
       await pool.query(
         "UPDATE public.candidate_assessments SET status = 'EXPIRED' WHERE id = $1",
         [assessment.id]
       );
       return NextResponse.json(
-        { message: "Masa berlaku pengerjaan link ujian ini telah kedaluwarsa (Batas 48 Jam)." }, 
+        { message: "Masa berlaku pengerjaan link ujian ini telah berakhir (Hanya valid pada tanggal yang dijadwalkan)." }, 
         { status: 410 }
       );
     }

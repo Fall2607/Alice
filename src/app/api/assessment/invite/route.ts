@@ -7,12 +7,12 @@ export async function POST(request: Request) {
   const client = await pool.connect();
   
   try {
-    const { candidate_id, job_opening_id, email, candidate_name, job_title } = await request.json();
+    const { candidate_id, job_opening_id, email, candidate_name, job_title, scheduled_date } = await request.json();
 
     // Validasi data input wajib
-    if (!candidate_id || !job_opening_id || !email || !candidate_name || !job_title) {
+    if (!candidate_id || !job_opening_id || !email || !candidate_name || !job_title || !scheduled_date) {
       return NextResponse.json(
-        { message: "Informasi kandidat, lowongan, dan email wajib diisi." }, 
+        { message: "Informasi kandidat, lowongan, email, dan tanggal tes wajib diisi." }, 
         { status: 400 }
       );
     }
@@ -23,14 +23,16 @@ export async function POST(request: Request) {
     // 1. Generate Token (UUID acak untuk URL) & OTP (6 digit angka acak)
     const token = crypto.randomUUID();
     const accessCode = Math.floor(100000 + Math.random() * 900000).toString(); // OTP: '100000' - '999999'
-    const expiresAt = new Date(Date.now() + 48 * 3600000); // Masa berlaku 48 Jam (Sesuai rancangan Anda)
+    
+    const validFrom = new Date(`${scheduled_date}T00:00:00`);
+    const expiresAt = new Date(`${scheduled_date}T23:59:59`); // Masa berlaku diakhiri di penghujung hari jadwal tes
 
     // 2. Simpan Sesi Assessment baru ke tabel candidate_assessments
     const assessmentRes = await client.query(
-      `INSERT INTO public.candidate_assessments (candidate_id, job_opening_id, token, access_code, status, expires_at)
-       VALUES ($1, $2, $3, $4, 'INVITED', $5)
+      `INSERT INTO public.candidate_assessments (candidate_id, job_opening_id, token, access_code, status, valid_from, expires_at)
+       VALUES ($1, $2, $3, $4, 'INVITED', $5, $6)
        RETURNING id`,
-      [candidate_id, job_opening_id, token, accessCode, expiresAt]
+      [candidate_id, job_opening_id, token, accessCode, validFrom, expiresAt]
     );
 
     // 3. Update status pelamar di application_status menjadi 'ASSESSMENT'
@@ -85,8 +87,8 @@ export async function POST(request: Request) {
 
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 12px; color: #64748b;">
             <tr>
-              <td style="padding: 6px 0; font-weight: bold; width: 150px;">Batas Pengerjaan</td>
-              <td style="padding: 6px 0;">: 48 Jam sejak email ini diterima</td>
+              <td style="padding: 6px 0; font-weight: bold; width: 150px;">Jadwal Pelaksanaan</td>
+              <td style="padding: 6px 0; font-weight: 800; color: #0173b6;">: \${new Date(scheduled_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (Hanya 1 Hari)</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; font-weight: bold;">Durasi Tes</td>
