@@ -39,6 +39,7 @@ import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 /** --- MODAL COMPONENT (Gaya Lancip/Sharp) --- */
 const Modal = ({ isOpen, onClose, title, children, size = "md" }: any) => {
   if (!isOpen) return null;
@@ -820,12 +821,13 @@ export default function DetailLowonganPage() {
 
               <div className="bg-white px-6 pb-6 pt-0 relative flex flex-col md:flex-row gap-6 md:items-end -mt-12">
                 {/* Photo */}
-                <div className="w-24 h-24 bg-white rounded-xl border-4 border-slate-50 shadow-lg flex items-center justify-center shrink-0 overflow-hidden z-10 mx-auto md:mx-0">
+                <div className="w-24 h-24 bg-white rounded-xl border-4 border-slate-50 shadow-lg flex items-center justify-center shrink-0 overflow-hidden z-10 mx-auto md:mx-0 relative">
                   {candidateDetail.documents?.pas_foto_url ? (
-                    <img
+                    <Image
                       src={candidateDetail.documents.pas_foto_url}
                       alt="Foto"
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                   ) : (
                     <User size={40} className="text-slate-200" />
