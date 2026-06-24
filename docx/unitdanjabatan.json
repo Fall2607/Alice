@@ -1,0 +1,247 @@
+{
+  "dataset_name": "Struktur_Jabatan_Unit_RSU_Avisena",
+  "dataset_type": "organization_structure",
+  "description": "Distribusi jumlah pegawai berdasarkan jabatan dan unit kerja",
+  "dimensions": {
+    "jabatan": [
+      "Staff",
+      "Supervisor",
+      "Koordinator",
+      "Komite"
+    ]
+  },
+  "unit_position_matrix": [
+    {
+      "unit": "ADMINISTRASI",
+      "staff": 8,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 9
+    },
+    {
+      "unit": "BILLING",
+      "staff": 8,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 9
+    },
+    {
+      "unit": "CASEMIX",
+      "staff": 9,
+      "supervisor": 3,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 12
+    },
+    {
+      "unit": "CSSD",
+      "staff": 2,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 2
+    },
+    {
+      "unit": "FARMASI",
+      "staff": 16,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 17
+    },
+    {
+      "unit": "FISIOTERAPI",
+      "staff": 6,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 6
+    },
+    {
+      "unit": "GA",
+      "staff": 5,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 5
+    },
+    {
+      "unit": "GA - DRIVER",
+      "staff": 3,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 3
+    },
+    {
+      "unit": "GA - HOUSEKEEPING",
+      "staff": 3,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 3
+    },
+    {
+      "unit": "GA - LAUNDRY",
+      "staff": 2,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 2
+    },
+    {
+      "unit": "GA - TEKNIK",
+      "staff": 0,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 1
+    },
+    {
+      "unit": "GIZI",
+      "staff": 7,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 7
+    },
+    {
+      "unit": "HC",
+      "staff": 4,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 1,
+      "total": 6
+    },
+    {
+      "unit": "HEMODIALISA",
+      "staff": 8,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 8
+    },
+    {
+      "unit": "IBS",
+      "staff": 7,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 8
+    },
+    {
+      "unit": "ICU",
+      "staff": 8,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 8
+    },
+    {
+      "unit": "IGD",
+      "staff": 12,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 13
+    },
+    {
+      "unit": "IT",
+      "staff": 1,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 2
+    },
+    {
+      "unit": "KEUANGAN",
+      "staff": 4,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 5
+    },
+    {
+      "unit": "KYANIT",
+      "staff": 5,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 5
+    },
+    {
+      "unit": "LAB",
+      "staff": 9,
+      "supervisor": 1,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 11
+    },
+    {
+      "unit": "LOGISTIK FARMASI",
+      "staff": 6,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 7
+    },
+    {
+      "unit": "MARKETING",
+      "staff": 5,
+      "supervisor": 1,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 6
+    },
+    {
+      "unit": "MUTIARA",
+      "staff": 12,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 13
+    },
+    {
+      "unit": "POLIKLINIK",
+      "staff": 13,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 14
+    },
+    {
+      "unit": "RADIOLOGI",
+      "staff": 5,
+      "supervisor": 0,
+      "koordinator": 0,
+      "komite": 0,
+      "total": 5
+    },
+    {
+      "unit": "REKAM MEDIS",
+      "staff": 6,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 7
+    },
+    {
+      "unit": "SAFIR",
+      "staff": 34,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 35
+    },
+    {
+      "unit": "TOURMALINE",
+      "staff": 10,
+      "supervisor": 0,
+      "koordinator": 1,
+      "komite": 0,
+      "total": 11
+    }
+  ]
+}
