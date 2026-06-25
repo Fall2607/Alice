@@ -8,6 +8,7 @@ export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
         const monthYear = searchParams.get('month'); // YYYY-MM
+        const superiorId = searchParams.get('superior_id');
         
         let query = `
             SELECT ks.tanggal, ks.shift_id, k.id as karyawan_id, k.nama_lengkap 
@@ -15,10 +16,29 @@ export async function GET(req: Request) {
             JOIN karyawan k ON ks.karyawan_id = k.id
         `;
         const values: any[] = [];
+        const conditions = [];
         
         if (monthYear) {
-            query += ` WHERE ks.tanggal LIKE $1`;
             values.push(`${monthYear}-%`);
+            conditions.push(`ks.tanggal LIKE $${values.length}`);
+        }
+
+        if (superiorId) {
+            query = `
+                WITH RECURSIVE subordinates AS (
+                    SELECT id FROM karyawan WHERE atasan_id = $${values.length + 1}
+                    UNION
+                    SELECT k.id FROM karyawan k
+                    INNER JOIN subordinates s ON s.id = k.atasan_id
+                )
+                ${query}
+            `;
+            values.push(superiorId);
+            conditions.push(`k.id IN (SELECT id FROM subordinates)`);
+        }
+        
+        if (conditions.length > 0) {
+            query += ` WHERE ` + conditions.join(' AND ');
         }
         
         const res = await pool.query(query, values);

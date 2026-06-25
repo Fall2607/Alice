@@ -27,9 +27,12 @@ interface KaryawanInput {
 }
 
 // Handler untuk GET (mendapatkan semua karyawan)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const result = await pool.query(`
+    const { searchParams } = new URL(request.url);
+    const superiorId = searchParams.get('superior_id');
+
+    let query = `
       SELECT
         k.id, -- Primary Key UUID
         k.nip,
@@ -63,8 +66,26 @@ export async function GET() {
       LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
       LEFT JOIN karyawan atasan ON k.atasan_id = atasan.id
       LEFT JOIN jadwal_kerja jk ON k.jadwal_kerja_id = jk.id
-      ORDER BY k.nama_lengkap ASC
-    `);
+    `;
+    const values: any[] = [];
+
+    if (superiorId) {
+      query = `
+        WITH RECURSIVE subordinates AS (
+            SELECT id FROM karyawan WHERE atasan_id = $1
+            UNION
+            SELECT k.id FROM karyawan k
+            INNER JOIN subordinates s ON s.id = k.atasan_id
+        )
+        ${query}
+        WHERE k.id IN (SELECT id FROM subordinates)
+      `;
+      values.push(superiorId);
+    }
+
+    query += ` ORDER BY k.nama_lengkap ASC`;
+
+    const result = await pool.query(query, values);
     return NextResponse.json(result.rows);
   } catch (err) {
     console.error("Error fetching karyawan:", err);

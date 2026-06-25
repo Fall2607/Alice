@@ -42,6 +42,8 @@ interface Karyawan {
   jabatan_id?: string; // UUID
   nama_departemen: string;
   nama_level: string;
+  atasan_id?: string;
+  nama_atasan?: string;
   sipStatus?: SipStatus;
   has_face_descriptor?: boolean;
   rekening_bsi?: string;
@@ -635,6 +637,9 @@ export default function EmployeeManagementPage() {
                     </DetailRow>
                     <DetailRow label="Level Jabatan">
                       {selectedEmployee.nama_level || "-"}
+                    </DetailRow>
+                    <DetailRow label="Atasan">
+                      {selectedEmployee.nama_atasan || "-"}
                     </DetailRow>
                     <DetailRow label="Status">
                       <StatusBadge

@@ -56,14 +56,38 @@ export default function ManajemenJadwalKaryawanPage() {
   // Board Modal
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
   const [activeCell, setActiveCell] = useState<{tanggal: string, shift_id: number, shift_name: string} | null>(null);
+  const [activeCatCell, setActiveCatCell] = useState<{tanggal: string, category: string} | null>(null);
+  const [selectedShiftVariant, setSelectedShiftVariant] = useState<number | null>(null);
   const [selectedKaryawanIds, setSelectedKaryawanIds] = useState<string[]>([]);
   const [searchKaryawan, setSearchKaryawan] = useState("");
+
+  const getShiftCategory = (nama_shift: string): string => {
+      const name = nama_shift.toLowerCase();
+      if (name.includes('libur') || name.includes('lepas')) return 'Libur';
+      if (name.includes('malam')) return 'Malam';
+      if (name.includes('siang')) return 'Siang';
+      if (name.includes('middle')) return 'Middle';
+      return 'Pagi'; 
+  };
+  const categories = ['Pagi', 'Middle', 'Siang', 'Malam', 'Libur'];
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
+      
+      let fetchKaryawanUrl = '/api/karyawan';
+      try {
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            if (user.role && !user.role.toLowerCase().includes('admin') && user.karyawan_id) {
+                fetchKaryawanUrl = `/api/karyawan?superior_id=${user.karyawan_id}`;
+            }
+        }
+      } catch (e) {}
+
       const [resKar, resShift, resJadwal] = await Promise.all([
-        fetch('/api/karyawan'), 
+        fetch(fetchKaryawanUrl), 
         fetch('/api/shift'),
         fetch('/api/jadwal-kerja')
       ]);
@@ -91,7 +115,18 @@ export default function ManajemenJadwalKaryawanPage() {
       if (!plotMonth) return;
       setIsFetchingBoard(true);
       try {
-          const res = await fetch(`/api/karyawan-shift/board?month=${plotMonth}`);
+          let fetchBoardUrl = `/api/karyawan-shift/board?month=${plotMonth}`;
+          try {
+              const userStr = localStorage.getItem("user");
+              if (userStr) {
+                  const user = JSON.parse(userStr);
+                  if (user.role && !user.role.toLowerCase().includes('admin') && user.karyawan_id) {
+                      fetchBoardUrl += `&superior_id=${user.karyawan_id}`;
+                  }
+              }
+          } catch (e) {}
+
+          const res = await fetch(fetchBoardUrl);
           if (res.ok) {
               setBoardData(await res.json());
           }
@@ -158,11 +193,40 @@ export default function ManajemenJadwalKaryawanPage() {
 
   const handleCellClick = (tanggal: string, shift: Shift) => {
       setActiveCell({ tanggal, shift_id: shift.id, shift_name: shift.nama_shift });
+      setActiveCatCell(null);
       // Find who is already assigned here
       const assigned = boardData.filter(b => b.tanggal === tanggal && b.shift_id === shift.id).map(b => b.karyawan_id);
       setSelectedKaryawanIds(assigned);
       setSearchKaryawan("");
       setIsBoardModalOpen(true);
+  };
+
+  const handleCellClickCat = (tanggal: string, category: string) => {
+      setActiveCatCell({ tanggal, category });
+      setActiveCell(null);
+      
+      const variants = shifts.filter(s => getShiftCategory(s.nama_shift) === category);
+      if (variants.length > 0) {
+          const firstVariantId = variants[0].id;
+          setSelectedShiftVariant(firstVariantId);
+          const assigned = boardData.filter(b => b.tanggal === tanggal && b.shift_id === firstVariantId).map(b => b.karyawan_id);
+          setSelectedKaryawanIds(assigned);
+      } else {
+          setSelectedShiftVariant(null);
+          setSelectedKaryawanIds([]);
+      }
+      
+      setSearchKaryawan("");
+      setIsBoardModalOpen(true);
+  };
+
+  const handleVariantChange = (shiftIdStr: string) => {
+      const shiftId = parseInt(shiftIdStr);
+      setSelectedShiftVariant(shiftId);
+      if (activeCatCell) {
+          const assigned = boardData.filter(b => b.tanggal === activeCatCell.tanggal && b.shift_id === shiftId).map(b => b.karyawan_id);
+          setSelectedKaryawanIds(assigned);
+      }
   };
 
   const toggleKaryawanSelection = (id: string) => {
@@ -175,14 +239,27 @@ export default function ManajemenJadwalKaryawanPage() {
 
   const handleBoardSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!activeCell) return;
+      
+      let submitTanggal = "";
+      let submitShiftId = 0;
+
+      if (activeCell) {
+          submitTanggal = activeCell.tanggal;
+          submitShiftId = activeCell.shift_id;
+      } else if (activeCatCell && selectedShiftVariant) {
+          submitTanggal = activeCatCell.tanggal;
+          submitShiftId = selectedShiftVariant;
+      } else {
+          return;
+      }
+
       try {
           const res = await fetch('/api/karyawan-shift/board', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                  tanggal: activeCell.tanggal,
-                  shift_id: activeCell.shift_id,
+                  tanggal: submitTanggal,
+                  shift_id: submitShiftId,
                   karyawan_ids: selectedKaryawanIds
               })
           });
@@ -305,7 +382,11 @@ export default function ManajemenJadwalKaryawanPage() {
                      <thead className="bg-slate-800 text-white sticky top-0 z-10">
                          <tr>
                              <th className="px-4 py-3 border-r border-slate-600 w-24">Tanggal</th>
-                             {(activeTab === 'BOARD_SHIFT' ? shiftingCols : piketCols).map(s => (
+                             {activeTab === 'BOARD_SHIFT' ? categories.map(cat => (
+                                 <th key={cat} className="px-4 py-3 border-r border-slate-600 min-w-[200px] font-semibold text-center">
+                                     {cat}
+                                 </th>
+                             )) : piketCols.map(s => (
                                  <th key={s.id} className="px-4 py-3 border-r border-slate-600 min-w-[200px] font-semibold text-center">
                                      {s.nama_shift} {s.jam_masuk && <span className="text-xs font-normal opacity-80 block">{s.jam_masuk.slice(0,5)} - {s.jam_keluar?.slice(0,5)}</span>}
                                  </th>
@@ -326,31 +407,64 @@ export default function ManajemenJadwalKaryawanPage() {
                                                  <span className="text-xs">{getDayName(dateStr)}</span>
                                              </div>
                                          </td>
-                                         {(activeTab === 'BOARD_SHIFT' ? shiftingCols : piketCols).map(s => {
-                                             const assigned = boardData.filter(b => b.tanggal === dateStr && b.shift_id === s.id);
-                                             return (
-                                                 <td 
-                                                    key={s.id} 
-                                                    onClick={() => handleCellClick(dateStr, s)}
-                                                    className="px-2 py-2 border-r border-slate-200 cursor-pointer align-top group hover:bg-blue-50/50 transition-colors"
-                                                 >
-                                                     <div className="flex flex-wrap gap-1 min-h-[40px] items-start content-start">
-                                                         {assigned.length > 0 ? (
-                                                             assigned.map((a, i) => (
-                                                                 <span key={i} className={`text-[11px] px-2 py-1 rounded border ${s.nama_shift.toLowerCase().includes('libur') ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-white text-slate-700 shadow-sm border-slate-200'}`}>
-                                                                     {a.nama_lengkap.split(' ')[0]}
-                                                                 </span>
-                                                             ))
-                                                         ) : (
-                                                             <div className="w-full h-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                 <span className="flex items-center gap-1 text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">
-                                                                     <Plus size={12}/> Assign
-                                                                 </span>
-                                                             </div>
-                                                         )}
-                                                     </div>
-                                                 </td>
-                                             )
+                                         {(activeTab === 'BOARD_SHIFT' ? categories : piketCols).map((catOrShift, idx) => {
+                                             if (activeTab === 'BOARD_SHIFT') {
+                                                 const cat = catOrShift as string;
+                                                 const assignedInCat = boardData.filter(b => {
+                                                      const shiftInfo = shifts.find(s => s.id === b.shift_id);
+                                                      return b.tanggal === dateStr && shiftInfo && getShiftCategory(shiftInfo.nama_shift) === cat;
+                                                 });
+
+                                                 return (
+                                                     <td key={cat} onClick={() => handleCellClickCat(dateStr, cat)} className="px-2 py-2 border-r border-slate-200 cursor-pointer align-top group hover:bg-blue-50/50 transition-colors">
+                                                         <div className="flex flex-wrap gap-1 min-h-[40px] items-start content-start">
+                                                              {assignedInCat.length > 0 ? (
+                                                                  assignedInCat.map((a, i) => {
+                                                                      const shiftInfo = shifts.find(s => s.id === a.shift_id);
+                                                                      const shiftName = shiftInfo?.nama_shift || '';
+                                                                      return (
+                                                                          <span key={i} title={shiftName} className={`text-[11px] px-2 py-1 rounded border ${cat === 'Libur' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-white text-slate-700 shadow-sm border-slate-200'}`}>
+                                                                              {a.nama_lengkap.split(' ')[0]} <span className="opacity-50 ml-1">({shiftName})</span>
+                                                                          </span>
+                                                                      );
+                                                                  })
+                                                              ) : (
+                                                                  <div className="w-full h-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                      <span className="flex items-center gap-1 text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">
+                                                                          <Plus size={12}/> Assign {cat}
+                                                                      </span>
+                                                                  </div>
+                                                              )}
+                                                         </div>
+                                                     </td>
+                                                 )
+                                             } else {
+                                                 const s = catOrShift as Shift;
+                                                 const assigned = boardData.filter(b => b.tanggal === dateStr && b.shift_id === s.id);
+                                                 return (
+                                                     <td 
+                                                        key={s.id} 
+                                                        onClick={() => handleCellClick(dateStr, s)}
+                                                        className="px-2 py-2 border-r border-slate-200 cursor-pointer align-top group hover:bg-blue-50/50 transition-colors"
+                                                     >
+                                                         <div className="flex flex-wrap gap-1 min-h-[40px] items-start content-start">
+                                                             {assigned.length > 0 ? (
+                                                                 assigned.map((a, i) => (
+                                                                     <span key={i} className={`text-[11px] px-2 py-1 rounded border bg-white text-slate-700 shadow-sm border-slate-200`}>
+                                                                         {a.nama_lengkap.split(' ')[0]}
+                                                                     </span>
+                                                                 ))
+                                                             ) : (
+                                                                 <div className="w-full h-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                     <span className="flex items-center gap-1 text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">
+                                                                         <Plus size={12}/> Assign
+                                                                     </span>
+                                                                 </div>
+                                                             )}
+                                                         </div>
+                                                     </td>
+                                                 )
+                                             }
                                          })}
                                      </tr>
                                  )
@@ -387,18 +501,36 @@ export default function ManajemenJadwalKaryawanPage() {
 
       {/* MODAL BOARD ASSIGNMENT */}
       <Modal isOpen={isBoardModalOpen} onClose={() => setIsBoardModalOpen(false)} title="Assign Pegawai" size="2xl">
-          {activeCell && (
+          {(activeCell || activeCatCell) && (
               <form onSubmit={handleBoardSubmit} className="space-y-4">
                   <div className="bg-slate-100 p-4 rounded-lg flex justify-between items-center mb-4 border border-slate-200">
                       <div>
                           <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Tanggal</p>
-                          <p className="text-lg font-bold text-slate-800">{new Date(activeCell.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                          <p className="text-lg font-bold text-slate-800">{new Date((activeCell?.tanggal || activeCatCell?.tanggal) as string).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
                       </div>
                       <div className="text-right">
-                          <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Shift</p>
-                          <p className="text-lg font-bold text-primary">{activeCell.shift_name}</p>
+                          <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">{activeCatCell ? `Kategori: ${activeCatCell.category}` : "Shift"}</p>
+                          <p className="text-lg font-bold text-primary">{activeCatCell ? activeCatCell.category : activeCell?.shift_name}</p>
                       </div>
                   </div>
+
+                  {activeCatCell && (
+                      <div className="mb-4">
+                          <label className="block text-sm font-semibold mb-2 text-slate-700">Pilih Varian Shift</label>
+                          <select 
+                              className="w-full p-2 border border-slate-300 rounded-md focus:ring-primary focus:border-primary bg-white"
+                              value={selectedShiftVariant || ""}
+                              onChange={(e) => handleVariantChange(e.target.value)}
+                              required
+                          >
+                              {shifts.filter(s => getShiftCategory(s.nama_shift) === activeCatCell.category).map(s => (
+                                  <option key={s.id} value={s.id}>
+                                      {s.nama_shift} {s.jam_masuk ? `(${s.jam_masuk.slice(0,5)} - ${s.jam_keluar?.slice(0,5)})` : ''}
+                                  </option>
+                              ))}
+                          </select>
+                      </div>
+                  )}
 
                   <div className="relative">
                       <Search className="absolute left-3 top-3 text-slate-400" size={18} />
