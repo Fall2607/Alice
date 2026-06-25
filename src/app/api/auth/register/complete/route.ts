@@ -23,12 +23,15 @@ export async function POST(request: Request) {
     }
 
     // 1. Verifikasi token di tabel karyawan dan pastikan belum memiliki akun (user_id IS NULL)
+    // Ambil juga level jabatan untuk memetakan ke role_id yang sesuai
     const employeeResult = await client.query(
-      `SELECT id, email, nama_lengkap, nip 
-       FROM karyawan 
-       WHERE registration_token = $1 
-       AND registration_expires > NOW() 
-       AND user_id IS NULL`,
+      `SELECT k.id, k.email, k.nama_lengkap, k.nip, lj.nama_level 
+       FROM karyawan k
+       LEFT JOIN jabatan j ON k.jabatan_id = j.id
+       LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
+       WHERE k.registration_token = $1 
+       AND k.registration_expires > NOW() 
+       AND k.user_id IS NULL`,
       [token],
     );
 
@@ -51,10 +54,29 @@ export async function POST(request: Request) {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // 4. Cari ID Role default untuk pendaftaran mandiri (misal: 'Karyawan')
-    const roleResult = await client.query(
-      "SELECT id FROM roles WHERE nama_role = 'Karyawan' LIMIT 1",
+    // 4. Tentukan Role berdasarkan Level Jabatan Karyawan
+    let targetRole = 'Karyawan';
+    if (employee.nama_level) {
+        const level = employee.nama_level.toLowerCase();
+        if (level.includes('supervisor') || level.includes('spv')) {
+            targetRole = 'Supervisor';
+        } else if (level.includes('koordinator') || level.includes('koor')) {
+            targetRole = 'Koordinator';
+        } else if (level.includes('hrd') || level.includes('hc')) {
+            targetRole = 'HRD';
+        }
+    }
+
+    let roleResult = await client.query(
+      "SELECT id FROM roles WHERE nama_role = $1 LIMIT 1",
+      [targetRole]
     );
+    
+    // Fallback jika role target tidak ditemukan di DB
+    if (roleResult.rows.length === 0 && targetRole !== 'Karyawan') {
+        roleResult = await client.query("SELECT id FROM roles WHERE nama_role = 'Karyawan' LIMIT 1");
+    }
+    
     const roleId = roleResult.rows[0]?.id;
 
     // 5. Insert data ke tabel users (Kredensial Login)
