@@ -42,7 +42,13 @@ export default function KioskAbsensiPage() {
   useEffect(() => {
     if (isClient && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices
-        .getUserMedia({ video: true })
+        .getUserMedia({ 
+          video: { 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 },
+            facingMode: "user"
+          } 
+        })
         .then((stream) => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
@@ -67,7 +73,7 @@ export default function KioskAbsensiPage() {
 
       // 1. Deteksi Wajah dari Kiosk
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
 

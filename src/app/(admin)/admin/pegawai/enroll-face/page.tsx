@@ -45,7 +45,13 @@ function FaceEnrollmentContent() {
   const startCamera = async () => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 },
+            facingMode: "user"
+          } 
+        });
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
         }
@@ -83,7 +89,7 @@ function FaceEnrollmentContent() {
 
       // Deteksi wajah menggunakan TinyFaceDetector
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
 
