@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  storage-server:
+    build: .
+    container_name: alice-storage-server
+    restart: always
+    ports:
+      - "4000:4000"
+    volumes:
+      # Map the local 'uploads' directory to the container so files persist across container restarts
+      - ./uploads:/app/uploads
+    environment:
+      - PORT=4000
+      - API_KEY=alice-super-secret-key-123
