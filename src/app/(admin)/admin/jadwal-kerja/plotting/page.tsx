@@ -80,7 +80,7 @@ export default function ManajemenJadwalKaryawanPage() {
         const userStr = localStorage.getItem("user");
         if (userStr) {
             const user = JSON.parse(userStr);
-            if (user.role && !user.role.toLowerCase().includes('admin') && user.karyawan_id) {
+            if (user.role && !user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hrd') && user.karyawan_id) {
                 fetchKaryawanUrl = `/api/karyawan?superior_id=${user.karyawan_id}`;
             }
         }
@@ -120,7 +120,7 @@ export default function ManajemenJadwalKaryawanPage() {
               const userStr = localStorage.getItem("user");
               if (userStr) {
                   const user = JSON.parse(userStr);
-                  if (user.role && !user.role.toLowerCase().includes('admin') && user.karyawan_id) {
+                  if (user.role && !user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hrd') && user.karyawan_id) {
                       fetchBoardUrl += `&superior_id=${user.karyawan_id}`;
                   }
               }
