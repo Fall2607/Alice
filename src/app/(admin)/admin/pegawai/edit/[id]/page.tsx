@@ -50,6 +50,7 @@ export default function EditPegawaiPage() {
 
   const [departments, setDepartments] = useState<FormOption[]>([]);
   const [levelJabatans, setLevelJabatans] = useState<FormOption[]>([]);
+  const [employees, setEmployees] = useState<FormOption[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,6 +79,7 @@ export default function EditPegawaiPage() {
     gaji_pokok: 0,
     level_jabatan_id: null as FormOption | null,
     departemen_id: null as FormOption | null,
+    atasan_id: null as FormOption | null,
     rekening_bsi: "",
   });
 
@@ -95,19 +97,22 @@ export default function EditPegawaiPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const [karyawanRes, deptRes, jabatanRes] = await Promise.all([
+        const [karyawanRes, deptRes, jabatanRes, allKaryawanRes] = await Promise.all([
           fetch(`${baseUrl}/karyawan/${id}`),
           fetch(`${baseUrl}/departments`),
           fetch(`${baseUrl}/level-jabatan`),
+          fetch(`${baseUrl}/karyawan`),
         ]);
 
         if (!karyawanRes.ok) throw new Error("Gagal memuat data pegawai.");
         if (!deptRes.ok) throw new Error("Gagal memuat data departemen.");
         if (!jabatanRes.ok) throw new Error("Gagal memuat data level jabatan.");
+        if (!allKaryawanRes.ok) throw new Error("Gagal memuat data semua pegawai.");
 
         const karyawanData = await karyawanRes.json();
         const deptData: Department[] = await deptRes.json();
         const jabatanData: LevelJabatan[] = await jabatanRes.json();
+        const allKaryawanData = await allKaryawanRes.json();
 
         const deptOptions = deptData.map((d) => ({
           value: d.id,
@@ -117,9 +122,16 @@ export default function EditPegawaiPage() {
           value: j.id,
           label: j.nama_level,
         }));
+        const employeeOptions = allKaryawanData
+          .filter((emp: any) => emp.id !== id) // Tidak bisa jadi atasan diri sendiri
+          .map((emp: any) => ({
+            value: emp.id,
+            label: `${emp.nama_lengkap} (${emp.nama_level || 'Tanpa Level'})`,
+          }));
 
         setDepartments(deptOptions);
         setLevelJabatans(jabatanOptions);
+        setEmployees(employeeOptions);
 
         const selectedDept = deptOptions.find(
           (d) => d.label === karyawanData.nama_departemen,
@@ -149,6 +161,7 @@ export default function EditPegawaiPage() {
           },
           departemen_id: selectedDept || null,
           level_jabatan_id: selectedLevel || null,
+          atasan_id: karyawanData.atasan_id ? { value: karyawanData.atasan_id, label: karyawanData.nama_atasan } : null,
           rekening_bsi: karyawanData.rekening_bsi || "",
           alamat_domisili: karyawanData.alamat_domisili || "",
         });
@@ -208,6 +221,7 @@ export default function EditPegawaiPage() {
         gaji_pokok: formData.gaji_pokok,
         rekening_bsi: formData.rekening_bsi,
         jabatan_id: jabatan_id,
+        atasan_id: formData.atasan_id?.value || null,
       };
 
       const karyawanRes = await fetch(`${baseUrl}/karyawan/${id}`, {
@@ -470,6 +484,26 @@ export default function EditPegawaiPage() {
                         level_jabatan_id: option as FormOption,
                       })
                     }
+                  />
+                ) : (
+                  <div className={placeholderClass} />
+                )}
+              </FormField>
+              <FormField label="Atasan Langsung">
+                {isClient ? (
+                  <SearchableSelect
+                    options={[
+                      { value: "", label: "Tanpa Atasan" },
+                      ...employees,
+                    ]}
+                    value={formData.atasan_id}
+                    onChange={(option) =>
+                      setFormData({
+                        ...formData,
+                        atasan_id: option as FormOption | null,
+                      })
+                    }
+                    placeholder="Pilih atasan (opsional)..."
                   />
                 ) : (
                   <div className={placeholderClass} />
