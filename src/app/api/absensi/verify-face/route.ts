@@ -222,11 +222,43 @@ export async function POST(request: NextRequest) {
       // 1. Cek Jam Keluar Shift
       let jamKeluarNormal = null;
       if (existingAbsen.shift_id) {
-          const shiftRes = await pool.query(`SELECT jam_keluar FROM shift WHERE id = $1`, [existingAbsen.shift_id]);
-          if (shiftRes.rows.length > 0 && shiftRes.rows[0].jam_keluar) {
-              const [hours, minutes] = shiftRes.rows[0].jam_keluar.split(':');
-              jamKeluarNormal = new Date(today);
-              jamKeluarNormal.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+          let currentShiftId = existingAbsen.shift_id;
+          const shiftRes = await pool.query(`SELECT id, nama_shift, jam_keluar FROM shift WHERE id = $1`, [currentShiftId]);
+          
+          if (shiftRes.rows.length > 0) {
+              let shiftData = shiftRes.rows[0];
+              
+              // RE-EVALUASI DYNAMIC OVERRIDE: 
+              // Jika pagi harinya tercatat 8-5 padahal dia ada piket Sabtu, perbaiki shiftnya jadi 8-4 di sini.
+              const dayOfWeek = today.getDay();
+              if (dayOfWeek >= 1 && dayOfWeek <= 5 && shiftData.nama_shift && shiftData.nama_shift.includes('8-5')) {
+                  const daysToSaturday = 6 - dayOfWeek;
+                  const saturdayDate = new Date(today);
+                  saturdayDate.setDate(today.getDate() + daysToSaturday);
+                  const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
+                  
+                  const piketRes = await pool.query(
+                      `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2`,
+                      [bestMatch.id, satDateStr]
+                  );
+                  
+                  if (piketRes.rows.length > 0 && piketRes.rows[0].shift_id) {
+                      const shift84Res = await pool.query(`SELECT id, nama_shift, jam_keluar FROM shift WHERE nama_shift LIKE '%8-4 (Senin-Jumat)%' LIMIT 1`);
+                      if (shift84Res.rows.length > 0) {
+                          shiftData = shift84Res.rows[0];
+                          currentShiftId = shiftData.id;
+                          
+                          // Update langsung record check-in hari ini agar sinkron selamanya
+                          await pool.query(`UPDATE absensi SET shift_id = $1 WHERE id = $2`, [currentShiftId, existingAbsen.id]);
+                      }
+                  }
+              }
+
+              if (shiftData.jam_keluar) {
+                  const [hours, minutes] = shiftData.jam_keluar.split(':');
+                  jamKeluarNormal = new Date(today);
+                  jamKeluarNormal.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+              }
           }
       }
 
