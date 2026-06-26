@@ -65,9 +65,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Wajah Dikenali -> Proses Absensi (Masuk / Keluar)
-    const today = new Date();
-    // Konversi ke format YYYY-MM-DD lokal
-    const localDateStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    // Ambil waktu persis di Jakarta (WIB) menghindari offset server Vercel (UTC) dan DB (Rangoon)
+    const wibString = new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    const today = new Date(wibString);
+    const localDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
     // Cek apakah karyawan ini sudah absen hari ini
     const absenRes = await pool.query(
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest) {
 
       const insertRes = await pool.query(
         `INSERT INTO absensi (karyawan_id, tanggal, jam_masuk, menit_terlambat, shift_id, is_late) 
-         VALUES ($1, $2, CURRENT_TIMESTAMP, $3, $4, $5) RETURNING *`,
+         VALUES ($1, $2, (NOW() AT TIME ZONE 'Asia/Jakarta'), $3, $4, $5) RETURNING *`,
         [bestMatch.id, localDateStr, menitTerlambat, appliedShiftId, isLate]
       );
       
@@ -221,7 +222,7 @@ export async function POST(request: NextRequest) {
 
       // --- PROSES CHECK-OUT ---
       const updateRes = await pool.query(
-        `UPDATE absensi SET jam_keluar = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+        `UPDATE absensi SET jam_keluar = (NOW() AT TIME ZONE 'Asia/Jakarta') WHERE id = $1 RETURNING *`,
         [existingAbsen.id]
       );
       absensiRecord = updateRes.rows[0];
@@ -231,7 +232,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Return Data Sukses ke Kiosk
-    const responseTime = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    const responseTime = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
 
     return NextResponse.json({
       success: true,
