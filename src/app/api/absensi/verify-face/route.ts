@@ -55,7 +55,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const MATCH_THRESHOLD = 0.45;
+    // Threshold standar FaceAPI = 0.5. Kita perketat menjadi 0.38 
+    // agar mengurangi drastis kemungkinan wajah tertukar (False Positive).
+    const MATCH_THRESHOLD = 0.38;
 
     if (!bestMatch || minDistance > MATCH_THRESHOLD) {
       return NextResponse.json(
