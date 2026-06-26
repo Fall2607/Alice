@@ -121,14 +121,14 @@ export async function POST(request: NextRequest) {
       if (shiftQuery.rows.length > 0) {
         let shiftData = shiftQuery.rows[0];
         
-        // --- DYNAMIC SPV/KOOR OVERRIDE (Senin - Jumat) ---
-        if (isSpvOrKoor && dayOfWeek >= 1 && dayOfWeek <= 5) {
-            // Check if they have a shift this Saturday
-            // 6 - dayOfWeek gives us the offset to Saturday
+        // --- DYNAMIC PIKET OVERRIDE FOR 8-5 WORKERS (Senin - Jumat) ---
+        // Hanya yang jadwal default-nya 8-5 yang akan dicek piket sabtunya.
+        // Pekerja 8-4 akan tetap 8-4 sesuai jadwal aslinya.
+        if (dayOfWeek >= 1 && dayOfWeek <= 5 && shiftData.nama_shift && shiftData.nama_shift.includes('8-5')) {
             const daysToSaturday = 6 - dayOfWeek;
             const saturdayDate = new Date(today);
             saturdayDate.setDate(today.getDate() + daysToSaturday);
-            const satDateStr = new Date(saturdayDate.getTime() - (saturdayDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
             
             const piketRes = await pool.query(
                 `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2`,
@@ -136,13 +136,9 @@ export async function POST(request: NextRequest) {
             );
             
             if (piketRes.rows.length > 0 && piketRes.rows[0].shift_id) {
-                // Ada piket sabtu -> Shift Senin-Jumat jadi 8-4
+                // Ada piket sabtu -> Shift Senin-Jumat ditimpa jadi 8-4
                 const shift84Res = await pool.query(`SELECT * FROM shift WHERE nama_shift LIKE '%8-4 (Senin-Jumat)%' LIMIT 1`);
                 if (shift84Res.rows.length > 0) shiftData = shift84Res.rows[0];
-            } else {
-                // Tidak ada piket sabtu -> Shift Senin-Jumat jadi 8-5
-                const shift85Res = await pool.query(`SELECT * FROM shift WHERE nama_shift LIKE '%8-5%' LIMIT 1`);
-                if (shift85Res.rows.length > 0) shiftData = shift85Res.rows[0];
             }
         }
 
@@ -163,7 +159,7 @@ export async function POST(request: NextRequest) {
             const daysToSaturday = 6 - dayOfWeek;
             const saturdayDate = new Date(today);
             saturdayDate.setDate(today.getDate() + daysToSaturday);
-            const satDateStr = new Date(saturdayDate.getTime() - (saturdayDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
             
             const piketRes = await pool.query(
                 `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2`,
@@ -234,7 +230,8 @@ export async function POST(request: NextRequest) {
 
       // 2. Tahan jika kepagian
       if (jamKeluarNormal && today < jamKeluarNormal && !forceEarlyOut) {
-          const timeString = jamKeluarNormal.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+          // Bug Fix: Jangan tambahkan timeZone: "Asia/Jakarta" lagi karena jamKeluarNormal sudah dimanipulasi manual mengikuti WIB
+          const timeString = jamKeluarNormal.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
           return NextResponse.json({ 
               isEarly: true,
               message: `Belum waktunya pulang. Shift Anda berakhir pukul ${timeString}.`,
