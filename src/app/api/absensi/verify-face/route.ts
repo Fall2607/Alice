@@ -14,7 +14,7 @@ function euclideanDistance(desc1: number[], desc2: number[]): number {
 
 export async function POST(request: NextRequest) {
   try {
-    const { descriptor, type } = await request.json();
+    const { descriptor, type, forceEarlyOut } = await request.json();
 
     if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
       return NextResponse.json({ message: "Data biometrik tidak valid atau rusak." }, { status: 400 });
@@ -221,6 +221,28 @@ export async function POST(request: NextRequest) {
       }
 
       // --- PROSES CHECK-OUT ---
+      // 1. Cek Jam Keluar Shift
+      let jamKeluarNormal = null;
+      if (existingAbsen.shift_id) {
+          const shiftRes = await pool.query(`SELECT jam_keluar FROM shift WHERE id = $1`, [existingAbsen.shift_id]);
+          if (shiftRes.rows.length > 0 && shiftRes.rows[0].jam_keluar) {
+              const [hours, minutes] = shiftRes.rows[0].jam_keluar.split(':');
+              jamKeluarNormal = new Date(today);
+              jamKeluarNormal.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+          }
+      }
+
+      // 2. Tahan jika kepagian
+      if (jamKeluarNormal && today < jamKeluarNormal && !forceEarlyOut) {
+          const timeString = jamKeluarNormal.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" });
+          return NextResponse.json({ 
+              isEarly: true,
+              message: `Belum waktunya pulang. Shift Anda berakhir pukul ${timeString}.`,
+              user: { nama: bestMatch.nama_lengkap }
+          }, { status: 403 });
+      }
+
+      // 3. Update Database
       const updateRes = await pool.query(
         `UPDATE absensi SET jam_keluar = (NOW() AT TIME ZONE 'Asia/Jakarta') WHERE id = $1 RETURNING *`,
         [existingAbsen.id]

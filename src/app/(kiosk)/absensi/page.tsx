@@ -6,7 +6,8 @@ import { Camera, Clock, CheckCircle2, AlertCircle, ScanFace, MapPin, Wifi, Loade
 export default function KioskAbsensiPage() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [isClient, setIsClient] = useState(false);
-  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "success" | "error">("idle");
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "success" | "error" | "early">("idle");
+  const [cachedDescriptor, setCachedDescriptor] = useState<number[] | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mockUser, setMockUser] = useState<any>(null);
   const faceapiRef = useRef<any>(null);
@@ -61,65 +62,76 @@ export default function KioskAbsensiPage() {
   }, [isClient]);
 
   // Proses absensi (AI Scan)
-  const handleScanAbsen = async (type: "in" | "out") => {
+  const handleScanAbsen = async (type: "in" | "out", forceEarlyOut: boolean = false) => {
     if (scanStatus === "scanning") return;
-    if (!videoRef.current) return;
+    if (!videoRef.current && !cachedDescriptor) return;
     
     setScanStatus("scanning");
     
-    try {
-      const faceapi = faceapiRef.current;
-      if (!faceapi) return;
+    // Trik UI Unblocking: Beri jeda 100ms agar browser bisa menggambar layar biru dulu sebelum AI membajak Main Thread
+    setTimeout(async () => {
+      try {
+        let faceDescriptor = cachedDescriptor;
+        if (!faceDescriptor) {
+            const faceapi = faceapiRef.current;
+            if (!faceapi) return;
 
-      // 1. Deteksi Wajah dari Kiosk
-      const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+            // 1. Deteksi Wajah dari Kiosk
+            const detection = await faceapi
+              .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+              .withFaceLandmarks()
+              .withFaceDescriptor();
 
-      if (!detection) {
-        setScanStatus("error");
-        setMockUser({ errorMessage: "Wajah tidak terdeteksi. Silakan coba lagi." });
-        setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 4000);
-        return;
-      }
+            if (!detection) {
+              setScanStatus("error");
+              setMockUser({ errorMessage: "Wajah tidak terdeteksi. Silakan coba lagi." });
+              setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 4000);
+              return;
+            }
+            faceDescriptor = Array.from(detection.descriptor);
+        }
 
-      const faceDescriptor = Array.from(detection.descriptor);
-
-      // 2. Kirim descriptor ke API Backend untuk pencocokan & absensi
-      const response = await fetch("/api/absensi/verify-face", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ descriptor: faceDescriptor, type }),
-      });
-
-      const resData = await response.json();
-
-      if (!response.ok) {
-        setScanStatus("error");
-        setMockUser({ errorMessage: resData.message || "Wajah tidak dikenali." });
-      } else {
-        setScanStatus("success");
-        setMockUser({
-          nama: resData.user.nama,
-          jabatan: resData.user.jabatan,
-          waktu: resData.user.waktu,
-          status: resData.user.status,
-          type: resData.type
+        // 2. Kirim descriptor ke API Backend untuk pencocokan & absensi
+        const response = await fetch("/api/absensi/verify-face", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut }),
         });
-      }
 
-    } catch (error) {
-      console.error(error);
-      setScanStatus("error");
-      setMockUser({ errorMessage: "Terjadi kesalahan sistem." });
-    } finally {
-      // Reset state setelah delay
-      setTimeout(() => {
-        setScanStatus("idle");
-        setMockUser(null);
-      }, 5000);
-    }
+        const resData = await response.json();
+
+        if (!response.ok) {
+          if (resData.isEarly) {
+             setCachedDescriptor(faceDescriptor);
+             setScanStatus("early");
+             setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
+             return; // Jangan di-reset otomatis
+          }
+          setScanStatus("error");
+          setCachedDescriptor(null);
+          setMockUser({ errorMessage: resData.message || "Wajah tidak dikenali." });
+          setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+        } else {
+          setScanStatus("success");
+          setCachedDescriptor(null);
+          setMockUser({
+            nama: resData.user.nama,
+            jabatan: resData.user.jabatan,
+            waktu: resData.user.waktu,
+            status: resData.user.status,
+            type: resData.type
+          });
+          setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+        }
+
+      } catch (error) {
+        console.error(error);
+        setScanStatus("error");
+        setCachedDescriptor(null);
+        setMockUser({ errorMessage: "Terjadi kesalahan sistem." });
+        setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+      }
+    }, 100);
   };
 
   if (!isClient || !currentTime) return (
@@ -208,7 +220,7 @@ export default function KioskAbsensiPage() {
             />
 
             {/* Placeholder jika tidak ada video */}
-            {!videoRef.current?.srcObject && scanStatus !== "error" && scanStatus !== "success" && (
+            {!videoRef.current?.srcObject && scanStatus !== "error" && scanStatus !== "success" && scanStatus !== "early" && (
                <div className="absolute inset-0 flex flex-col items-center justify-center text-white/20">
                  <Camera size={80} className="mb-6 opacity-30" />
                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-center px-10">Kamera tidak terdeteksi.<br/><span className="text-[10px] text-white/30">Klik untuk simulasi absensi.</span></p>
@@ -287,11 +299,41 @@ export default function KioskAbsensiPage() {
                   {mockUser?.errorMessage || "Sistem tidak dapat mencocokkan profil wajah. Pastikan Anda tidak menggunakan masker/kacamata gelap, atau pencahayaan cukup."}
                 </p>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); setScanStatus("idle"); setMockUser(null); }}
+                  onClick={(e) => { e.stopPropagation(); setScanStatus("idle"); setMockUser(null); setCachedDescriptor(null); }}
                   className="mt-8 bg-white/10 hover:bg-white/20 border border-white/20 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-colors"
                 >
                   Kembali
                 </button>
+              </div>
+            )}
+
+            {/* Early Check-Out Overlay (Amber) */}
+            {scanStatus === "early" && (
+              <div className="absolute inset-0 bg-amber-900/95 backdrop-blur-md flex flex-col items-center justify-center text-white p-8 text-center animate-in fade-in zoom-in duration-300 z-30 animate-shake">
+                <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(245,158,11,0.5)] mb-6 border-4 border-amber-400/50">
+                  <Clock size={40} />
+                </div>
+                <h2 className="text-2xl font-black uppercase tracking-tight mb-3">Pulang Cepat?</h2>
+                <p className="text-amber-200 text-xs font-bold leading-relaxed px-4 opacity-80 mb-2">
+                  Halo {mockUser?.nama},
+                </p>
+                <p className="text-amber-200 text-[11px] font-bold leading-relaxed px-4 opacity-80">
+                  {mockUser?.errorMessage}
+                </p>
+                <div className="flex gap-4 mt-8 w-full max-w-[300px]">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setScanStatus("idle"); setMockUser(null); setCachedDescriptor(null); }}
+                    className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleScanAbsen("out", true); }}
+                    className="flex-1 bg-amber-500 hover:bg-amber-600 border border-amber-400/50 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-colors"
+                  >
+                    Tetap Pulang
+                  </button>
+                </div>
               </div>
             )}
           </div>
