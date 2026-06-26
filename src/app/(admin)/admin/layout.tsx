@@ -42,6 +42,7 @@ export default function AdminLayout({
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<LoggedInUser | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   /**
@@ -57,6 +58,20 @@ export default function AdminLayout({
 
   useEffect(() => {
     setMounted(true);
+
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsCollapsed(true); // Auto close on mobile
+        setIsMobile(true);
+      } else {
+        setIsCollapsed(false); // Auto open on desktop
+        setIsMobile(false);
+      }
+    };
+
+    // Set initial layout
+    handleResize();
+    window.addEventListener("resize", handleResize);
 
     const token = localStorage.getItem("authToken");
     const userDataString = localStorage.getItem("user");
@@ -91,8 +106,16 @@ export default function AdminLayout({
     return () => {
       clearTimeout(inactivityTimer);
       events.forEach((event) => window.removeEventListener(event, resetTimer));
+      window.removeEventListener("resize", handleResize);
     };
   }, [router, handleLogout]);
+
+  // Close sidebar on route change for mobile
+  useEffect(() => {
+    if (isMobile) {
+      setIsCollapsed(true);
+    }
+  }, [pathname, isMobile]);
 
   /**
    * Prevent hydration error
@@ -111,8 +134,16 @@ export default function AdminLayout({
   return (
     // ✅ Font hanya aktif di admin
     <div
-      className={`${inter.variable} font-sans flex h-screen bg-slate-50 overflow-hidden`}
+      className={`${inter.variable} font-sans flex h-screen bg-slate-50 overflow-hidden relative`}
     >
+      {/* Mobile Overlay */}
+      {!isCollapsed && isMobile && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 transition-opacity"
+          onClick={() => setIsCollapsed(true)}
+        />
+      )}
+
       <Sidebar
         isCollapsed={isCollapsed}
         openLogoutModal={() => setIsLogoutModalOpen(true)}
@@ -129,7 +160,7 @@ export default function AdminLayout({
         />
 
         {/* Proteksi halaman */}
-        <main className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto p-3 md:p-6 custom-scrollbar bg-slate-50/50">
           <AuthGuard key={pathname}>{children}</AuthGuard>
         </main>
       </div>

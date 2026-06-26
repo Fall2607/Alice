@@ -154,14 +154,16 @@ export default function Sidebar({
   if (!mounted)
     return (
       <aside
-        className={`h-screen bg-white border-r border-slate-100 ${isCollapsed ? "w-20" : "w-64"}`}
+        className={`h-screen bg-white border-r border-slate-100 hidden md:block ${isCollapsed ? "w-20" : "w-64"} shrink-0`}
       />
     );
 
   return (
     <>
       <aside
-        className={`flex h-screen flex-col overflow-hidden bg-white transition-all duration-300 border-r border-slate-100 sticky top-0 z-50 ${isCollapsed ? "w-20" : "w-64"}`}
+        className={`fixed md:sticky top-0 left-0 z-50 flex h-screen flex-col overflow-hidden bg-white transition-all duration-300 border-r border-slate-100 shrink-0 ${
+          isCollapsed ? "-translate-x-full md:translate-x-0 md:w-20" : "translate-x-0 w-[260px] md:w-64"
+        }`}
       >
         {/* Brand Section */}
         <div className="p-6 border-b border-slate-50 shrink-0">
