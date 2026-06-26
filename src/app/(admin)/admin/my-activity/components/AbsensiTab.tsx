@@ -34,11 +34,27 @@ export default function AbsensiTab() {
             const dateObj = new Date(item.tanggal);
             const dateStr = dateObj.toLocaleDateString("id-ID", { weekday: 'long', day: '2-digit', month: 'short' });
             
-            const jamMasukObj = item.jam_masuk ? new Date(item.jam_masuk) : null;
-            const inTime = jamMasukObj ? jamMasukObj.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-";
-            
+            // Backend (Vercel) mengirimkan timestamp WIB yang terbungkus dalam format UTC (Z). 
+            // Parsing dengan new Date() di browser akan menambah +7 jam (offset lokal).
+            // Solusi: Ambil saja bagian jam dari string aslinya.
+            const extractTime = (timeStr: string) => {
+               if (!timeStr) return "-";
+               // Jika format ISO "2026-06-26T08:00:00.000Z"
+               if (timeStr.includes("T")) {
+                   return timeStr.substring(11, 16);
+               }
+               // Jika format "2026-06-26 08:00:00"
+               const parts = timeStr.split(" ");
+               if (parts.length > 1) {
+                   return parts[1].substring(0, 5);
+               }
+               return "-";
+            };
+
+            const inTime = extractTime(item.jam_masuk);
+            const outTime = extractTime(item.jam_keluar);
             const jamKeluarObj = item.jam_keluar ? new Date(item.jam_keluar) : null;
-            const outTime = jamKeluarObj ? jamKeluarObj.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) : "-";
+            const jamMasukObj = item.jam_masuk ? new Date(item.jam_masuk) : null;
             
             let status = "Tepat Waktu";
             if (item.menit_terlambat > 0) {
