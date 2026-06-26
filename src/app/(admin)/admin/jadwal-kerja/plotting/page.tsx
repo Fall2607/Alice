@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, UserCheck, CalendarRange, Search, Plus, ShieldCheck } from "lucide-react";
+import { Loader2, UserCheck, CalendarRange, Search, Plus, ShieldCheck, Download, Upload, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
@@ -60,6 +61,11 @@ export default function ManajemenJadwalKaryawanPage() {
   const [selectedShiftVariant, setSelectedShiftVariant] = useState<number | null>(null);
   const [selectedKaryawanIds, setSelectedKaryawanIds] = useState<string[]>([]);
   const [searchKaryawan, setSearchKaryawan] = useState("");
+
+  // Import Modal State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const getShiftCategory = (nama_shift: string): string => {
       const name = nama_shift.toLowerCase();
@@ -272,6 +278,53 @@ export default function ManajemenJadwalKaryawanPage() {
       }
   };
 
+  const handleDownloadTemplate = () => {
+      // Create empty template data
+      const templateData = [
+          { "NIP": "RSU001", "Nama Karyawan": "John Doe", "Tanggal": "2026-06-27", "Nama Shift": "Shift Pagi" },
+          { "NIP": "RSU002", "Nama Karyawan": "Jane Doe", "Tanggal": "2026-06-27", "Nama Shift": "Shift Siang" }
+      ];
+      
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Template Plotting");
+      
+      XLSX.writeFile(workbook, "Template_Plotting_Shift.xlsx");
+  };
+
+  const handleImportSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!importFile) return;
+      
+      setIsImporting(true);
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      try {
+          const res = await fetch('/api/karyawan-shift/import', {
+              method: 'POST',
+              body: formData
+          });
+          const result = await res.json();
+          if (res.ok) {
+              showSuccessToast(result.message);
+              setIsImportModalOpen(false);
+              setImportFile(null);
+              fetchBoardData();
+          } else {
+              showErrorToast(result.message || "Gagal mengimport file.");
+              if (result.failedRows && result.failedRows.length > 0) {
+                 console.error("Failed Rows:", result.failedRows);
+                 alert("Beberapa data gagal diimport:\n" + result.failedRows.slice(0, 10).join("\n") + (result.failedRows.length > 10 ? "\n...dan lainnya" : ""));
+              }
+          }
+      } catch (err) {
+          showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan koneksi.");
+      } finally {
+          setIsImporting(false);
+      }
+  };
+
 
   // Filtering for Default List
   const totalPages = Math.ceil(karyawans.length / itemsPerPage);
@@ -367,14 +420,24 @@ export default function ManajemenJadwalKaryawanPage() {
 
       {(activeTab === 'BOARD_SHIFT' || activeTab === 'BOARD_PIKET') && (
           <div className="bg-white p-6 shadow-md rounded-lg">
-             <div className="flex items-center gap-4 mb-6">
-                <label className="font-semibold text-slate-700">Pilih Bulan & Tahun:</label>
-                <input 
-                    type="month" 
-                    value={plotMonth} 
-                    onChange={(e) => setPlotMonth(e.target.value)} 
-                    className="border rounded-md px-3 py-2 bg-slate-50 font-medium"
-                />
+             <div className="flex items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-4">
+                    <label className="font-semibold text-slate-700">Pilih Bulan & Tahun:</label>
+                    <input 
+                        type="month" 
+                        value={plotMonth} 
+                        onChange={(e) => setPlotMonth(e.target.value)} 
+                        className="border rounded-md px-3 py-2 bg-slate-50 font-medium"
+                    />
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-md font-semibold hover:bg-slate-200 transition-colors">
+                        <Download size={16} /> Template Excel
+                    </button>
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md font-semibold hover:bg-emerald-700 transition-colors shadow-sm">
+                        <Upload size={16} /> Import Excel
+                    </button>
+                </div>
              </div>
 
              <div className="overflow-x-auto border border-slate-300 rounded-lg max-h-[70vh]">
@@ -577,6 +640,32 @@ export default function ManajemenJadwalKaryawanPage() {
                   </div>
               </form>
           )}
+      </Modal>
+
+      {/* MODAL IMPORT EXCEL */}
+      <Modal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="Import Template Jadwal" size="md">
+          <form onSubmit={handleImportSubmit} className="space-y-6">
+              <div className="text-center p-6 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50">
+                  <FileSpreadsheet className="mx-auto text-slate-400 mb-3" size={48} />
+                  <p className="text-sm text-slate-600 mb-4">
+                      Unggah file <b>.xlsx</b> atau <b>.csv</b> yang telah Anda isi sesuai dengan format Template.
+                  </p>
+                  <input 
+                      type="file" 
+                      accept=".xlsx, .xls, .csv" 
+                      onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                      className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                      required
+                  />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                  <button type="button" onClick={() => setIsImportModalOpen(false)} className="px-5 py-2 bg-slate-200 text-slate-700 rounded-full font-medium hover:bg-slate-300 transition-colors">Batal</button>
+                  <button type="submit" disabled={!importFile || isImporting} className="px-5 py-2 bg-emerald-600 text-white rounded-full font-medium shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                      {isImporting ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+                      {isImporting ? 'Mengimport...' : 'Import Data'}
+                  </button>
+              </div>
+          </form>
       </Modal>
     </div>
   );
