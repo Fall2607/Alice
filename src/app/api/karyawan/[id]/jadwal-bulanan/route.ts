@@ -87,8 +87,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
                 finalShift = defaultShifts[dbDayOfWeek];
             }
 
-            // 3. Logika Piket SPV (Hanya untuk Senin-Jumat jika default-nya 8-5)
-            if (isSpvOrKoor && jsDayOfWeek >= 1 && jsDayOfWeek <= 5 && finalShift && finalShift.nama_shift.includes('8-5') && shift84) {
+            // 3. Logika Piket (Hanya untuk Senin-Jumat jika default-nya 8-5)
+            if (jsDayOfWeek >= 1 && jsDayOfWeek <= 5 && finalShift && finalShift.nama_shift.includes('8-5') && shift84) {
                 const daysToSaturday = 6 - jsDayOfWeek;
                 const saturdayDate = new Date(year, month - 1, i + daysToSaturday);
                 const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
