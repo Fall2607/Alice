@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, UserCheck, CalendarRange, Search, Plus, ShieldCheck, Download, Upload, FileSpreadsheet } from "lucide-react";
-import * as XLSX from "xlsx";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
@@ -278,18 +277,23 @@ export default function ManajemenJadwalKaryawanPage() {
       }
   };
 
-  const handleDownloadTemplate = () => {
-      // Create empty template data
-      const templateData = [
-          { "NIP": "RSU001", "Nama Karyawan": "John Doe", "Tanggal": "2026-06-27", "Nama Shift": "Shift Pagi" },
-          { "NIP": "RSU002", "Nama Karyawan": "Jane Doe", "Tanggal": "2026-06-27", "Nama Shift": "Shift Siang" }
-      ];
-      
-      const worksheet = XLSX.utils.json_to_sheet(templateData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Template Plotting");
-      
-      XLSX.writeFile(workbook, "Template_Plotting_Shift.xlsx");
+  const handleDownloadTemplate = async () => {
+      try {
+          const res = await fetch('/api/karyawan-shift/template');
+          if (!res.ok) throw new Error("Gagal mengunduh template");
+          
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = "Template_Plotting_Cerdas.xlsx";
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          a.remove();
+      } catch (err) {
+          showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan koneksi.");
+      }
   };
 
   const handleImportSubmit = async (e: React.FormEvent) => {

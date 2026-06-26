@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,12 +12,39 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
     
-    // Parse as JSON array
-    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+    // Asumsi template ada di sheet pertama
+    const worksheet = workbook.worksheets[0];
+
+    const data: any[] = [];
+    
+    // Ambil header di baris pertama
+    const headerRow = worksheet.getRow(1);
+    const headers: string[] = [];
+    headerRow.eachCell((cell, colNumber) => {
+        headers[colNumber] = cell.text.trim();
+    });
+
+    // Loop dari baris kedua ke bawah
+    worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) {
+            const rowData: any = {};
+            row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+                const header = headers[colNumber];
+                if (header) {
+                    // Karena NIP pakai formula, ambil hasil formulanya (result) jika ada
+                    rowData[header] = cell.value && typeof cell.value === 'object' && 'result' in cell.value 
+                                        ? cell.value.result 
+                                        : cell.text || cell.value;
+                }
+            });
+            if (Object.keys(rowData).length > 0) {
+                data.push(rowData);
+            }
+        }
+    });
 
     if (data.length === 0) {
         return NextResponse.json({ message: "File kosong atau tidak memiliki data." }, { status: 400 });
@@ -42,24 +69,29 @@ export async function POST(request: NextRequest) {
         const row = data[i];
         
         // Extract fields exactly as they are in the template
-        const nip = row["NIP"];
-        const tanggalStr = row["Tanggal"]; // Expected format "YYYY-MM-DD" or similar
+        // Karena template sekarang punya NIP (Otomatis), kita cek field itu atau field NIP biasa
+        const nip = row["NIP (Otomatis)"] || row["NIP"];
+        const tanggalStr = row["Tanggal"]; 
         const namaShift = row["Nama Shift"];
 
         if (!nip || !tanggalStr || !namaShift) {
-            failedRows.push(`Baris ${i + 2}: Data tidak lengkap (Pastikan NIP, Tanggal, dan Nama Shift terisi)`);
+            failedRows.push(`Baris ${i + 2}: Data tidak lengkap (Pastikan Nama Karyawan, Tanggal, dan Shift terisi)`);
             continue;
         }
 
-        const karId = karyawanMap.get(nip.toString());
+        // Convert string nip/namaShift safely
+        const nipVal = String(nip).trim();
+        const namaShiftVal = String(namaShift).trim();
+
+        const karId = karyawanMap.get(nipVal);
         if (!karId) {
-            failedRows.push(`Baris ${i + 2}: Karyawan dengan NIP ${nip} tidak ditemukan.`);
+            failedRows.push(`Baris ${i + 2}: Karyawan dengan NIP '${nipVal}' tidak ditemukan.`);
             continue;
         }
 
-        const shiftId = shiftMap.get(namaShift.toString().toLowerCase().trim());
+        const shiftId = shiftMap.get(namaShiftVal.toLowerCase());
         if (!shiftId) {
-            failedRows.push(`Baris ${i + 2}: Shift dengan nama '${namaShift}' tidak valid.`);
+            failedRows.push(`Baris ${i + 2}: Shift dengan nama '${namaShiftVal}' tidak valid.`);
             continue;
         }
 
