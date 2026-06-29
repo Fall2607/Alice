@@ -64,6 +64,26 @@ export async function GET(request: NextRequest) {
             absensiMap[row.karyawan_id][dateStr] = row;
         }
 
+        // 2.5 Ambil Data Shift Bulan Ini
+        const shiftQuery = `
+            SELECT karyawan_id, tanggal
+            FROM karyawan_shift
+            WHERE tanggal::text LIKE $1 AND karyawan_id = ANY($2::uuid[])
+        `;
+        const shiftRes = await pool.query(shiftQuery, [`${monthParam}-%`, karyawanIds]);
+        
+        const shiftMap: Record<string, Record<string, boolean>> = {};
+        for (const row of shiftRes.rows) {
+            if (!shiftMap[row.karyawan_id]) {
+                shiftMap[row.karyawan_id] = {};
+            }
+            const d = new Date(row.tanggal);
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            const dateStr = d.toISOString().split('T')[0];
+            
+            shiftMap[row.karyawan_id][dateStr] = true;
+        }
+
         // 3. Susun Response Final
         const result = karyawanList.map(kar => {
             const harian: Record<string, any> = {};
@@ -78,6 +98,7 @@ export async function GET(request: NextRequest) {
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 const absenHariIni = absensiMap[kar.id]?.[dateStr];
+                const adaShift = shiftMap[kar.id]?.[dateStr];
 
                 if (absenHariIni) {
                     totalHadir++;
@@ -88,7 +109,10 @@ export async function GET(request: NextRequest) {
                         harian[dateStr] = { status: 'hadir', ...absenHariIni };
                     }
                 } else {
-                    if (!isWeekend) {
+                    if (adaShift) {
+                        totalAlpha++;
+                        harian[dateStr] = { status: 'alpha' };
+                    } else if (!isWeekend) {
                         totalAlpha++;
                         harian[dateStr] = { status: 'alpha' };
                     } else {
