@@ -332,8 +332,72 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Update total suitability_match
-      const suitabilityMatch = totalWeight > 0 ? (totalScore / totalWeight) : 0.0;
+      // 12. TSUKAMOTO FUZZY LOGIC ENGINE
+      // Hitung total pengalaman dalam tahun
+      let totalExperienceYears = 0;
+      if (applicant.experience?.length > 0) {
+        for (const exp of applicant.experience) {
+          const fromYear = parseInt(exp.fromYear) || 0;
+          const toYear = parseInt(exp.toYear) || new Date().getFullYear();
+          if (fromYear > 0 && toYear >= fromYear) {
+            totalExperienceYears += (toYear - fromYear);
+          }
+        }
+      }
+
+      // Base score dari rata-rata assessment (Bisa dianggap sebagai skor Pendidikan/Skill)
+      const baseScore = totalWeight > 0 ? (totalScore / totalWeight) : 0.0;
+
+      // Fuzzifikasi Input 1: Pendidikan / Skill (x)
+      const x = baseScore;
+      const edu_rendah = x <= 40 ? 1 : (x >= 80 ? 0 : (80 - x) / 40);
+      const edu_sedang = (x <= 40 || x >= 80) ? 0 : (x <= 60 ? (x - 40) / 20 : (80 - x) / 20);
+      const edu_tinggi = x <= 60 ? 0 : (x >= 100 ? 1 : (x - 60) / 40);
+
+      // Fuzzifikasi Input 2: Pengalaman (y) dalam tahun
+      const y = totalExperienceYears;
+      const exp_kurang = y <= 1 ? 1 : (y >= 4 ? 0 : (4 - y) / 3);
+      const exp_sedang = (y <= 2 || y >= 6) ? 0 : (y <= 4 ? (y - 2) / 2 : (6 - y) / 2);
+      const exp_lama = y <= 4 ? 0 : (y >= 8 ? 1 : (y - 4) / 4);
+
+      // Inferensi (Rule Base Tsukamoto) & Penentuan z tiap rule
+      // DITERIMA (Naik 50 - 100) -> z = 50 + (50 * a)
+      // DITOLAK (Turun 80 - 40) -> z = 80 - (40 * a)
+      const rules = [
+        // R1: TINGGI & LAMA -> DITERIMA
+        { a: Math.min(edu_tinggi, exp_lama), getZ: (a: number) => 50 + 50 * a },
+        // R2: TINGGI & SEDANG -> DITERIMA
+        { a: Math.min(edu_tinggi, exp_sedang), getZ: (a: number) => 50 + 50 * a },
+        // R3: TINGGI & KURANG -> DITERIMA
+        { a: Math.min(edu_tinggi, exp_kurang), getZ: (a: number) => 50 + 50 * a },
+        // R4: SEDANG & LAMA -> DITERIMA
+        { a: Math.min(edu_sedang, exp_lama), getZ: (a: number) => 50 + 50 * a },
+        // R5: SEDANG & SEDANG -> DITERIMA
+        { a: Math.min(edu_sedang, exp_sedang), getZ: (a: number) => 50 + 50 * a },
+        // R6: SEDANG & KURANG -> DITOLAK
+        { a: Math.min(edu_sedang, exp_kurang), getZ: (a: number) => 80 - 40 * a },
+        // R7: RENDAH & LAMA -> DITERIMA
+        { a: Math.min(edu_rendah, exp_lama), getZ: (a: number) => 50 + 50 * a },
+        // R8: RENDAH & SEDANG -> DITOLAK
+        { a: Math.min(edu_rendah, exp_sedang), getZ: (a: number) => 80 - 40 * a },
+        // R9: RENDAH & KURANG -> DITOLAK
+        { a: Math.min(edu_rendah, exp_kurang), getZ: (a: number) => 80 - 40 * a },
+      ];
+
+      // Defuzzifikasi (Weighted Average)
+      let sumA = 0;
+      let sumAZ = 0;
+      for (const r of rules) {
+        if (r.a > 0) {
+          sumA += r.a;
+          sumAZ += r.a * r.getZ(r.a);
+        }
+      }
+
+      let suitabilityMatch = sumA > 0 ? (sumAZ / sumA) : 0.0;
+      suitabilityMatch = Math.max(0, Math.min(100, suitabilityMatch)); // Batasi 0-100
+
+      // Update total suitability_match menggunakan skor Tsukamoto
       await client.query(
         `UPDATE application_status SET suitability_match = $1 WHERE id = $2`,
         [suitabilityMatch, applicationStatusId]
