@@ -259,13 +259,25 @@ export default function ManajemenJadwalKaryawanPage() {
       }
 
       try {
+          let superior_id = null;
+          try {
+              const userStr = localStorage.getItem("user");
+              if (userStr) {
+                  const user = JSON.parse(userStr);
+                  if (user.role && !user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hrd') && user.karyawan_id) {
+                      superior_id = user.karyawan_id;
+                  }
+              }
+          } catch (e) {}
+
           const res = await fetch('/api/karyawan-shift/board', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                   tanggal: submitTanggal,
                   shift_id: submitShiftId,
-                  karyawan_ids: selectedKaryawanIds
+                  karyawan_ids: selectedKaryawanIds,
+                  superior_id: superior_id
               })
           });
           if (!res.ok) throw new Error("Gagal menyimpan plotting board.");
