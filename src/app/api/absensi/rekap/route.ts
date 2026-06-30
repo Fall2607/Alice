@@ -4,17 +4,23 @@ import pool from "@/app/lib/db";
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const monthParam = searchParams.get('month'); // YYYY-MM
+        const startDateParam = searchParams.get('startDate');
+        const endDateParam = searchParams.get('endDate');
         const unitParam = searchParams.get('unit'); // departemen_id or 'all'
         
-        if (!monthParam) {
-            return NextResponse.json({ message: "Parameter month (YYYY-MM) wajib diisi." }, { status: 400 });
+        if (!startDateParam || !endDateParam) {
+            return NextResponse.json({ message: "Parameter startDate dan endDate wajib diisi." }, { status: 400 });
         }
 
-        const [yearStr, monthStr] = monthParam.split("-");
-        const year = parseInt(yearStr);
-        const month = parseInt(monthStr);
-        const daysInMonth = new Date(year, month, 0).getDate();
+        const startDate = new Date(startDateParam);
+        const endDate = new Date(endDateParam);
+        
+        // Cek jika date tidak valid
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return NextResponse.json({ message: "Format tanggal tidak valid." }, { status: 400 });
+        }
+
+        const superiorId = searchParams.get('superior_id') || searchParams.get('superiorId');
 
         // 1. Ambil Karyawan (Filter by Unit if provided)
         let karQuery = `
@@ -29,6 +35,24 @@ export async function GET(request: NextRequest) {
             karQuery += ` WHERE j.departemen_id = $1`;
             queryParams.push(unitParam);
         }
+
+        if (superiorId) {
+            const recursiveCte = `
+                WITH RECURSIVE subordinates AS (
+                    SELECT id FROM karyawan WHERE atasan_id = $${queryParams.length + 1}
+                    UNION
+                    SELECT k.id FROM karyawan k
+                    INNER JOIN subordinates s ON s.id = k.atasan_id
+                )
+            `;
+            queryParams.push(superiorId);
+            
+            if (karQuery.includes('WHERE')) {
+                karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
+            } else {
+                karQuery = `${recursiveCte} ${karQuery} WHERE k.id IN (SELECT id FROM subordinates)`;
+            }
+        }
         
         karQuery += ` ORDER BY k.nama_lengkap ASC`;
 
@@ -36,18 +60,18 @@ export async function GET(request: NextRequest) {
         const karyawanList = karyawanRes.rows;
 
         if (karyawanList.length === 0) {
-            return NextResponse.json({ data: [] });
+            return NextResponse.json({ data: [], dates: [] });
         }
 
         const karyawanIds = karyawanList.map(k => k.id);
 
-        // 2. Ambil Data Absensi Bulan Ini
+        // 2. Ambil Data Absensi Date Range
         const absensiQuery = `
             SELECT karyawan_id, tanggal, jam_masuk, jam_keluar, is_late, menit_terlambat
             FROM absensi
-            WHERE tanggal::text LIKE $1 AND karyawan_id = ANY($2::uuid[])
+            WHERE tanggal >= $1 AND tanggal <= $2 AND karyawan_id = ANY($3::uuid[])
         `;
-        const absensiRes = await pool.query(absensiQuery, [`${monthParam}-%`, karyawanIds]);
+        const absensiRes = await pool.query(absensiQuery, [startDateParam, endDateParam, karyawanIds]);
         
         // Map absensi by karyawan_id -> date -> data
         const absensiMap: Record<string, Record<string, any>> = {};
@@ -57,20 +81,19 @@ export async function GET(request: NextRequest) {
             }
             // Format DB date to YYYY-MM-DD
             const d = new Date(row.tanggal);
-            // Fix timezone issue when formatting to string
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             const dateStr = d.toISOString().split('T')[0];
             
             absensiMap[row.karyawan_id][dateStr] = row;
         }
 
-        // 2.5 Ambil Data Shift Bulan Ini
+        // 2.5 Ambil Data Shift Date Range
         const shiftQuery = `
             SELECT karyawan_id, tanggal
             FROM karyawan_shift
-            WHERE tanggal::text LIKE $1 AND karyawan_id = ANY($2::uuid[])
+            WHERE tanggal >= $1 AND tanggal <= $2 AND karyawan_id = ANY($3::uuid[])
         `;
-        const shiftRes = await pool.query(shiftQuery, [`${monthParam}-%`, karyawanIds]);
+        const shiftRes = await pool.query(shiftQuery, [startDateParam, endDateParam, karyawanIds]);
         
         const shiftMap: Record<string, Record<string, boolean>> = {};
         for (const row of shiftRes.rows) {
@@ -84,16 +107,21 @@ export async function GET(request: NextRequest) {
             shiftMap[row.karyawan_id][dateStr] = true;
         }
 
+        // Generate dates array
+        const dates: string[] = [];
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            dates.push(new Date(d).toISOString().split('T')[0]);
+        }
+
         // 3. Susun Response Final
         const result = karyawanList.map(kar => {
             const harian: Record<string, any> = {};
             let totalHadir = 0;
             let totalTelat = 0;
-            let totalAlpha = 0; // Simple calc: weekdays without presence
+            let totalAlpha = 0;
 
-            for (let i = 1; i <= daysInMonth; i++) {
-                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-                const currentDate = new Date(year, month - 1, i);
+            for (const dateStr of dates) {
+                const currentDate = new Date(dateStr);
                 const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 6 = Saturday
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
@@ -135,7 +163,7 @@ export async function GET(request: NextRequest) {
             };
         });
 
-        return NextResponse.json({ data: result, daysInMonth, year, month });
+        return NextResponse.json({ data: result, dates });
 
     } catch (err: any) {
         console.error("Error fetching rekap absensi:", err);

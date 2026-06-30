@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Filter, Download, CalendarDays, Users, Clock, AlertTriangle, TableProperties, Grid, Loader2 } from "lucide-react";
+import { Search, Filter, Download, CalendarDays, Users, Clock, AlertTriangle, TableProperties, Grid, Loader2, Calendar } from "lucide-react";
 import Select from "react-select";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 interface KaryawanRekap {
   id: string;
@@ -14,29 +16,36 @@ interface KaryawanRekap {
 
 export default function RekapAbsensiPage() {
   const [selectedUnit, setSelectedUnit] = useState("all");
-  const [selectedMonth, setSelectedMonth] = useState("");
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
+  const [startDateObj, endDateObj] = dateRange;
   const [searchQuery, setSearchQuery] = useState("");
   const [viewType, setViewType] = useState<"table" | "heatmap">("table");
   
   const [departemenList, setDepartemenList] = useState<{id: string, nama_departemen: string}[]>([]);
   const [data, setData] = useState<KaryawanRekap[]>([]);
-  const [daysInMonth, setDaysInMonth] = useState(30);
-  const [year, setYear] = useState(2026);
-  const [month, setMonth] = useState(6);
+  const [dates, setDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Stats
   const totalKaryawan = data.length;
-  const avgKehadiran = totalKaryawan > 0 
-    ? (data.reduce((acc, curr) => acc + curr.rekap.hadir, 0) / (totalKaryawan * (daysInMonth - 8)) * 100).toFixed(1) 
+  const workingDays = dates.filter(d => {
+    const day = new Date(d).getDay();
+    return day !== 0 && day !== 6; // exclude weekend
+  }).length;
+  
+  const avgKehadiran = totalKaryawan > 0 && workingDays > 0
+    ? (data.reduce((acc, curr) => acc + curr.rekap.hadir, 0) / (totalKaryawan * workingDays) * 100).toFixed(1) 
     : "0";
   const totalTelat = data.reduce((acc, curr) => acc + curr.rekap.telat, 0);
   const totalAlpha = data.reduce((acc, curr) => acc + curr.rekap.alpha, 0);
 
   useEffect(() => {
-    // Set default month to current
+    // Set default date range to current month
     const now = new Date();
-    setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    setDateRange([firstDay, lastDay]);
 
     // Fetch Departemen
     fetch('/api/departemen')
@@ -46,27 +55,45 @@ export default function RekapAbsensiPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedMonth) return;
+    if (!startDateObj || !endDateObj) return;
     
+    const formatYMD = (date: Date) => {
+      const d = new Date(date);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().split('T')[0];
+    };
+
+    const startStr = formatYMD(startDateObj);
+    const endStr = formatYMD(endDateObj);
+
+    let superiorParam = "";
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const userObj = JSON.parse(userStr);
+        const role = userObj.role?.toLowerCase() || "";
+        if (role === "spv" || role === "supervisor" || role === "koordinator") {
+          superiorParam = `&superiorId=${userObj.karyawan_id}`;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     setIsLoading(true);
-    fetch(`/api/absensi/rekap?month=${selectedMonth}&unit=${selectedUnit}`)
+    fetch(`/api/absensi/rekap?startDate=${startStr}&endDate=${endStr}&unit=${selectedUnit}${superiorParam}`)
       .then(res => res.json())
       .then(resData => {
         if (resData.data) {
           setData(resData.data);
-          setDaysInMonth(resData.daysInMonth);
-          setYear(resData.year);
-          setMonth(resData.month);
+          setDates(resData.dates || []);
         }
       })
       .catch(console.error)
       .finally(() => setIsLoading(false));
-  }, [selectedMonth, selectedUnit]);
+  }, [startDateObj, endDateObj, selectedUnit]);
 
   const filteredData = data.filter(k => k.nama.toLowerCase().includes(searchQuery.toLowerCase()));
-
-  // Generate Array of dates for Heatmap Header
-  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   return (
     <div className="space-y-6">
@@ -95,9 +122,9 @@ export default function RekapAbsensiPage() {
       </div>
 
       {/* Filter Section */}
-      <div className="bg-white p-4 rounded-xl border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
+      <div className="bg-white p-4 rounded-xl border border-slate-100 flex flex-col xl:flex-row gap-4 items-center justify-between shadow-sm">
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto">
+          <div className="relative w-full md:w-64 shrink-0">
             <Select 
               options={[
                 { value: "all", label: "Semua Unit (Seluruh Karyawan)" },
@@ -126,18 +153,25 @@ export default function RekapAbsensiPage() {
             />
           </div>
           
-          <div className="relative w-full md:w-40">
-            <input 
-              type="month"
-              className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-2.5 px-4 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6] transition-all"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
+          <div className="relative w-full md:w-64 shrink-0 z-10">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-20 pointer-events-none">
+              <Calendar size={16} />
+            </div>
+            <DatePicker
+              selectsRange={true}
+              startDate={startDateObj || undefined}
+              endDate={endDateObj || undefined}
+              onChange={(update) => setDateRange(update)}
+              dateFormat="dd MMM yyyy"
+              placeholderText="Pilih Rentang Tanggal"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2.5 pl-10 pr-4 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6] transition-all"
+              wrapperClassName="w-full"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
+        <div className="flex items-center gap-3 w-full xl:w-auto">
+          <div className="relative w-full xl:w-64">
             <input 
               type="text" 
               placeholder="Cari nama karyawan..." 
@@ -185,7 +219,7 @@ export default function RekapAbsensiPage() {
           <div className="flex flex-col items-center justify-center h-full py-32">
             <AlertTriangle className="w-12 h-12 text-slate-300 mb-4" />
             <p className="text-lg font-bold text-slate-600">Tidak Ada Data</p>
-            <p className="text-sm text-slate-400">Silakan pilih unit atau bulan yang berbeda.</p>
+            <p className="text-sm text-slate-400">Silakan sesuaikan tanggal atau unit yang dipilih.</p>
           </div>
         ) : viewType === "table" ? (
           /* TABLE VIEW */
@@ -254,11 +288,14 @@ export default function RekapAbsensiPage() {
               <div className="flex mb-2">
                 <div className="w-64 shrink-0 px-4 text-xs font-bold text-slate-500 uppercase">Karyawan</div>
                 <div className="flex flex-1 gap-1">
-                  {daysArray.map(day => (
-                    <div key={day} className="w-8 shrink-0 text-center text-[10px] font-bold text-slate-400">
-                      {day}
-                    </div>
-                  ))}
+                  {dates.map(dateStr => {
+                    const dayNum = parseInt(dateStr.split('-')[2], 10);
+                    return (
+                      <div key={dateStr} className="w-8 shrink-0 text-center text-[10px] font-bold text-slate-400" title={dateStr}>
+                        {dayNum}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -269,23 +306,22 @@ export default function RekapAbsensiPage() {
                     <p className="text-[10px] text-slate-400 truncate">{kar.jabatan}</p>
                   </div>
                   <div className="flex flex-1 gap-1">
-                    {daysArray.map(day => {
-                      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    {dates.map(dateStr => {
                       const statusObj = kar.harian[dateStr];
                       let bgColor = "bg-slate-100";
-                      let tooltip = `${day} ${month} - Tidak ada data`;
+                      let tooltip = `${dateStr} - Tidak ada data`;
 
                       if (statusObj) {
-                        if (statusObj.status === 'hadir') { bgColor = "bg-emerald-400"; tooltip = `Hadir (${statusObj.jam_masuk})`; }
-                        else if (statusObj.status === 'telat') { bgColor = "bg-amber-400"; tooltip = `Terlambat (${statusObj.jam_masuk})`; }
-                        else if (statusObj.status === 'alpha') { bgColor = "bg-red-400"; tooltip = `Alpha`; }
-                        else if (statusObj.status === 'izin') { bgColor = "bg-blue-400"; tooltip = `Izin / Cuti`; }
-                        else if (statusObj.status === 'libur') { bgColor = "bg-slate-200"; tooltip = `Libur Akhir Pekan`; }
+                        if (statusObj.status === 'hadir') { bgColor = "bg-emerald-400"; tooltip = `${dateStr}: Hadir (${statusObj.jam_masuk})`; }
+                        else if (statusObj.status === 'telat') { bgColor = "bg-amber-400"; tooltip = `${dateStr}: Terlambat (${statusObj.jam_masuk})`; }
+                        else if (statusObj.status === 'alpha') { bgColor = "bg-red-400"; tooltip = `${dateStr}: Alpha`; }
+                        else if (statusObj.status === 'izin') { bgColor = "bg-blue-400"; tooltip = `${dateStr}: Izin / Cuti`; }
+                        else if (statusObj.status === 'libur') { bgColor = "bg-slate-200"; tooltip = `${dateStr}: Libur Akhir Pekan`; }
                       }
 
                       return (
                         <div 
-                          key={day} 
+                          key={dateStr} 
                           title={tooltip}
                           className={`w-8 h-8 rounded-sm shrink-0 cursor-pointer transition-transform hover:scale-110 shadow-sm ${bgColor}`}
                         />

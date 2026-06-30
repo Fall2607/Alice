@@ -105,6 +105,11 @@ export async function POST(req: Request) {
 
         // 2. Insert or Update remaining employees
         for (const k_id of (karyawan_ids || [])) {
+            // Cek otorisasi: jika SPV, pastikan ID ada di dalam bawahan
+            if (superior_id && !subordinateValues.includes(k_id)) {
+                continue; // Skip jika bukan bawahan
+            }
+
             await client.query(`
                 INSERT INTO karyawan_shift (karyawan_id, tanggal, shift_id) 
                 VALUES ($1, $2, $3)

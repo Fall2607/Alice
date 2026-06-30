@@ -25,8 +25,22 @@ export default function DashboardAbsensiPage() {
   }, []);
 
   useEffect(() => {
+    let superiorParam = "";
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const userObj = JSON.parse(userStr);
+        const role = userObj.role?.toLowerCase() || "";
+        if (role === "spv" || role === "supervisor" || role === "koordinator") {
+          superiorParam = `&superiorId=${userObj.karyawan_id}`;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     setIsLoading(true);
-    fetch(`/api/absensi/dashboard?unit=${selectedUnit}`)
+    fetch(`/api/absensi/dashboard?unit=${selectedUnit}${superiorParam}`)
       .then(res => res.json())
       .then(data => {
         setStats(data);

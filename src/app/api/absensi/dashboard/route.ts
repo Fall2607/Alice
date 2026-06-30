@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
         let dateFilter = monthParam ? `${monthParam}-%` : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-%`;
         const todayDateStr = new Date().toISOString().split('T')[0];
 
+        const superiorId = searchParams.get('superior_id') || searchParams.get('superiorId');
+
         // Base Karyawan Query
         let karQuery = `SELECT k.id FROM karyawan k`;
         const queryParams: any[] = [];
@@ -22,6 +24,24 @@ export async function GET(request: NextRequest) {
                 WHERE j.departemen_id = $1
             `;
             queryParams.push(unitParam);
+        }
+
+        if (superiorId) {
+            const recursiveCte = `
+                WITH RECURSIVE subordinates AS (
+                    SELECT id FROM karyawan WHERE atasan_id = $${queryParams.length + 1}
+                    UNION
+                    SELECT k.id FROM karyawan k
+                    INNER JOIN subordinates s ON s.id = k.atasan_id
+                )
+            `;
+            queryParams.push(superiorId);
+            
+            if (karQuery.includes('WHERE')) {
+                karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
+            } else {
+                karQuery = `${recursiveCte} ${karQuery} WHERE k.id IN (SELECT id FROM subordinates)`;
+            }
         }
 
         const karyawanRes = await pool.query(karQuery, queryParams);

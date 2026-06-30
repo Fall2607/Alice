@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Lock, ShieldCheck, Loader2, AlertTriangle, CheckCircle2, ArrowLeft, KeyRound } from "lucide-react";
+import { Lock, ShieldCheck, Loader2, AlertTriangle, CheckCircle2, ArrowLeft, KeyRound, Eye, EyeOff } from "lucide-react";
 
 /**
  * Halaman finalisasi registrasi Alice (Set Password)
@@ -12,6 +12,8 @@ export default function App() {
   const [confirmPassword, setConfirmPassword] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 
   /**
    * Mengambil token dari URL secara manual untuk kompatibilitas lingkungan pratinjau
@@ -129,14 +131,21 @@ export default function App() {
                     <Lock size={18} />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     disabled={isLoading}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-12 pr-6 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all duration-200 text-sm font-medium text-slate-700"
+                    className="w-full pl-12 pr-12 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all duration-200 text-sm font-medium text-slate-700"
                     placeholder="Minimal 6 karakter"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors focus:outline-none"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
 
@@ -149,18 +158,25 @@ export default function App() {
                     <Lock size={18} />
                   </div>
                   <input
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     required
                     disabled={isLoading}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`w-full pl-12 pr-6 py-3.5 bg-slate-50/50 border rounded-2xl focus:bg-white outline-none transition-all duration-200 text-sm font-medium text-slate-700 ${
+                    className={`w-full pl-12 pr-12 py-3.5 bg-slate-50/50 border rounded-2xl focus:bg-white outline-none transition-all duration-200 text-sm font-medium text-slate-700 ${
                       confirmPassword && password !== confirmPassword 
                         ? "border-red-500 focus:ring-4 focus:ring-red-500/10" 
                         : "border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                     }`}
                     placeholder="Ulangi password baru"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors focus:outline-none"
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
                 {confirmPassword && password !== confirmPassword && (
                   <p className="text-[10px] text-red-500 font-bold mt-1 uppercase tracking-tighter ml-4 animate-in fade-in">
