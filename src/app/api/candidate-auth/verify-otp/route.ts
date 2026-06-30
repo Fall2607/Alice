@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     // 1. Verifikasi OTP
     const otpRes = await pool.query(
       `SELECT id FROM candidate_otps 
-       WHERE email = $1 AND otp_code = $2 AND is_used = false AND expires_at > NOW() 
+       WHERE LOWER(email) = LOWER($1) AND otp_code = $2 AND is_used = false AND expires_at > NOW() 
        ORDER BY created_at DESC LIMIT 1`,
       [email, otp]
     );
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     await pool.query(`UPDATE candidate_otps SET is_used = true WHERE id = $1`, [otpRes.rows[0].id]);
 
     // 2. Ambil Data Kandidat Terakhir
-    const candidateRes = await pool.query(`SELECT * FROM candidates WHERE email = $1 ORDER BY created_at DESC LIMIT 1`, [email]);
+    const candidateRes = await pool.query(`SELECT * FROM candidates WHERE LOWER(email) = LOWER($1) ORDER BY created_at DESC LIMIT 1`, [email]);
     if (candidateRes.rows.length === 0) {
         return NextResponse.json({ message: "Data pelamar tidak ditemukan." }, { status: 404 });
     }

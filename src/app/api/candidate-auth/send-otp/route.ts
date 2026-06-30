@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Cek apakah email sudah ada di tabel candidates
-    const candidateRes = await pool.query(`SELECT id, nama FROM candidates WHERE email = $1 LIMIT 1`, [email]);
+    const candidateRes = await pool.query(`SELECT id, nama FROM candidates WHERE LOWER(email) = LOWER($1) LIMIT 1`, [email]);
     
     if (candidateRes.rows.length === 0) {
       return NextResponse.json({ message: "Data tidak ditemukan. Anda belum pernah melamar." }, { status: 404 });

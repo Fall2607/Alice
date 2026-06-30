@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       FROM users u
       LEFT JOIN karyawan k ON u.karyawan_id = k.id
       LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.email = $1`,
+      WHERE LOWER(u.email) = LOWER($1)`,
       [identifier]
     );
 

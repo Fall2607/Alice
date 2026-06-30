@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Check if candidate already exists by email
     const existingCandidateRes = await client.query(
-      `SELECT id FROM candidates WHERE email = $1 LIMIT 1`,
+      `SELECT id FROM candidates WHERE LOWER(email) = LOWER($1) LIMIT 1`,
       [applicant.email]
     );
 

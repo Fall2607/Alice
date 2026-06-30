@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       const result = await pool.query(
         `SELECT id, nip, nama_lengkap, email, user_id 
          FROM karyawan 
-         WHERE email = $1`,
+         WHERE LOWER(email) = LOWER($1)`,
         [email],
       );
 
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       const updateResult = await pool.query(
         `UPDATE karyawan 
          SET registration_token = $1, registration_expires = $2 
-         WHERE email = $3 AND user_id IS NULL
+         WHERE LOWER(email) = LOWER($3) AND user_id IS NULL
          RETURNING nama_lengkap`,
         [token, expires, email],
       );

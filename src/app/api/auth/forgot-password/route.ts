@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       `SELECT u.id, k.nama_lengkap 
        FROM users u 
        LEFT JOIN karyawan k ON u.karyawan_id = k.id 
-       WHERE u.email = $1`, 
+       WHERE LOWER(u.email) = LOWER($1)`, 
       [email]
     );
     
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     // 3. Simpan Token ke Database
     await pool.query(
-      "UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE email = $3",
+      "UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE LOWER(email) = LOWER($3)",
       [token, expires, email]
     );
 
