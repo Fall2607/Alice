@@ -117,7 +117,7 @@ function FaceEnrollmentContent() {
       } else {
         setStatus("success");
         setMessage(`Wajah untuk NIP ${nip} (${resData.data.nama_lengkap}) berhasil didaftarkan!`);
-        setNip("");
+        // setNip(""); // Dihapus agar NIP tidak hilang setelah berhasil, sesuai permintaan
       }
     } catch (error) {
       console.error(error);
