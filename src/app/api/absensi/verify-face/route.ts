@@ -14,20 +14,25 @@ function euclideanDistance(desc1: number[], desc2: number[]): number {
 
 export async function POST(request: NextRequest) {
   try {
-    const { descriptor, type, forceEarlyOut } = await request.json();
+    const { descriptor, type, forceEarlyOut, karyawan_id } = await request.json();
 
     if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
       return NextResponse.json({ message: "Data biometrik tidak valid atau rusak." }, { status: 400 });
     }
 
-    // 1. Ambil semua karyawan yang sudah mendaftarkan wajahnya
-    const karyawanRes = await pool.query(
-      `SELECT k.id, k.nama_lengkap, k.face_descriptor, lj.nama_level as jabatan 
+    let queryStr = `SELECT k.id, k.nama_lengkap, k.face_descriptor, lj.nama_level as jabatan 
        FROM karyawan k 
        LEFT JOIN jabatan j ON k.jabatan_id = j.id
        LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
-       WHERE k.face_descriptor IS NOT NULL`
-    );
+       WHERE k.face_descriptor IS NOT NULL`;
+    let queryParams: any[] = [];
+       
+    if (karyawan_id) {
+       queryStr += ` AND k.id = $1`;
+       queryParams.push(karyawan_id);
+    }
+    
+    const karyawanRes = await pool.query(queryStr, queryParams);
 
     if (karyawanRes.rows.length === 0) {
       return NextResponse.json({ message: "Belum ada karyawan yang mendaftarkan data wajah." }, { status: 404 });
@@ -57,7 +62,9 @@ export async function POST(request: NextRequest) {
 
     // Threshold standar FaceAPI = 0.5. Kita perketat menjadi 0.38 
     // agar mengurangi drastis kemungkinan wajah tertukar (False Positive).
-    const MATCH_THRESHOLD = 0.38;
+    // Jika karyawan_id diberikan (Mobile App), margin error turun ke 0 karena hanya membandingkan 1 wajah,
+    // maka kita bisa melonggarkan threshold sedikit ke 0.45 agar lebih mudah terdeteksi.
+    const MATCH_THRESHOLD = karyawan_id ? 0.45 : 0.38;
 
     if (!bestMatch || minDistance > MATCH_THRESHOLD) {
       return NextResponse.json(
