@@ -12,6 +12,41 @@ export default function KioskAbsensiPage() {
   const [mockUser, setMockUser] = useState<any>(null);
   const faceapiRef = useRef<any>(null);
 
+  // NIP Flow States
+  const [step, setStep] = useState<"input-nip" | "camera">("input-nip");
+  const [nipInput, setNipInput] = useState("");
+  const [karyawanInfo, setKaryawanInfo] = useState<{id: string, nama_lengkap: string} | null>(null);
+  const [nipError, setNipError] = useState("");
+  const [isCheckingNip, setIsCheckingNip] = useState(false);
+
+  const handleCheckNip = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!nipInput) {
+      setNipError("NIP tidak boleh kosong");
+      return;
+    }
+    setIsCheckingNip(true);
+    setNipError("");
+    try {
+      const res = await fetch("/api/absensi/check-nip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nip: nipInput })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setNipError(data.message || "NIP tidak ditemukan");
+      } else {
+        setKaryawanInfo(data);
+        setStep("camera");
+      }
+    } catch (e) {
+      setNipError("Terjadi kesalahan jaringan");
+    } finally {
+      setIsCheckingNip(false);
+    }
+  };
+
   // Hydration fix & Live Clock
   useEffect(() => {
     setIsClient(true);
@@ -95,7 +130,7 @@ export default function KioskAbsensiPage() {
         const response = await fetch("/api/absensi/verify-face", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut }),
+          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, karyawan_id: karyawanInfo?.id }),
         });
 
         const resData = await response.json();
@@ -179,11 +214,11 @@ export default function KioskAbsensiPage() {
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center p-6">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center p-4 lg:p-6 w-full max-w-4xl mx-auto">
         
         {/* Waktu Digital */}
-        <div className="text-center mb-10 mt-[-40px]">
-          <div className="flex items-center justify-center gap-3 text-blue-400 mb-2 font-bold uppercase tracking-[0.6em] text-[10px]">
+        <div className="text-center mb-6 lg:mb-10 lg:mt-[-40px]">
+          <div className="flex items-center justify-center gap-2 lg:gap-3 text-blue-400 mb-2 font-bold uppercase tracking-[0.4em] lg:tracking-[0.6em] text-[10px]">
             <Clock size={14} />
             <span>
               {currentTime.toLocaleDateString("id-ID", {
@@ -191,12 +226,49 @@ export default function KioskAbsensiPage() {
               })}
             </span>
           </div>
-          <h1 className="text-7xl font-black leading-none tracking-tighter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] font-mono">
+          <h1 className="text-5xl lg:text-7xl font-black leading-none tracking-tighter drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)] font-mono">
             {currentTime.toLocaleTimeString("id-ID", {
               hour: "2-digit", minute: "2-digit", second: "2-digit"
             })}
           </h1>
         </div>
+
+        {step === "input-nip" ? (
+          <div className="w-full max-w-md bg-white/5 p-6 lg:p-8 rounded-3xl border border-white/10 backdrop-blur-md shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+              <User size={32} className="text-blue-400" />
+            </div>
+            <h2 className="text-2xl font-black text-center mb-2">Identifikasi Diri</h2>
+            <p className="text-sm text-slate-400 text-center mb-8">Masukkan Nomor Induk Pegawai (NIP) Anda sebelum melakukan pemindaian wajah.</p>
+            
+            <form onSubmit={handleCheckNip} className="flex flex-col gap-4">
+              <div>
+                <input 
+                  type="text"
+                  value={nipInput}
+                  onChange={(e) => setNipInput(e.target.value)}
+                  placeholder="Ketik NIP Anda di sini..."
+                  className="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-4 text-center text-xl font-bold tracking-widest text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                  autoFocus
+                />
+                {nipError && <p className="text-rose-400 text-xs font-bold text-center mt-2 animate-shake">{nipError}</p>}
+              </div>
+              <button 
+                type="submit"
+                disabled={isCheckingNip}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] active:scale-95 flex items-center justify-center gap-2"
+              >
+                {isCheckingNip ? <Loader2 size={18} className="animate-spin" /> : "Lanjut Verifikasi Wajah"}
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="w-full flex flex-col items-center animate-in fade-in duration-500">
+            <div className="mb-6 flex items-center justify-center gap-3 bg-white/5 px-6 py-3 rounded-full border border-white/10 backdrop-blur-md">
+               <User size={16} className="text-emerald-400" />
+               <span className="text-sm font-bold">Halo, {karyawanInfo?.nama_lengkap}</span>
+               <button onClick={() => { setStep("input-nip"); setNipInput(""); }} className="ml-2 text-[10px] bg-white/10 px-3 py-1 rounded-full uppercase tracking-wider hover:bg-white/20 transition-colors">Ganti</button>
+            </div>
 
         {/* Camera Container */}
         <div className="relative group mx-auto w-fit">
@@ -208,7 +280,7 @@ export default function KioskAbsensiPage() {
             "bg-rose-500/60"
           }`}></div>
           
-          <div className="relative w-[400px] h-[500px] bg-black/50 rounded-[32px] overflow-hidden border-2 border-white/10 shadow-2xl flex items-center justify-center backdrop-blur-md cursor-pointer">
+          <div className="relative w-[300px] h-[400px] lg:w-[400px] lg:h-[500px] bg-black/50 rounded-[32px] overflow-hidden border-2 border-white/10 shadow-2xl flex items-center justify-center backdrop-blur-md cursor-pointer">
             
             {/* Video Element */}
             <video 
@@ -340,22 +412,24 @@ export default function KioskAbsensiPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="mt-12 flex gap-6 w-full max-w-lg mx-auto">
+        <div className="mt-8 flex gap-4 lg:gap-6 w-full max-w-lg mx-auto">
            <button 
              onClick={() => handleScanAbsen("in")} 
              disabled={scanStatus === "scanning"}
-             className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-[#001b3a] py-5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+             className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-[#001b3a] py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
            >
                Check In
            </button>
            <button 
              onClick={() => handleScanAbsen("out")} 
              disabled={scanStatus === "scanning"}
-             className="flex-1 bg-rose-500 hover:bg-rose-400 disabled:opacity-50 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-lg shadow-rose-500/20 active:scale-95"
+             className="flex-1 bg-rose-500 hover:bg-rose-400 disabled:opacity-50 text-white py-4 lg:py-5 rounded-2xl font-black uppercase tracking-widest text-xs lg:text-sm transition-all shadow-lg shadow-rose-500/20 active:scale-95"
            >
                Check Out
            </button>
         </div>
+        </div>
+        )}
 
       </main>
 
