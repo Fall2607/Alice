@@ -9,6 +9,7 @@ import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 interface Karyawan {
   id: string;
   nama_lengkap: string;
+  nip: string;
   nik: string;
   nama_jadwal?: string;
   jadwal_kerja_id?: number;
@@ -346,10 +347,11 @@ export default function ManajemenJadwalKaryawanPage() {
   const totalPages = Math.ceil(karyawans.length / itemsPerPage);
   const currentKaryawans = karyawans.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const filteredKaryawanForModal = karyawans.filter(k => 
-      k.nama_lengkap.toLowerCase().includes(searchKaryawan.toLowerCase()) || 
-      k.nik.includes(searchKaryawan)
-  );
+  const filteredKaryawanForModal = karyawans.filter(k => {
+    const searchLower = searchKaryawan.toLowerCase();
+    return k.nama_lengkap.toLowerCase().includes(searchLower) || 
+           (k.nip && k.nip.toLowerCase().includes(searchLower));
+  });
 
   // Filter shifts based on active tab
   const shiftingCols = shifts.filter(s => s.nama_shift.toLowerCase().includes('shift') || s.nama_shift.toLowerCase().includes('libur'));
@@ -396,8 +398,8 @@ export default function ManajemenJadwalKaryawanPage() {
               <table className="w-full text-sm text-left text-slate-500">
                 <thead className="text-xs text-white uppercase bg-primary-dark">
                   <tr>
-                    <th className="px-6 py-3">NIK</th>
-                    <th className="px-6 py-3">Nama Karyawan</th>
+                    <th className="px-6 py-3">Nama Pegawai</th>
+                    <th className="px-6 py-3">NIP</th>
                     <th className="px-6 py-3 text-center">Jadwal Default</th>
                     <th className="px-6 py-3 text-center">Aksi</th>
                   </tr>
@@ -410,8 +412,8 @@ export default function ManajemenJadwalKaryawanPage() {
                   ) : (
                     currentKaryawans.map((kar) => (
                       <tr key={kar.id} className="bg-white border-b border-slate-300 last:border-b-0 hover:bg-slate-50">
-                        <td className="px-6 py-4 font-medium text-slate-900">{kar.nik}</td>
-                        <td className="px-6 py-4">{kar.nama_lengkap}</td>
+                        <td className="px-6 py-4 font-medium text-slate-900">{kar.nama_lengkap}</td>
+                        <td className="px-6 py-4 font-medium text-slate-900">{kar.nip}</td>
                         <td className="px-6 py-4 text-center">
                             {kar.nama_jadwal ? (
                                 <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">{kar.nama_jadwal}</span>
@@ -615,7 +617,7 @@ export default function ManajemenJadwalKaryawanPage() {
                       <Search className="absolute left-3 top-3 text-slate-400" size={18} />
                       <input 
                           type="text" 
-                          placeholder="Cari nama atau NIK pegawai..." 
+                          placeholder="Cari nama atau NIP pegawai..." 
                           value={searchKaryawan}
                           onChange={(e) => setSearchKaryawan(e.target.value)}
                           className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-primary focus:border-primary"
@@ -636,8 +638,8 @@ export default function ManajemenJadwalKaryawanPage() {
                                           className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
                                       />
                                       <div>
-                                          <p className="font-medium text-slate-800">{kar.nama_lengkap}</p>
-                                          <p className="text-xs text-slate-500">NIK: {kar.nik}</p>
+                                          <span className="font-medium text-slate-900">{kar.nama_lengkap}</span>
+                                          <p className="text-xs text-slate-500">NIP: {kar.nip}</p>
                                       </div>
                                   </label>
                               ))}
