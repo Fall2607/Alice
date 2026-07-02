@@ -76,7 +76,8 @@ export default function KioskAbsensiPage() {
 
   // Membuka akses kamera (Visualisasi)
   useEffect(() => {
-    if (isClient && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    if (isClient && step === "camera" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      let activeStream: MediaStream | null = null;
       navigator.mediaDevices
         .getUserMedia({ 
           video: { 
@@ -86,6 +87,7 @@ export default function KioskAbsensiPage() {
           } 
         })
         .then((stream) => {
+          activeStream = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
           }
@@ -93,8 +95,15 @@ export default function KioskAbsensiPage() {
         .catch((err) => {
           console.error("Akses kamera ditolak atau tidak tersedia:", err);
         });
+
+      // Cleanup stream when component unmounts or step changes
+      return () => {
+        if (activeStream) {
+          activeStream.getTracks().forEach(track => track.stop());
+        }
+      };
     }
-  }, [isClient]);
+  }, [isClient, step]);
 
   // Proses absensi (AI Scan)
   const handleScanAbsen = async (type: "in" | "out", forceEarlyOut: boolean = false) => {
