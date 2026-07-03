@@ -81,6 +81,7 @@ export default function EditPegawaiPage() {
     departemen_id: null as FormOption | null,
     atasan_id: null as FormOption | null,
     rekening_bsi: "",
+    sisa_cuti: 12, // Default
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -164,6 +165,7 @@ export default function EditPegawaiPage() {
           atasan_id: karyawanData.atasan_id ? { value: karyawanData.atasan_id, label: karyawanData.nama_atasan } : null,
           rekening_bsi: karyawanData.rekening_bsi || "",
           alamat_domisili: karyawanData.alamat_domisili || "",
+          sisa_cuti: karyawanData.sisa_cuti || 0,
         });
         
         setIsAlamatSama(!karyawanData.alamat_domisili || karyawanData.alamat_domisili === karyawanData.alamat);
@@ -222,6 +224,7 @@ export default function EditPegawaiPage() {
         rekening_bsi: formData.rekening_bsi,
         jabatan_id: jabatan_id,
         atasan_id: formData.atasan_id?.value || null,
+        sisa_cuti: Number(formData.sisa_cuti) || 0,
       };
 
       const karyawanRes = await fetch(`${baseUrl}/karyawan/${id}`, {
@@ -560,6 +563,19 @@ export default function EditPegawaiPage() {
                   value={formData.rekening_bsi || ""}
                   onChange={(e) =>
                     setFormData({ ...formData, rekening_bsi: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </FormField>
+              <FormField label="Sisa Cuti (Hari)">
+                <input
+                  type="number"
+                  value={formData.sisa_cuti}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      sisa_cuti: parseInt(e.target.value) || 0,
+                    })
                   }
                   className={inputClass}
                 />

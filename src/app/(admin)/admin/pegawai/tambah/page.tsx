@@ -74,6 +74,7 @@ export default function TambahPegawaiPage() {
     departemen_id: null as FormOption | null,
     atasan_id: null as FormOption | null,
     rekening_bsi: "",
+    sisa_cuti: 12, // Default 12 hari
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -161,6 +162,7 @@ export default function TambahPegawaiPage() {
         rekening_bsi: formData.rekening_bsi || null,
         jabatan_id: jabatan_uuid,
         atasan_id: formData.atasan_id?.value || null,
+        sisa_cuti: Number(formData.sisa_cuti) || 0,
       };
 
       const karyawanRes = await fetch(`${baseUrl}/karyawan`, {
@@ -382,6 +384,20 @@ export default function TambahPegawaiPage() {
                 ) : (
                   <div className={placeholderClass} />
                 )}
+              </FormField>
+              <FormField label="Sisa Cuti (Hari)">
+                <input
+                  type="number"
+                  value={formData.sisa_cuti}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      sisa_cuti: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className={inputClass}
+                  placeholder="12"
+                />
               </FormField>
               <FormField label="Departemen">
                 {isClient ? (

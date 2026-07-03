@@ -24,6 +24,7 @@ interface KaryawanInput {
   jadwal_kerja_id?: number | null;
   rekening_bsi?: string | null;
   alamat_domisili?: string | null;
+  sisa_cuti?: number | null;
 }
 
 // Handler untuk GET (mendapatkan semua karyawan)
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
         atasan.nama_lengkap AS nama_atasan,
         k.jadwal_kerja_id,
         jk.nama_jadwal,
+        k.sisa_cuti,
         CASE WHEN k.face_descriptor IS NOT NULL THEN true ELSE false END AS has_face_descriptor
       FROM karyawan k
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
       user_id = null,
       atasan_id = null, // Menggunakan ID UUID
       jadwal_kerja_id = null,
+      sisa_cuti = 12, // Default 12 hari
     }: KaryawanInput = await request.json();
 
     if (!nip || !nama_lengkap || !nik) {
@@ -137,9 +140,9 @@ export async function POST(request: NextRequest) {
         nip, nama_lengkap, nik, profesi, sip, masa_berlaku_sip, handphone,
         email, tanggal_lahir, jenis_kelamin, alamat, tanggal_masuk,
         status_kepegawaian, gaji_pokok, jabatan_id, user_id, atasan_id, jadwal_kerja_id,
-        rekening_bsi, alamat_domisili
+        rekening_bsi, alamat_domisili, sisa_cuti
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
       ) RETURNING *;
     `;
 
@@ -164,6 +167,7 @@ export async function POST(request: NextRequest) {
       jadwal_kerja_id,
       rekening_bsi,
       alamat_domisili,
+      sisa_cuti,
     ];
 
     const result = await pool.query(query, values);

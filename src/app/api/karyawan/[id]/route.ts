@@ -21,6 +21,7 @@ interface KaryawanInput {
   atasan_id?: string | null; // UUID (string), penggantikan atasan_nip
   rekening_bsi?: string | null;
   alamat_domisili?: string | null;
+  sisa_cuti?: number | null;
 }
 
 /**
@@ -100,6 +101,7 @@ export async function PUT(
       atasan_id,
       rekening_bsi,
       alamat_domisili,
+      sisa_cuti,
     }: KaryawanInput = await request.json();
 
     if (!nama_lengkap || !nik) {
@@ -115,8 +117,8 @@ export async function PUT(
         handphone = $6, email = $7, tanggal_lahir = $8, jenis_kelamin = $9,
         alamat = $10, tanggal_masuk = $11, status_kepegawaian = $12,
         gaji_pokok = $13, jabatan_id = $14, user_id = $15, atasan_id = $16,
-        rekening_bsi = $17, alamat_domisili = $18
-      WHERE id = $19 -- Update berdasarkan PK ID
+        rekening_bsi = $17, alamat_domisili = $18, sisa_cuti = $19
+      WHERE id = $20 -- Update berdasarkan PK ID
       RETURNING *;
     `;
     const values = [
@@ -138,6 +140,7 @@ export async function PUT(
       atasan_id,
       rekening_bsi,
       alamat_domisili,
+      sisa_cuti,
       id,
     ];
 

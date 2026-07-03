@@ -12,6 +12,7 @@ import {
 export default function CutiTab() {
   const [leaveBalance, setLeaveBalance] = useState<number>(0);
   const [leaveHistory, setLeaveHistory] = useState<any[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
   const [leaveForm, setLeaveForm] = useState({ tanggal_mulai: '', tanggal_selesai: '', alasan: '', kategori: 'Cuti Tahunan' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cutiMessage, setCutiMessage] = useState<{type: 'error'|'success', text: string} | null>(null);
@@ -42,10 +43,16 @@ export default function CutiTab() {
               id: c.id,
               type: isCat ? splitAlasan[0] : "Cuti",
               range: `${new Date(c.tanggal_mulai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})} - ${new Date(c.tanggal_selesai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})}`,
-              status: c.status === 'PENDING' ? 'Pending' : c.status === 'APPROVED' ? 'Approved' : 'Rejected',
+              status: c.status,
               alasan: isCat ? splitAlasan[1] : c.alasan,
             };
           }));
+        }
+
+        const pendingRes = await fetch(`${baseUrl}/cuti?waiting_for_id=${user.karyawan_id}`);
+        if (pendingRes.ok) {
+          const pendingData = await pendingRes.json();
+          setPendingApprovals(pendingData);
         }
       } catch (err) {
         console.error("Failed to fetch cuti", err);
@@ -103,6 +110,36 @@ export default function CutiTab() {
       setCutiMessage({ type: 'error', text: err.message });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleApproval = async (id: string, action: 'APPROVE' | 'REJECT') => {
+    try {
+      const userString = localStorage.getItem("user");
+      if (!userString) return;
+      const user = JSON.parse(userString);
+      
+      const res = await fetch(`${baseUrl}/cuti/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          approver_id: user.karyawan_id,
+          approver_role: 'ATASAN'
+        })
+      });
+
+      if (!res.ok) throw new Error("Gagal memproses persetujuan.");
+      
+      // Refresh pending approvals
+      const pendingRes = await fetch(`${baseUrl}/cuti?waiting_for_id=${user.karyawan_id}`);
+      if (pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        setPendingApprovals(pendingData);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Gagal memproses persetujuan.");
     }
   };
 
@@ -218,6 +255,35 @@ export default function CutiTab() {
           </div>
         </div>
 
+        {pendingApprovals.length > 0 && (
+          <div className="bg-amber-50 rounded-[32px] border border-amber-100 shadow-lg p-6">
+            <h3 className="font-black text-amber-900 uppercase tracking-widest text-[10px] mb-4">
+              Menunggu Persetujuan Anda
+            </h3>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+              {pendingApprovals.map((p) => (
+                <div key={p.id} className="bg-white p-4 rounded-2xl border border-amber-100 flex flex-col gap-3">
+                  <div>
+                    <p className="font-bold text-slate-800 text-xs">{p.nama_karyawan}</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                      {new Date(p.tanggal_mulai).toLocaleDateString("id-ID")} - {new Date(p.tanggal_selesai).toLocaleDateString("id-ID")}
+                    </p>
+                    <p className="text-xs text-slate-600 mt-1">{p.alasan}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleApproval(p.id, 'APPROVE')} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold py-2 rounded-lg transition-colors uppercase tracking-widest">
+                      Setujui
+                    </button>
+                    <button onClick={() => handleApproval(p.id, 'REJECT')} className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold py-2 rounded-lg transition-colors uppercase tracking-widest">
+                      Tolak
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-[32px] border border-slate-100 shadow-lg shadow-slate-200/40 p-6 flex-1 flex flex-col h-full">
           <div className="flex items-center justify-between mb-6 px-1">
             <h3 className="font-black text-slate-900 uppercase tracking-widest text-[10px]">
@@ -243,7 +309,7 @@ export default function CutiTab() {
               leaveHistory.map((item: any, idx: number) => (
                 <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:bg-white hover:border-blue-100 transition-all">
                   <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${item.status === "Approved" ? "bg-emerald-50 text-emerald-500" : item.status === "Rejected" ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500"}`}>
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${item.status === "Disetujui" ? "bg-emerald-50 text-emerald-500" : item.status === "Ditolak" ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500"}`}>
                       <CalendarDays size={16} />
                     </div>
                     <div>
@@ -251,7 +317,7 @@ export default function CutiTab() {
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{item.range}</p>
                     </div>
                   </div>
-                  <div className={`px-2 py-1 rounded-lg text-[7px] font-black uppercase tracking-widest ${item.status === "Approved" ? "bg-emerald-500 text-white" : item.status === "Rejected" ? "bg-red-500 text-white" : "bg-amber-500 text-white"}`}>
+                  <div className={`px-2 py-1 text-center rounded-lg text-[7px] font-black uppercase tracking-widest ${item.status === "Disetujui" ? "bg-emerald-500 text-white" : item.status === "Ditolak" ? "bg-red-500 text-white" : "bg-amber-500 text-white"}`}>
                     {item.status}
                   </div>
                 </div>

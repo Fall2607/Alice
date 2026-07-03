@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import jwt from "jsonwebtoken";
+import { sendCutiMagicLink } from "@/app/lib/email";
 
 // GET /api/cuti
 // Mengambil daftar pengajuan cuti, mendukung filter by karyawan_id
@@ -7,6 +9,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const karyawanId = searchParams.get("karyawan_id");
+    const waitingForId = searchParams.get("waiting_for_id");
 
     let query = `
       SELECT 
@@ -24,12 +27,27 @@ export async function GET(request: Request) {
       FROM pengajuan_cuti pc
       LEFT JOIN karyawan k ON pc.karyawan_id = k.id
       LEFT JOIN karyawan a ON pc.approved_by_id = a.id
+      WHERE 1=1
     `;
     const params: any[] = [];
+    let paramIndex = 1;
 
     if (karyawanId) {
-      query += ` WHERE pc.karyawan_id = $1 `;
+      query += ` AND pc.karyawan_id = $${paramIndex} `;
       params.push(karyawanId);
+      paramIndex++;
+    }
+
+    if (waitingForId) {
+      query += ` 
+        AND (
+          (pc.status = 'Menunggu Atasan' AND k.atasan_id = $${paramIndex})
+          OR
+          (pc.status = 'Menunggu SPV' AND k.atasan_id IN (SELECT id FROM karyawan WHERE atasan_id = $${paramIndex}))
+        )
+      `;
+      params.push(waitingForId);
+      paramIndex++;
     }
 
     query += ` ORDER BY pc.tanggal_pengajuan DESC, pc.tanggal_mulai DESC `;
@@ -72,8 +90,14 @@ export async function POST(request: Request) {
     // Hitung durasi (asumsi sederhana selisih hari kalender)
     const durasi = Math.ceil((tglSelesai.getTime() - tglMulai.getTime()) / (1000 * 3600 * 24)) + 1;
 
-    // Cek Sisa Cuti
-    const karyawanRes = await pool.query(`SELECT sisa_cuti FROM karyawan WHERE id = $1`, [karyawan_id]);
+    // Cek Sisa Cuti dan Data Karyawan serta Atasan
+    const karyawanRes = await pool.query(`
+      SELECT k.nama_lengkap, k.sisa_cuti, k.atasan_id, 
+             a.nama_lengkap as atasan_nama, a.email as atasan_email
+      FROM karyawan k
+      LEFT JOIN karyawan a ON k.atasan_id = a.id
+      WHERE k.id = $1
+    `, [karyawan_id]);
     if (karyawanRes.rows.length === 0) {
       return NextResponse.json({ message: "Karyawan tidak ditemukan." }, { status: 404 });
     }
@@ -87,17 +111,45 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insert pengajuan (Status DEFAULT 'PENDING', tanggal_pengajuan otomatis dari CURRENT_DATE)
+    // Insert pengajuan dengan status awal 'Menunggu Atasan'
     const insertRes = await pool.query(
-      `INSERT INTO pengajuan_cuti (karyawan_id, tanggal_pengajuan, tanggal_mulai, tanggal_selesai, alasan) 
-       VALUES ($1, CURRENT_DATE, $2, $3, $4) 
+      `INSERT INTO pengajuan_cuti (karyawan_id, tanggal_pengajuan, tanggal_mulai, tanggal_selesai, alasan, status) 
+       VALUES ($1, CURRENT_DATE, $2, $3, $4, 'Menunggu Atasan') 
        RETURNING *`,
       [karyawan_id, tanggal_mulai, tanggal_selesai, alasan]
     );
 
+    const cutiRecord = insertRes.rows[0];
+    const kData = karyawanRes.rows[0];
+
+    // Kirim Email ke Atasan jika Atasan memiliki email
+    if (kData.atasan_id && kData.atasan_email) {
+      try {
+        const tokenPayload = {
+          cuti_id: cutiRecord.id,
+          approver_id: kData.atasan_id,
+          role: 'ATASAN'
+        };
+        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
+        
+        await sendCutiMagicLink(
+          kData.atasan_email,
+          kData.atasan_nama,
+          kData.nama_lengkap,
+          tglMulai.toLocaleDateString('id-ID'),
+          tglSelesai.toLocaleDateString('id-ID'),
+          alasan,
+          token
+        );
+      } catch (err) {
+        console.error("Gagal mengirim email magic link:", err);
+        // Kita tidak block response jika email gagal, biarkan pengajuan tetap masuk
+      }
+    }
+
     return NextResponse.json({
       message: "Pengajuan cuti berhasil dibuat.",
-      data: insertRes.rows[0],
+      data: cutiRecord,
     }, { status: 201 });
 
   } catch (error) {

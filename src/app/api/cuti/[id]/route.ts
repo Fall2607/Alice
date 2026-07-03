@@ -1,25 +1,26 @@
 import { NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import jwt from "jsonwebtoken";
+import { sendCutiMagicLink } from "@/app/lib/email";
 
 export async function PATCH(request: Request, context: any) {
-  // Gunakan await untuk mengakses context.params karena di Next.js 15+ params berbentuk Promise
   const params = await context.params;
   const id = params.id;
 
   const client = await pool.connect();
   try {
-    const { status, approved_by_id } = await request.json();
+    const { action, approver_id, approver_role } = await request.json();
 
-    if (!status || !['APPROVED', 'REJECTED'].includes(status)) {
+    if (!action || !['APPROVE', 'REJECT'].includes(action)) {
       return NextResponse.json(
-        { message: "Status tidak valid. Harus 'APPROVED' atau 'REJECTED'." },
+        { message: "Action tidak valid. Harus 'APPROVE' atau 'REJECT'." },
         { status: 400 }
       );
     }
 
-    if (!approved_by_id) {
+    if (!approver_id) {
       return NextResponse.json(
-        { message: "ID Atasan (approved_by_id) wajib diisi." },
+        { message: "ID Approver wajib diisi." },
         { status: 400 }
       );
     }
@@ -36,27 +37,69 @@ export async function PATCH(request: Request, context: any) {
 
     const cuti = cutiRes.rows[0];
 
-    // Jika status sudah berubah sebelumnya, tolak
-    if (cuti.status !== 'PENDING') {
+    // Jika sudah Ditolak atau Disetujui, tidak bisa diubah lagi
+    if (cuti.status === 'Disetujui' || cuti.status === 'Ditolak' || cuti.status === 'APPROVED' || cuti.status === 'REJECTED') {
       await client.query("ROLLBACK");
       return NextResponse.json(
-        { message: `Pengajuan cuti ini sudah diproses (${cuti.status}).` },
+        { message: `Pengajuan cuti ini sudah berstatus final (${cuti.status}).` },
         { status: 400 }
       );
     }
 
-    // Hitung durasi hari
-    const tglMulai = new Date(cuti.tanggal_mulai);
-    const tglSelesai = new Date(cuti.tanggal_selesai);
-    const durasi = Math.ceil((tglSelesai.getTime() - tglMulai.getTime()) / (1000 * 3600 * 24)) + 1;
+    if (action === 'REJECT') {
+      // Jika ada yang reject, langsung tolak
+      await client.query(
+        `UPDATE pengajuan_cuti SET status = 'Ditolak', approved_by_id = $1 WHERE id = $2`,
+        [approver_id, id]
+      );
+      await client.query("COMMIT");
+      return NextResponse.json({ message: "Pengajuan cuti telah ditolak." });
+    }
 
-    // Jika disetujui, potong sisa cuti karyawan
-    if (status === 'APPROVED') {
+    // Logika APPROVE bertingkat
+    let nextStatus = cuti.status;
+    let updateQuery = "";
+    let updateParams: any[] = [];
+
+    let spvEmail = null;
+    let spvName = null;
+    let spvId = null;
+
+    if (cuti.status === 'Menunggu Atasan' || cuti.status === 'PENDING') {
+      nextStatus = 'Menunggu SPV';
+      updateQuery = `UPDATE pengajuan_cuti SET status = $1::status_cuti, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
+      updateParams = [nextStatus, approver_id, id];
+
+      // Cari Atasannya Atasan (SPV)
+      const spvRes = await client.query(`
+        SELECT a.id, a.email, a.nama_lengkap 
+        FROM karyawan k 
+        LEFT JOIN karyawan a ON k.atasan_id = a.id 
+        WHERE k.id = $1
+      `, [approver_id]);
+      
+      if (spvRes.rows.length > 0 && spvRes.rows[0].email) {
+        spvId = spvRes.rows[0].id;
+        spvEmail = spvRes.rows[0].email;
+        spvName = spvRes.rows[0].nama_lengkap;
+      }
+
+    } else if (cuti.status === 'Menunggu SPV') {
+      nextStatus = 'Menunggu HC';
+      updateQuery = `UPDATE pengajuan_cuti SET status = $1::status_cuti, spv_approved_by_id = $2 WHERE id = $3 RETURNING *`;
+      updateParams = [nextStatus, approver_id, id];
+    } else if (cuti.status === 'Menunggu HC') {
+      nextStatus = 'Disetujui';
+      updateQuery = `UPDATE pengajuan_cuti SET status = $1::status_cuti, hc_approved_by_id = $2, approved_by_id = $2 WHERE id = $3 RETURNING *`;
+      updateParams = [nextStatus, approver_id, id];
+
+      // Jika disetujui HC, potong sisa cuti karyawan
+      const tglMulai = new Date(cuti.tanggal_mulai);
+      const tglSelesai = new Date(cuti.tanggal_selesai);
+      const durasi = Math.ceil((tglSelesai.getTime() - tglMulai.getTime()) / (1000 * 3600 * 24)) + 1;
+
       const updateKaryawanRes = await client.query(
-        `UPDATE karyawan 
-         SET sisa_cuti = sisa_cuti - $1 
-         WHERE id = $2 AND sisa_cuti >= $1
-         RETURNING sisa_cuti`,
+        `UPDATE karyawan SET sisa_cuti = sisa_cuti - $1 WHERE id = $2 AND sisa_cuti >= $1 RETURNING sisa_cuti`,
         [durasi, cuti.karyawan_id]
       );
 
@@ -69,20 +112,35 @@ export async function PATCH(request: Request, context: any) {
       }
     }
 
-    // Update status pengajuan cuti
-    const updateCutiRes = await client.query(
-      `UPDATE pengajuan_cuti 
-       SET status = $1::status_cuti, approved_by_id = $2 
-       WHERE id = $3 
-       RETURNING *`,
-      [status, approved_by_id, id]
-    );
-
+    const updateCutiRes = await client.query(updateQuery, updateParams);
+    const updatedCuti = updateCutiRes.rows[0];
     await client.query("COMMIT");
 
+    // Kirim email ke SPV jika lanjut ke Menunggu SPV
+    if (nextStatus === 'Menunggu SPV' && spvEmail && spvId) {
+      try {
+        const kRes = await client.query(`SELECT nama_lengkap FROM karyawan WHERE id = $1`, [cuti.karyawan_id]);
+        const kName = kRes.rows.length > 0 ? kRes.rows[0].nama_lengkap : 'Karyawan';
+        
+        const tokenPayload = {
+          cuti_id: updatedCuti.id,
+          approver_id: spvId,
+          role: 'SPV'
+        };
+        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
+        
+        const tMulai = new Date(cuti.tanggal_mulai).toLocaleDateString('id-ID');
+        const tSelesai = new Date(cuti.tanggal_selesai).toLocaleDateString('id-ID');
+        
+        await sendCutiMagicLink(spvEmail, spvName, kName, tMulai, tSelesai, cuti.alasan, token);
+      } catch (err) {
+        console.error("Gagal kirim email ke SPV:", err);
+      }
+    }
+
     return NextResponse.json({
-      message: `Pengajuan cuti berhasil di-${status.toLowerCase()}.`,
-      data: updateCutiRes.rows[0]
+      message: `Pengajuan cuti berhasil diproses. Status sekarang: ${nextStatus}.`,
+      data: updatedCuti
     });
 
   } catch (error) {
