@@ -79,10 +79,10 @@ export async function POST(request: NextRequest) {
     const today = new Date(wibString);
     const localDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-    // Cek apakah karyawan ini sudah absen hari ini
+    // Ambil data absensi TERBARU (terakhir kali) milik karyawan
     const absenRes = await pool.query(
-      `SELECT * FROM absensi WHERE karyawan_id = $1 AND tanggal = $2`,
-      [bestMatch.id, localDateStr]
+      `SELECT * FROM absensi WHERE karyawan_id = $1 ORDER BY tanggal DESC LIMIT 1`,
+      [bestMatch.id]
     );
 
     let absensiRecord = null;
@@ -90,10 +90,23 @@ export async function POST(request: NextRequest) {
 
     if (type === "in") {
       if (absenRes.rows.length > 0) {
-         return NextResponse.json({ 
-           message: "Anda sudah melakukan Check-In hari ini.",
-           user: { nama: bestMatch.nama_lengkap }
-         }, { status: 409 });
+         const lastAbsen = absenRes.rows[0];
+         const lastAbsDate = new Date(lastAbsen.tanggal);
+         const lastAbsenDateStr = `${lastAbsDate.getFullYear()}-${String(lastAbsDate.getMonth() + 1).padStart(2, '0')}-${String(lastAbsDate.getDate()).padStart(2, '0')}`;
+         
+         if (lastAbsenDateStr === localDateStr) {
+             return NextResponse.json({ 
+               message: "Anda sudah melakukan Check-In hari ini.",
+               user: { nama: bestMatch.nama_lengkap }
+             }, { status: 409 });
+         }
+         
+         if (lastAbsen.jam_keluar === null) {
+             return NextResponse.json({ 
+               message: "Anda belum Check-Out untuk shift sebelumnya. Harap Check-Out terlebih dahulu.",
+               user: { nama: bestMatch.nama_lengkap }
+             }, { status: 409 });
+         }
       }
 
       // --- PROSES CHECK-IN ---
@@ -211,7 +224,7 @@ export async function POST(request: NextRequest) {
     } else if (type === "out") {
       if (absenRes.rows.length === 0) {
          return NextResponse.json({ 
-           message: "Anda belum melakukan Check-In hari ini.",
+           message: "Anda belum pernah melakukan Check-In.",
            user: { nama: bestMatch.nama_lengkap }
          }, { status: 400 });
       }
@@ -220,9 +233,22 @@ export async function POST(request: NextRequest) {
       
       if (existingAbsen.jam_keluar) {
          return NextResponse.json({ 
-           message: "Anda sudah melakukan Check-Out hari ini.",
+           message: "Anda sudah melakukan Check-Out untuk shift ini.",
            user: { nama: bestMatch.nama_lengkap }
          }, { status: 409 });
+      }
+      
+      const lastAbsDate = new Date(existingAbsen.tanggal);
+      const lastAbsenDateStr = `${lastAbsDate.getFullYear()}-${String(lastAbsDate.getMonth() + 1).padStart(2, '0')}-${String(lastAbsDate.getDate()).padStart(2, '0')}`;
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      
+      if (lastAbsenDateStr !== localDateStr && lastAbsenDateStr !== yesterdayStr) {
+         return NextResponse.json({ 
+           message: "Check-Out ditolak. Sesi Check-In Anda sudah kedaluwarsa (lebih dari 1 hari yang lalu). Silakan hubungi HC.",
+           user: { nama: bestMatch.nama_lengkap }
+         }, { status: 400 });
       }
 
       // --- PROSES CHECK-OUT ---
