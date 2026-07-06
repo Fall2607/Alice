@@ -106,7 +106,7 @@ export default function KioskAbsensiPage() {
   }, [isClient, step]);
 
   // Proses absensi (AI Scan)
-  const handleScanAbsen = async (type: "in" | "out", forceEarlyOut: boolean = false) => {
+  const handleScanAbsen = async (type: "in" | "out", forceEarlyOut: boolean = false, forceNewCheckIn: boolean = false) => {
     if (scanStatus === "scanning") return;
     if (!videoRef.current && !cachedDescriptor) return;
     
@@ -139,7 +139,7 @@ export default function KioskAbsensiPage() {
         const response = await fetch("/api/absensi/verify-face", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, karyawan_id: karyawanInfo?.id }),
+          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id: karyawanInfo?.id }),
         });
 
         const resData = await response.json();
@@ -148,6 +148,12 @@ export default function KioskAbsensiPage() {
           if (resData.isEarly) {
              setCachedDescriptor(faceDescriptor);
              setScanStatus("early");
+             setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
+             return; // Jangan di-reset otomatis
+          }
+          if (resData.isUnresolvedCheckout) {
+             setCachedDescriptor(faceDescriptor);
+             setScanStatus("unresolved_checkout");
              setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
              return; // Jangan di-reset otomatis
           }
@@ -413,6 +419,39 @@ export default function KioskAbsensiPage() {
                     className="flex-1 bg-amber-500 hover:bg-amber-600 border border-amber-400/50 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-colors"
                   >
                     Tetap Pulang
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Unresolved Checkout Overlay (Indigo) */}
+            {scanStatus === "unresolved_checkout" && (
+              <div className="absolute inset-0 bg-indigo-900/95 backdrop-blur-md flex flex-col items-center justify-center text-white p-8 text-center animate-in fade-in zoom-in duration-300 z-30 animate-shake">
+                <div className="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(99,102,241,0.5)] mb-4 border-4 border-indigo-400/50">
+                  <AlertCircle size={30} />
+                </div>
+                <h2 className="text-xl font-black uppercase tracking-tight mb-2">Sesi Menggantung</h2>
+                <p className="text-indigo-200 text-[10px] font-bold leading-relaxed px-2 opacity-80 mb-4">
+                  Halo {mockUser?.nama}, {mockUser?.errorMessage}
+                </p>
+                <div className="flex flex-col gap-3 w-full max-w-[300px]">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleScanAbsen("out"); }}
+                    className="w-full bg-indigo-500 hover:bg-indigo-600 border border-indigo-400/50 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-colors"
+                  >
+                    Check-Out Sesi Lama
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleScanAbsen("in", false, true); }}
+                    className="w-full bg-rose-500 hover:bg-rose-600 border border-rose-400/50 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-colors"
+                  >
+                    Abaikan & Mulai Baru
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setScanStatus("idle"); setMockUser(null); setCachedDescriptor(null); }}
+                    className="w-full bg-white/10 hover:bg-white/20 border border-white/20 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] transition-colors"
+                  >
+                    Batal
                   </button>
                 </div>
               </div>

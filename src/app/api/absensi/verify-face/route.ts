@@ -14,7 +14,7 @@ function euclideanDistance(desc1: number[], desc2: number[]): number {
 
 export async function POST(request: NextRequest) {
   try {
-    const { descriptor, type, forceEarlyOut, karyawan_id } = await request.json();
+    const { descriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id } = await request.json();
 
     if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
       return NextResponse.json({ message: "Data biometrik tidak valid atau rusak." }, { status: 400 });
@@ -102,10 +102,14 @@ export async function POST(request: NextRequest) {
          }
          
          if (lastAbsen.jam_keluar === null) {
-             return NextResponse.json({ 
-               message: "Anda belum Check-Out untuk shift sebelumnya. Harap Check-Out terlebih dahulu.",
-               user: { nama: bestMatch.nama_lengkap }
-             }, { status: 409 });
+             if (!forceNewCheckIn) {
+                 return NextResponse.json({ 
+                   isUnresolvedCheckout: true,
+                   message: "Anda belum Check-Out untuk shift sebelumnya. Pilih tindakan yang ingin dilakukan.",
+                   user: { nama: bestMatch.nama_lengkap }
+                 }, { status: 400 });
+             }
+             // Jika forceNewCheckIn = true, eksekusi lanjut ke bawah (membuat check-in baru, yang lama otomatis dianggap gagal)
          }
       }
 
