@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 import jwt from "jsonwebtoken";
+import { PATCH } from "../[id]/route";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -27,11 +28,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Payload token tidak lengkap." }, { status: 400 });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
-  
-  // Forward logic ke PATCH /api/cuti/[id]
+  // Panggil PATCH handler secara langsung tanpa HTTP fetch (mencegah loopback network error)
   try {
-    const patchRes = await fetch(`${baseUrl}/cuti/${cuti_id}`, {
+    const mockRequest = new Request("http://localhost", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -40,6 +39,8 @@ export async function GET(request: Request) {
         approver_role: payload.role
       })
     });
+
+    const patchRes = await PATCH(mockRequest, { params: Promise.resolve({ id: cuti_id }) });
 
     if (!patchRes.ok) {
       const errorData = await patchRes.json();
