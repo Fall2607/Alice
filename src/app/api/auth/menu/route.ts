@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // 1. Ambil semua menu yang diizinkan untuk role ini
+    // 1. Ambil semua menu yang diizinkan untuk role ini (termasuk parent jika child-nya diizinkan)
     const menuResult = await pool.query(
       `SELECT 
         m.id, 
@@ -29,8 +29,19 @@ export async function GET(request: Request) {
         m.icon, 
         m.urutan
        FROM public.menus m
-       INNER JOIN public.role_menu_access rma ON m.id = rma.menu_id
-       WHERE rma.role_id = $1 AND rma.can_view = true AND m.is_active = true
+       LEFT JOIN public.role_menu_access rma ON m.id = rma.menu_id AND rma.role_id = $1
+       WHERE m.is_active = true
+         AND (
+             rma.can_view = true 
+             OR EXISTS (
+                 SELECT 1 FROM public.menus sub_m 
+                 INNER JOIN public.role_menu_access sub_rma ON sub_m.id = sub_rma.menu_id
+                 WHERE sub_m.parent_id = m.id 
+                 AND sub_rma.role_id = $1 
+                 AND sub_rma.can_view = true
+                 AND sub_m.is_active = true
+             )
+         )
        ORDER BY m.urutan ASC`,
       [roleId],
     );
