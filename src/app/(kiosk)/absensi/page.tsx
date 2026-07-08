@@ -260,6 +260,9 @@ export default function KioskAbsensiPage() {
               <div>
                 <input 
                   type="text"
+                  name="nip"
+                  id="nip"
+                  autoComplete="username"
                   value={nipInput}
                   onChange={(e) => setNipInput(e.target.value)}
                   placeholder="Ketik NIP Anda di sini..."
