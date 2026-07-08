@@ -115,20 +115,68 @@ export async function POST(request: NextRequest) {
 
       // --- PROSES CHECK-IN ---
       const dayOfWeek = today.getDay();
-      const shiftQuery = await pool.query(`
-        WITH TargetShift AS (
-            SELECT COALESCE(
-                (SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2),
-                (SELECT jkd.shift_id 
-                 FROM karyawan k 
-                 JOIN jadwal_kerja_detail jkd ON k.jadwal_kerja_id = jkd.jadwal_kerja_id 
-                 WHERE k.id = $1 AND jkd.hari = $3)
-            ) AS shift_id
-        )
-        SELECT s.id, s.jam_masuk, s.jam_keluar, s.nama_shift
-        FROM shift s
-        JOIN TargetShift ts ON ts.shift_id = s.id;
-      `, [bestMatch.id, localDateStr, dayOfWeek]);
+      // 1. Dapatkan semua shift hari ini dari karyawan_shift (override)
+      const overrideShiftsRes = await pool.query(
+          `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2`,
+          [bestMatch.id, localDateStr]
+      );
+      
+      let shiftIds = overrideShiftsRes.rows.map(r => r.shift_id);
+      
+      // 2. Jika tidak ada override, gunakan jadwal reguler
+      if (shiftIds.length === 0) {
+          const defaultShiftRes = await pool.query(
+              `SELECT jkd.shift_id 
+               FROM karyawan k 
+               JOIN jadwal_kerja_detail jkd ON k.jadwal_kerja_id = jkd.jadwal_kerja_id 
+               WHERE k.id = $1 AND jkd.hari = $2`,
+              [bestMatch.id, dayOfWeek]
+          );
+          shiftIds = defaultShiftRes.rows.map(r => r.shift_id);
+      }
+
+      // 3. Ambil detail shift
+      let shiftQuery: any = { rows: [] };
+      if (shiftIds.length > 0) {
+          // Ambil semua shift yang ditugaskan
+          const shiftsRes = await pool.query(
+              `SELECT id, jam_masuk, jam_keluar, nama_shift 
+               FROM shift 
+               WHERE id = ANY($1::int[])`,
+              [shiftIds]
+          );
+          
+          if (shiftsRes.rows.length === 1) {
+              shiftQuery.rows = shiftsRes.rows;
+          } else if (shiftsRes.rows.length > 1) {
+              // Jika Double Shift, pilih shift yang paling dekat waktunya
+              const nowHour = today.getHours() + today.getMinutes() / 60;
+              let closestDiff = Infinity;
+              let closestShift = shiftsRes.rows[0];
+              
+              for (const s of shiftsRes.rows) {
+                  if (!s.jam_masuk || !s.jam_keluar) continue;
+                  const targetTime = type === 'in' ? s.jam_masuk : s.jam_keluar;
+                  const [h, m] = targetTime.split(':').map(Number);
+                  const shiftHour = h + m / 60;
+                  
+                  // Perhitungan jarak waktu absolut (jam)
+                  let diff = Math.abs(nowHour - shiftHour);
+                  
+                  // Handle kasus shift lintas hari (misal jam_masuk 20:00, jam_keluar 05:00)
+                  // Jika beda > 12 jam, kemungkinan melintasi tengah malam
+                  if (diff > 12) {
+                      diff = 24 - diff; 
+                  }
+                  
+                  if (diff < closestDiff) {
+                      closestDiff = diff;
+                      closestShift = s;
+                  }
+              }
+              shiftQuery.rows = [closestShift];
+          }
+      }
 
       let jamMasukNormal = new Date(today);
       jamMasukNormal.setHours(8, 0, 0, 0); // Default 08:00
@@ -157,7 +205,7 @@ export async function POST(request: NextRequest) {
             const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
             
             const piketRes = await pool.query(
-                `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2`,
+                `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2 LIMIT 1`,
                 [bestMatch.id, satDateStr]
             );
             
@@ -188,7 +236,7 @@ export async function POST(request: NextRequest) {
             const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
             
             const piketRes = await pool.query(
-                `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2`,
+                `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2 LIMIT 1`,
                 [bestMatch.id, satDateStr]
             );
             

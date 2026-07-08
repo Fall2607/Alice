@@ -98,7 +98,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 
                 // Apakah ada piket sabtu?
                 const piketRes = await pool.query(
-                    `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2`,
+                    `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2 LIMIT 1`,
                     [karyawanId, satDateStr]
                 );
 
