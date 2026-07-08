@@ -66,7 +66,7 @@ export default function AbsensiTab() {
                }
             }
             hadir++;
-            return { date: dateStr, in: inTime, out: outTime, status: status };
+            return { date: dateStr, shift: item.nama_shift || "Umum", in: inTime, out: outTime, status: status };
           });
 
           setAttendanceLog(formattedLogs);
@@ -117,6 +117,7 @@ export default function AbsensiTab() {
                 <thead>
                   <tr className="border-b border-slate-50">
                     <th className="pb-4 text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Tanggal</th>
+                    <th className="pb-4 text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Shift</th>
                     <th className="pb-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Masuk</th>
                     <th className="pb-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Pulang</th>
                     <th className="pb-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right px-2">Status</th>
@@ -127,6 +128,7 @@ export default function AbsensiTab() {
                     Array(3).fill(0).map((_, i) => (
                       <tr key={i} className="animate-pulse">
                         <td className="py-4 px-2"><div className="h-4 bg-slate-100 rounded w-20"></div></td>
+                        <td className="py-4 px-2"><div className="h-4 bg-slate-100 rounded w-16"></div></td>
                         <td className="py-4 px-2"><div className="h-6 bg-slate-100 rounded-lg mx-auto w-16"></div></td>
                         <td className="py-4 px-2"><div className="h-6 bg-slate-100 rounded-lg mx-auto w-16"></div></td>
                         <td className="py-4 px-2 flex justify-end"><div className="h-4 bg-slate-100 rounded w-16"></div></td>
@@ -134,7 +136,7 @@ export default function AbsensiTab() {
                     ))
                   ) : attendanceLog.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      <td colSpan={5} className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
                         Belum ada log absensi bulan ini.
                       </td>
                     </tr>
@@ -143,6 +145,9 @@ export default function AbsensiTab() {
                       <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
                         <td className="py-4 px-2">
                           <span className="text-xs font-bold text-slate-700">{log.date}</span>
+                        </td>
+                        <td className="py-4 px-2">
+                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{log.shift}</span>
                         </td>
                         <td className="py-4 text-center">
                           <div className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">

@@ -12,14 +12,16 @@ export async function GET(
 
     const result = await pool.query(
       `SELECT 
-         id, 
-         tanggal, 
-         jam_masuk, 
-         jam_keluar, 
-         menit_terlambat 
-       FROM absensi 
-       WHERE karyawan_id = $1 
-       ORDER BY tanggal DESC
+         a.id, 
+         a.tanggal, 
+         a.jam_masuk, 
+         a.jam_keluar, 
+         a.menit_terlambat,
+         s.nama_shift
+       FROM absensi a
+       LEFT JOIN shift s ON a.shift_id = s.id
+       WHERE a.karyawan_id = $1 
+       ORDER BY a.tanggal DESC
        LIMIT 30`,
       [karyawan_id]
     );
