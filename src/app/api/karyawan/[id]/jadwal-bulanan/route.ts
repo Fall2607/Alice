@@ -62,9 +62,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             WHERE ks.karyawan_id = $1 AND ks.tanggal LIKE $2
         `, [karyawanId, `${monthParam}-%`]);
         
-        const overrides: Record<string, any> = {};
+        const overrides: Record<string, any[]> = {};
         for (const row of overrideRes.rows) {
-            overrides[row.tanggal] = row;
+            if (!overrides[row.tanggal]) overrides[row.tanggal] = [];
+            overrides[row.tanggal].push(row);
         }
 
         const daysInMonth = new Date(year, month, 0).getDate();
@@ -80,18 +81,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             const jsDayOfWeek = currentDate.getDay(); // 0 (Sun) - 6 (Sat)
             const dbDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek; // DB hari: 1=Senin, 7=Minggu (asumsi standar)
 
-            let finalShift = null;
+            let finalShifts: any[] = [];
 
             // 1. Cek Override (karyawan_shift)
-            if (overrides[dateStr]) {
-                finalShift = overrides[dateStr];
+            if (overrides[dateStr] && overrides[dateStr].length > 0) {
+                finalShifts = overrides[dateStr];
             } else if (defaultShifts[dbDayOfWeek]) {
                 // 2. Cek Default (Mapping JS day to DB day. Karena tabel jadwal_kerja_detail hari = 1 (senin), 2 (selasa)... maka dbDayOfWeek cocok)
-                finalShift = defaultShifts[dbDayOfWeek];
+                finalShifts = [defaultShifts[dbDayOfWeek]];
             }
 
             // 3. Logika Piket (Hanya untuk Senin-Jumat jika default-nya 8-5)
-            if (jsDayOfWeek >= 1 && jsDayOfWeek <= 5 && finalShift && finalShift.nama_shift.includes('8-5') && shift84) {
+            if (jsDayOfWeek >= 1 && jsDayOfWeek <= 5 && finalShifts.length === 1 && finalShifts[0].nama_shift.includes('8-5') && shift84) {
                 const daysToSaturday = 6 - jsDayOfWeek;
                 const saturdayDate = new Date(year, month - 1, i + daysToSaturday);
                 const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
@@ -103,19 +104,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 );
 
                 if (piketRes.rows.length > 0 && piketRes.rows[0].shift_id) {
-                    finalShift = shift84;
+                    finalShifts = [shift84];
                 }
             }
+
+            const formattedShifts = finalShifts.map(s => ({
+                id: s.shift_id,
+                nama_shift: s.nama_shift,
+                jam_masuk: s.jam_masuk,
+                jam_keluar: s.jam_keluar,
+            }));
 
             schedule.push({
                 date: dateStr,
                 dayOfWeek: jsDayOfWeek, // JS Format untuk Frontend
-                shift: finalShift ? {
-                    id: finalShift.shift_id,
-                    nama_shift: finalShift.nama_shift,
-                    jam_masuk: finalShift.jam_masuk,
-                    jam_keluar: finalShift.jam_keluar,
-                } : null // Null berarti Libur
+                shift: formattedShifts.length > 0 ? formattedShifts[0] : null, // Backward compatibility
+                shifts: formattedShifts // Array untuk double shift
             });
         }
 

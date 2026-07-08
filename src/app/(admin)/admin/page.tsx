@@ -12,6 +12,12 @@ interface ScheduleItem {
         jam_masuk: string;
         jam_keluar: string;
     } | null;
+    shifts?: Array<{
+        id: number;
+        nama_shift: string;
+        jam_masuk: string;
+        jam_keluar: string;
+    }>;
 }
 
 export default function DashboardPage() {
@@ -105,9 +111,9 @@ export default function DashboardPage() {
                             const dateObj = new Date(item.date);
                             const isToday = new Date().toISOString().split('T')[0] === item.date;
                             const isWeekend = item.dayOfWeek === 0 || item.dayOfWeek === 6;
-                            const shiftInfo = item.shift;
-                            const theme = shiftInfo ? getShiftTheme(shiftInfo.nama_shift) : { bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200', icon: Coffee };
-                            const Icon = theme.icon;
+                            const shiftsToRender = (item.shifts && item.shifts.length > 0) 
+                                ? item.shifts 
+                                : (item.shift ? [item.shift] : []);
 
                             return (
                                 <div 
@@ -132,32 +138,48 @@ export default function DashboardPage() {
                                             </span>
                                         </div>
 
-                                        <div className="flex-1 w-full flex justify-end sm:justify-start">
-                                            <div className={`
-                                                w-full max-w-[160px] sm:max-w-none flex flex-col gap-1 p-2 rounded-xl border ${theme.bg} ${theme.border}
-                                            `}>
-                                                {shiftInfo && !shiftInfo.nama_shift.toLowerCase().includes('libur') ? (
-                                                    <>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <Icon size={12} className={theme.text} />
-                                                            <span className={`text-[10px] sm:text-xs font-black uppercase tracking-wide truncate ${theme.text}`}>
-                                                                {shiftInfo.nama_shift}
-                                                            </span>
-                                                        </div>
-                                                        {(shiftInfo.jam_masuk && shiftInfo.jam_keluar) && (
-                                                            <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-slate-500 opacity-80 mt-0.5">
-                                                                <Clock size={10} />
-                                                                {shiftInfo.jam_masuk.slice(0,5)} - {shiftInfo.jam_keluar.slice(0,5)}
+                                        <div className="flex-1 w-full flex flex-col justify-end sm:justify-start gap-1">
+                                            {shiftsToRender.length > 0 ? (
+                                                shiftsToRender.map((shiftInfo, sIdx) => {
+                                                    const theme = getShiftTheme(shiftInfo.nama_shift);
+                                                    const Icon = theme.icon;
+                                                    
+                                                    if (shiftInfo.nama_shift.toLowerCase().includes('libur')) {
+                                                        return (
+                                                            <div key={sIdx} className={`w-full max-w-[160px] sm:max-w-none flex flex-col gap-1 p-2 rounded-xl border ${theme.bg} ${theme.border}`}>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Coffee size={12} className="text-slate-500" />
+                                                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-500">LIBUR / OFF</span>
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                    </>
-                                                ) : (
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <div key={sIdx} className={`w-full max-w-[160px] sm:max-w-none flex flex-col gap-1 p-2 rounded-xl border ${theme.bg} ${theme.border}`}>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Icon size={12} className={theme.text} />
+                                                                <span className={`text-[10px] sm:text-xs font-black uppercase tracking-wide truncate ${theme.text}`}>
+                                                                    {shiftInfo.nama_shift}
+                                                                </span>
+                                                            </div>
+                                                            {(shiftInfo.jam_masuk && shiftInfo.jam_keluar) && (
+                                                                <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-slate-500 opacity-80 mt-0.5">
+                                                                    <Clock size={10} />
+                                                                    {shiftInfo.jam_masuk.slice(0,5)} - {shiftInfo.jam_keluar.slice(0,5)}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="w-full max-w-[160px] sm:max-w-none flex flex-col gap-1 p-2 rounded-xl border bg-slate-50 border-slate-200">
                                                     <div className="flex items-center gap-1.5">
                                                         <Coffee size={12} className="text-slate-500" />
                                                         <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-500">LIBUR / OFF</span>
                                                     </div>
-                                                )}
-                                            </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
