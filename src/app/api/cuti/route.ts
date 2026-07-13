@@ -111,10 +111,11 @@ export async function GET(request: NextRequest) {
 
     // Karena pengajuan_cuti mungkin tidak menyimpan atasan_id (sebagai foreign key pemiliknya), kita bisa filter via JOIN ke karyawan
     let query = `
-      SELECT c.*, k.nama_lengkap, j.nama_jabatan 
+      SELECT c.*, k.nama_lengkap, lj.nama_level AS nama_jabatan 
       FROM pengajuan_cuti c
       JOIN karyawan k ON c.karyawan_id = k.id
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
+      LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
       WHERE 1=1
     `;
     const params: any[] = [];
