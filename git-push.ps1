@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fix: Caching issues on fetch and Admin approval tracking visibility"
+git commit -m "Fix: Cuti API 500 error caused by missing j.nama_jabatan column"
 git push origin master
 git checkout development
 git merge master
