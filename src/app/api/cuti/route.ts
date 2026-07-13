@@ -50,7 +50,17 @@ export async function POST(request: NextRequest) {
                 const atasanEmail = atasanRes.rows[0].email;
                 const atasanName = atasanRes.rows[0].nama_lengkap;
                 if (atasanEmail) {
-                    await sendCutiMagicLink(atasanEmail, atasanName, nama_lengkap, tanggal_mulai, tanggal_selesai, keterangan, magicToken);
+                    await sendCutiMagicLink({
+                        toEmail: atasanEmail,
+                        approverName: atasanName,
+                        karyawanName: nama_lengkap,
+                        tanggalMulai: tanggal_mulai,
+                        tanggalSelesai: tanggal_selesai,
+                        tanggalKembali: tanggal_kembali,
+                        jumlahHari: jumlah_hari,
+                        alasan: keterangan,
+                        token: magicToken
+                    });
                 }
             }
         } else if (statusAwal === 'Menunggu HC') {
@@ -63,7 +73,17 @@ export async function POST(request: NextRequest) {
             `);
             for (const hc of hcRes.rows) {
                 if (hc.email) {
-                    await sendCutiMagicLink(hc.email, hc.nama_lengkap, nama_lengkap, tanggal_mulai, tanggal_selesai, keterangan, magicToken);
+                    await sendCutiMagicLink({
+                        toEmail: hc.email,
+                        approverName: hc.nama_lengkap,
+                        karyawanName: nama_lengkap,
+                        tanggalMulai: tanggal_mulai,
+                        tanggalSelesai: tanggal_selesai,
+                        tanggalKembali: tanggal_kembali,
+                        jumlahHari: jumlah_hari,
+                        alasan: keterangan,
+                        token: magicToken
+                    });
                 }
             }
         }

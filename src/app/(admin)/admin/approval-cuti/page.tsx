@@ -28,9 +28,9 @@ export default function ApprovalCutiPage() {
 
       let url = '';
       if (isHC) {
-        url = `${baseUrl}/cuti?status=PENDING_HC`;
+        url = `${baseUrl}/cuti?status=Menunggu HC`;
       } else {
-        url = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=PENDING_ATASAN`;
+        url = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=Menunggu Atasan`;
       }
 
       const res = await fetch(url);
@@ -136,7 +136,7 @@ export default function ApprovalCutiPage() {
 
                   <div className="mt-4">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Keterangan / Alasan:</p>
-                    <p className="text-sm text-slate-700 italic border-l-2 border-slate-300 pl-3">"{cuti.keterangan}"</p>
+                    <p className="text-sm text-slate-700 italic border-l-2 border-slate-300 pl-3">"{cuti.alasan}"</p>
                   </div>
                 </div>
 
