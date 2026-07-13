@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import { sendCutiMagicLink } from "@/app/lib/email";
+import crypto from "crypto";
 
 export const dynamic = 'force-dynamic';
 
@@ -25,15 +27,46 @@ export async function POST(request: NextRequest) {
     // Jika tidak punya atasan_id (Top Level), langsung lompat ke PENDING_HC
     const statusAwal = atasan_id ? 'PENDING_ATASAN' : 'PENDING_HC';
 
+    const magicToken = crypto.randomBytes(32).toString('hex');
+
     const insertQuery = `
-      INSERT INTO cuti (karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, status, atasan_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO cuti (karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, status, atasan_id, magic_token)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
     `;
 
     const result = await pool.query(insertQuery, [
-      karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, statusAwal, atasan_id
+      karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, statusAwal, atasan_id, magicToken
     ]);
+
+    // Kirim Email Magic Link
+    try {
+        if (statusAwal === 'PENDING_ATASAN' && atasan_id) {
+            const atasanRes = await pool.query(`SELECT email, nama_lengkap FROM karyawan WHERE id = $1`, [atasan_id]);
+            if (atasanRes.rows.length > 0) {
+                const atasanEmail = atasanRes.rows[0].email;
+                const atasanName = atasanRes.rows[0].nama_lengkap;
+                if (atasanEmail) {
+                    await sendCutiMagicLink(atasanEmail, atasanName, nama_lengkap, tanggal_mulai, tanggal_selesai, keterangan, magicToken);
+                }
+            }
+        } else if (statusAwal === 'PENDING_HC') {
+            const hcRes = await pool.query(`
+              SELECT k.email, k.nama_lengkap 
+              FROM karyawan k
+              JOIN users u ON k.user_id = u.id
+              JOIN roles r ON u.role_id = r.id
+              WHERE r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
+            `);
+            for (const hc of hcRes.rows) {
+                if (hc.email) {
+                    await sendCutiMagicLink(hc.email, hc.nama_lengkap, nama_lengkap, tanggal_mulai, tanggal_selesai, keterangan, magicToken);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Gagal mengirim email magic link:", e);
+    }
 
     return NextResponse.json({
       message: "Pengajuan cuti berhasil dikirim",
