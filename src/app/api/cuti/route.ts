@@ -133,8 +133,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      query += ` AND c.status = $${paramCount}`;
-      params.push(status);
+      if (status === 'Menunggu') {
+        // Admin melihat SEMUA pending cuti (Menunggu Atasan / Menunggu HC)
+        query += ` AND c.status ILIKE $${paramCount}`;
+        params.push('%Menunggu%');
+      } else {
+        query += ` AND c.status = $${paramCount}`;
+        params.push(status);
+      }
       paramCount++;
     }
 
