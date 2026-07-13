@@ -15,8 +15,13 @@ export async function GET(request: NextRequest) {
       return new NextResponse("Token dan action tidak valid.", { status: 400 });
     }
 
-    // 1. Cari cuti berdasarkan token
-    const cutiRes = await pool.query(`SELECT c.*, k.nama_lengkap FROM cuti c JOIN karyawan k ON c.karyawan_id = k.id WHERE c.magic_token = $1`, [token]);
+    // 1. Cari cuti berdasarkan token di pengajuan_cuti
+    const cutiRes = await pool.query(`
+        SELECT c.*, k.nama_lengkap, k.atasan_id
+        FROM pengajuan_cuti c 
+        JOIN karyawan k ON c.karyawan_id = k.id 
+        WHERE c.magic_token = $1
+    `, [token]);
     
     if (cutiRes.rows.length === 0) {
       return new NextResponse(
@@ -27,8 +32,8 @@ export async function GET(request: NextRequest) {
 
     const cuti = cutiRes.rows[0];
 
-    // Jika cuti sudah berstatus akhir (Approved / Rejected / Cancelled)
-    if (cuti.status === 'APPROVED' || cuti.status === 'REJECTED' || cuti.status === 'CANCELLED') {
+    // Jika cuti sudah berstatus akhir
+    if (cuti.status === 'Disetujui' || cuti.status === 'Ditolak') {
       return new NextResponse(
         generateHTML("Sudah Diproses", "Pengajuan cuti ini sudah diproses sebelumnya.", "info"),
         { status: 400, headers: { 'Content-Type': 'text/html' } }
@@ -41,15 +46,14 @@ export async function GET(request: NextRequest) {
     let message = '';
     
     if (action === 'REJECT') {
-      // Jika REJECT, ganti status ke REJECTED dan kosongkan magic token agar tidak bisa diklik lagi
-      query = `UPDATE cuti SET status = 'REJECTED', magic_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`;
+      query = `UPDATE pengajuan_cuti SET status = 'Ditolak', magic_token = NULL WHERE id = $1`;
       params = [cuti.id];
       message = `Permohonan cuti ${cuti.nama_lengkap} berhasil ditolak.`;
     } else if (action === 'APPROVE') {
-      if (cuti.status === 'PENDING_ATASAN') {
-        // Atasan approve -> Naik ke PENDING_HC
-        query = `UPDATE cuti SET status = 'PENDING_HC', magic_token = $1, approved_by_atasan_id = atasan_id, updated_at = CURRENT_TIMESTAMP WHERE id = $2`;
-        params = [newMagicToken, cuti.id];
+      if (cuti.status === 'Menunggu Atasan') {
+        // Atasan approve -> Naik ke Menunggu HC
+        query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3`;
+        params = [newMagicToken, cuti.atasan_id, cuti.id];
         message = `Permohonan cuti ${cuti.nama_lengkap} disetujui (Tahap 1). Diteruskan ke HC untuk persetujuan final.`;
         
         // Kirim email ke HC
@@ -62,14 +66,12 @@ export async function GET(request: NextRequest) {
         `);
         for (const hc of hcRes.rows) {
             if (hc.email) {
-                await sendCutiMagicLink(hc.email, hc.nama_lengkap, cuti.nama_lengkap, cuti.tanggal_mulai, cuti.tanggal_selesai, cuti.keterangan, newMagicToken);
+                await sendCutiMagicLink(hc.email, hc.nama_lengkap, cuti.nama_lengkap, cuti.tanggal_mulai, cuti.tanggal_selesai, cuti.alasan, newMagicToken);
             }
         }
-      } else if (cuti.status === 'PENDING_HC') {
-        // HC approve -> APPROVED final
-        // NOTE: Karena magic link bisa diklik oleh HC siapapun, approved_by_hc_id mungkin null karena kita tidak tahu persis ID mana tanpa login
-        // Tapi setidaknya magic_token menjamin validitas email yang menerima.
-        query = `UPDATE cuti SET status = 'APPROVED', magic_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`;
+      } else if (cuti.status === 'Menunggu HC') {
+        // HC approve -> Disetujui final
+        query = `UPDATE pengajuan_cuti SET status = 'Disetujui', magic_token = NULL WHERE id = $1`;
         params = [cuti.id];
         message = `Permohonan cuti ${cuti.nama_lengkap} berhasil DISETUJUI sepenuhnya.`;
         
