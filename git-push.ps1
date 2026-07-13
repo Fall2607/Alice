@@ -1,5 +1,5 @@
 git add .
-git commit -m "Feat: Add rejected_by column to capture and display who rejected the cuti"
+git commit -m "Feat: Add notification email to user when cuti is approved or rejected"
 git push origin master
 git checkout development
 git merge master

@@ -99,9 +99,92 @@ export const sendCutiMagicLink = async (data: CutiEmailData) => {
   `;
 
   await transporter.sendMail({
-    from: `"HRIS RSU Avisena" <${process.env.SMTP_USER}>`,
+    from: `"HRIS Alice" <${process.env.SMTP_USER}>`,
     to: data.toEmail,
-    subject: `Persetujuan Cuti: ${data.karyawanName}`,
+    subject: "Persetujuan Cuti Karyawan",
+    html: htmlContent,
+  });
+};
+
+interface CutiStatusEmailData {
+  toEmail: string;
+  karyawanName: string;
+  status: 'Disetujui' | 'Ditolak';
+  alasanCuti: string;
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  sisaCuti?: number;
+  rejectedBy?: string | null;
+}
+
+export const sendCutiStatusEmail = async (data: CutiStatusEmailData) => {
+  const transporter = getTransporter();
+  
+  const formatTgl = (tglStr: string) => {
+    if (!tglStr) return "-";
+    return new Date(tglStr).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  const tglMulaiFmt = formatTgl(data.tanggalMulai);
+  const tglSelesaiFmt = formatTgl(data.tanggalSelesai);
+  const isSameDay = data.tanggalMulai === data.tanggalSelesai;
+  const rangeDisplay = isSameDay ? tglMulaiFmt : `${tglMulaiFmt} hingga ${tglSelesaiFmt}`;
+
+  const isApproved = data.status === 'Disetujui';
+  const colorCode = isApproved ? '#10b981' : '#ef4444'; // green for approved, red for rejected
+
+  let statusMsg = '';
+  if (isApproved) {
+    statusMsg = `Selamat, pengajuan cuti Anda telah disetujui.`;
+  } else {
+    statusMsg = `Mohon maaf, pengajuan cuti Anda telah ditolak.`;
+  }
+
+  const htmlContent = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="background-color: ${colorCode}; padding: 30px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">Status Pengajuan Cuti</h1>
+      </div>
+
+      <div style="padding: 30px;">
+        <h2 style="color: #1e293b; margin-top: 0; font-size: 18px;">Halo, ${data.karyawanName}</h2>
+        <p style="color: #475569; line-height: 1.6; font-size: 15px;">${statusMsg}</p>
+        
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; margin: 24px 0;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 40%; vertical-align: top;">Waktu Cuti</td>
+              <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600;">${rangeDisplay}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; vertical-align: top;">Alasan</td>
+              <td style="padding: 8px 0; color: #0f172a; font-size: 14px; border-top: 1px solid #e2e8f0; line-height: 1.5; font-style: italic;">"${data.alasanCuti}"</td>
+            </tr>
+            ${data.rejectedBy && !isApproved ? `
+            <tr>
+              <td style="padding: 8px 0; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; vertical-align: top;">Ditolak Oleh</td>
+              <td style="padding: 8px 0; color: #ef4444; font-size: 14px; border-top: 1px solid #e2e8f0; font-weight: bold;">${data.rejectedBy}</td>
+            </tr>` : ''}
+            ${isApproved && data.sisaCuti !== undefined ? `
+            <tr>
+              <td style="padding: 8px 0; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; vertical-align: top;">Sisa Cuti Tahunan</td>
+              <td style="padding: 8px 0; color: #3b82f6; font-size: 14px; border-top: 1px solid #e2e8f0; font-weight: bold;">${data.sisaCuti} Hari</td>
+            </tr>` : ''}
+          </table>
+        </div>
+
+        <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
+          Email ini dihasilkan secara otomatis oleh sistem HRIS Alice.<br>
+          Buka dashboard HRIS Anda untuk melihat detail selengkapnya.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: `"HRIS Alice" <${process.env.SMTP_USER}>`,
+    to: data.toEmail,
+    subject: `[${data.status.toUpperCase()}] Permohonan Cuti`,
     html: htmlContent,
   });
 };
