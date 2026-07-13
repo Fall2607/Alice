@@ -65,15 +65,17 @@ export async function POST(request: NextRequest) {
             }
         } else if (statusAwal === 'Menunggu HC') {
             const hcRes = await pool.query(`
-              SELECT k.email, k.nama_lengkap 
+              SELECT u.email, COALESCE(k.nama_lengkap, u.email) as nama_lengkap
+              FROM users u
+              JOIN roles r ON u.role_id = r.id
+              LEFT JOIN karyawan k ON k.user_id = u.id OR k.email = u.email
+              WHERE r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
+              UNION
+              SELECT k.email, k.nama_lengkap
               FROM karyawan k
-              LEFT JOIN users u ON k.user_id = u.id
-              LEFT JOIN roles r ON u.role_id = r.id
-              LEFT JOIN jabatan j ON k.jabatan_id = j.id
-              LEFT JOIN departemen d ON j.departemen_id = d.id
-              WHERE 
-                r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
-                OR d.nama_departemen ILIKE '%hrd%' OR d.nama_departemen ILIKE '%hc%' OR d.nama_departemen ILIKE '%human capital%'
+              JOIN jabatan j ON k.jabatan_id = j.id
+              JOIN departemen d ON j.departemen_id = d.id
+              WHERE d.nama_departemen ILIKE '%hrd%' OR d.nama_departemen ILIKE '%hc%' OR d.nama_departemen ILIKE '%human capital%'
             `);
             for (const hc of hcRes.rows) {
                 if (hc.email) {

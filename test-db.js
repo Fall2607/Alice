@@ -11,15 +11,20 @@ const pool = new pg.Pool({
 
 async function run() {
   try {
-    const res = await pool.query(`
-      SELECT k.email, k.nama_lengkap, j.level_jabatan_id, d.nama_departemen, lj.nama_level
+    const resUsers = await pool.query(`
+      SELECT u.id, u.email, r.nama_role 
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.email ILIKE '%frisca%'
+    `);
+    console.log("Users table:", resUsers.rows);
+
+    const resKaryawan = await pool.query(`
+      SELECT k.id, k.email, k.nama_lengkap, k.user_id 
       FROM karyawan k
-      LEFT JOIN jabatan j ON k.jabatan_id = j.id
-      LEFT JOIN departemen d ON j.departemen_id = d.id
-      LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
       WHERE k.email ILIKE '%frisca%' OR k.nama_lengkap ILIKE '%frisca%'
     `);
-    console.log("Frisca data:", res.rows);
+    console.log("Karyawan table:", resKaryawan.rows);
   } catch (err) {
     console.error(err);
   } finally {
