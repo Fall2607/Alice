@@ -11,20 +11,20 @@ const pool = new pg.Pool({
 
 async function run() {
   try {
-    const resUsers = await pool.query(`
-      SELECT u.id, u.email, r.nama_role 
+    const hcRes = await pool.query(`
+      SELECT u.email, COALESCE(k.nama_lengkap, u.email) as nama_lengkap
       FROM users u
-      LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.email ILIKE '%frisca%'
-    `);
-    console.log("Users table:", resUsers.rows);
-
-    const resKaryawan = await pool.query(`
-      SELECT k.id, k.email, k.nama_lengkap, k.user_id 
+      JOIN roles r ON u.role_id = r.id
+      LEFT JOIN karyawan k ON k.user_id = u.id OR k.email = u.email
+      WHERE r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
+      UNION
+      SELECT k.email, k.nama_lengkap
       FROM karyawan k
-      WHERE k.email ILIKE '%frisca%' OR k.nama_lengkap ILIKE '%frisca%'
+      JOIN jabatan j ON k.jabatan_id = j.id
+      JOIN departemen d ON j.departemen_id = d.id
+      WHERE d.nama_departemen ILIKE '%hrd%' OR d.nama_departemen ILIKE '%hc%' OR d.nama_departemen ILIKE '%human capital%'
     `);
-    console.log("Karyawan table:", resKaryawan.rows);
+    console.log("Found HC:", hcRes.rows);
   } catch (err) {
     console.error(err);
   } finally {

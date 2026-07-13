@@ -79,17 +79,21 @@ export async function POST(request: NextRequest) {
             `);
             for (const hc of hcRes.rows) {
                 if (hc.email) {
-                    await sendCutiMagicLink({
-                        toEmail: hc.email,
-                        approverName: hc.nama_lengkap,
-                        karyawanName: nama_lengkap,
-                        tanggalMulai: tanggal_mulai,
-                        tanggalSelesai: tanggal_selesai,
-                        tanggalKembali: tanggal_kembali,
-                        jumlahHari: jumlah_hari,
-                        alasan: keterangan,
-                        token: magicToken
-                    });
+                    try {
+                        await sendCutiMagicLink({
+                            toEmail: hc.email,
+                            approverName: hc.nama_lengkap,
+                            karyawanName: nama_lengkap,
+                            tanggalMulai: tanggal_mulai,
+                            tanggalSelesai: tanggal_selesai,
+                            tanggalKembali: tanggal_kembali,
+                            jumlahHari: jumlah_hari,
+                            alasan: keterangan,
+                            token: magicToken
+                        });
+                    } catch (emailErr) {
+                        console.error("Gagal mengirim magic link HC saat pengajuan:", hc.email, emailErr);
+                    }
                 }
             }
         }

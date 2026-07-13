@@ -72,17 +72,21 @@ export async function GET(request: NextRequest) {
         `);
         for (const hc of hcRes.rows) {
             if (hc.email) {
-                await sendCutiMagicLink({
-                    toEmail: hc.email,
-                    approverName: hc.nama_lengkap,
-                    karyawanName: cuti.nama_lengkap,
-                    tanggalMulai: cuti.tanggal_mulai,
-                    tanggalSelesai: cuti.tanggal_selesai,
-                    tanggalKembali: cuti.tanggal_kembali,
-                    jumlahHari: cuti.jumlah_hari,
-                    alasan: cuti.alasan,
-                    token: newMagicToken
-                });
+                try {
+                    await sendCutiMagicLink({
+                        toEmail: hc.email,
+                        approverName: hc.nama_lengkap,
+                        karyawanName: cuti.nama_lengkap,
+                        tanggalMulai: cuti.tanggal_mulai,
+                        tanggalSelesai: cuti.tanggal_selesai,
+                        tanggalKembali: cuti.tanggal_kembali,
+                        jumlahHari: cuti.jumlah_hari,
+                        alasan: cuti.alasan,
+                        token: newMagicToken
+                    });
+                } catch (emailErr) {
+                    console.error("Gagal mengirim magic link HC ke:", hc.email, emailErr);
+                }
             }
         }
       } else if (cuti.status === 'Menunggu HC') {
