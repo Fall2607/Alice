@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     // Ambil data cuti dan pastikan join dengan karyawan untuk cek atasan_id
     const cutiRes = await pool.query(`
-      SELECT c.*, k.atasan_id, k.karyawan_id as p_kary_id, k.nama_lengkap 
+      SELECT c.*, k.atasan_id, k.id as p_kary_id, k.nama_lengkap 
       FROM pengajuan_cuti c 
       JOIN karyawan k ON c.karyawan_id = k.id 
       WHERE c.id = $1
