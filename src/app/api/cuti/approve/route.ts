@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 import crypto from "crypto";
-import { sendCutiMagicLink } from "@/app/lib/email";
+import { sendCutiMagicLink, sendCutiStatusEmail } from "@/app/lib/email";
 
 export const dynamic = 'force-dynamic';
 
@@ -110,9 +110,32 @@ export async function POST(request: NextRequest) {
 
     if(query) {
       const result = await pool.query(query, params);
+      const updatedCuti = result.rows[0];
+
+      if (newStatus === 'Disetujui' || newStatus === 'Ditolak') {
+        (async () => {
+          try {
+            const pemohonRes = await pool.query(`SELECT email, nama_lengkap, sisa_cuti FROM karyawan WHERE id = $1`, [cuti.karyawan_id]);
+            const pemohon = pemohonRes.rows[0];
+            if (pemohon?.email) {
+              await sendCutiStatusEmail({
+                toEmail: pemohon.email,
+                karyawanName: pemohon.nama_lengkap,
+                status: newStatus as 'Disetujui' | 'Ditolak',
+                alasanCuti: cuti.alasan || cuti.keterangan || '-',
+                tanggalMulai: cuti.tanggal_mulai,
+                tanggalSelesai: cuti.tanggal_selesai,
+                sisaCuti: pemohon.sisa_cuti,
+                rejectedBy: updatedCuti.rejected_by
+              });
+            }
+          } catch(e) { console.error("Gagal mengirim email status cuti ke karyawan (dashboard):", e); }
+        })();
+      }
+
       return NextResponse.json({
         message: `Cuti berhasil di-${action}`,
-        data: result.rows[0]
+        data: updatedCuti
       });
     }
 

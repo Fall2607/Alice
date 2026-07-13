@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 import crypto from "crypto";
-import { sendCutiMagicLink } from "@/app/lib/email";
+import { sendCutiMagicLink, sendCutiStatusEmail } from "@/app/lib/email";
 
 export const dynamic = 'force-dynamic';
 
@@ -48,13 +48,13 @@ export async function GET(request: NextRequest) {
     
     if (action === 'REJECT') {
       const rejectedByStr = cuti.status === 'Menunggu Atasan' ? `Atasan (${approverName})` : `HC (${approverName})`;
-      query = `UPDATE pengajuan_cuti SET status = 'Ditolak', magic_token = NULL, rejected_by = $2 WHERE id = $1`;
+      query = `UPDATE pengajuan_cuti SET status = 'Ditolak', magic_token = NULL, rejected_by = $2 WHERE id = $1 RETURNING *`;
       params = [cuti.id, rejectedByStr];
       message = `Permohonan cuti ${cuti.nama_lengkap} berhasil ditolak.`;
     } else if (action === 'APPROVE') {
       if (cuti.status === 'Menunggu Atasan') {
         // Atasan approve -> Naik ke Menunggu HC
-        query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3`;
+        query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
         params = [newMagicToken, cuti.atasan_id, cuti.id];
         message = `Permohonan cuti ${cuti.nama_lengkap} disetujui (Tahap 1). Diteruskan ke HC untuk persetujuan final.`;
         
@@ -87,18 +87,43 @@ export async function GET(request: NextRequest) {
         }
       } else if (cuti.status === 'Menunggu HC') {
         // HC approve -> Disetujui final
-        query = `UPDATE pengajuan_cuti SET status = 'Disetujui', magic_token = NULL WHERE id = $1`;
+        query = `UPDATE pengajuan_cuti SET status = 'Disetujui', magic_token = NULL WHERE id = $1 RETURNING *`;
         params = [cuti.id];
         message = `Permohonan cuti ${cuti.nama_lengkap} berhasil DISETUJUI sepenuhnya.`;
-        
-        if (cuti.jenis_cuti === 'Tahunan') {
-            await pool.query(`UPDATE karyawan SET sisa_cuti = sisa_cuti - $1 WHERE id = $2`, [cuti.jumlah_hari, cuti.karyawan_id]);
-        }
       }
     }
 
     if (query) {
-      await pool.query(query, params);
+      const result = await pool.query(query, params);
+      const updatedCuti = result.rows[0];
+
+      // POTONG SALDO JIKA DISETUJUI FINAL DAN TAHUNAN
+      if (action === 'APPROVE' && updatedCuti?.status === 'Disetujui' && cuti.jenis_cuti === 'Tahunan') {
+        await pool.query(`UPDATE karyawan SET sisa_cuti = sisa_cuti - $1 WHERE id = $2`, [cuti.jumlah_hari, cuti.karyawan_id]);
+      }
+
+      // KIRIM EMAIL NOTIFIKASI KE KARYAWAN
+      if (updatedCuti?.status === 'Disetujui' || updatedCuti?.status === 'Ditolak') {
+        (async () => {
+          try {
+            const pemohonRes = await pool.query(`SELECT email, nama_lengkap, sisa_cuti FROM karyawan WHERE id = $1`, [cuti.karyawan_id]);
+            const pemohon = pemohonRes.rows[0];
+            if (pemohon?.email) {
+              await sendCutiStatusEmail({
+                toEmail: pemohon.email,
+                karyawanName: pemohon.nama_lengkap,
+                status: updatedCuti.status as 'Disetujui' | 'Ditolak',
+                alasanCuti: cuti.alasan || cuti.keterangan || '-',
+                tanggalMulai: cuti.tanggal_mulai,
+                tanggalSelesai: cuti.tanggal_selesai,
+                sisaCuti: pemohon.sisa_cuti,
+                rejectedBy: updatedCuti.rejected_by
+              });
+            }
+          } catch(e) { console.error("Gagal mengirim email status cuti ke karyawan (magic-link):", e); }
+        })();
+      }
+
       return new NextResponse(
         generateHTML("Sukses!", message, "success"),
         { status: 200, headers: { 'Content-Type': 'text/html' } }
