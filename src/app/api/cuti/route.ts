@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import { sendCutiMagicLink } from "@/app/lib/email";
+import crypto from "crypto";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +10,11 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     const { karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan } = data;
 
-    // Ambil atasan_id dari karyawan
+    if (jumlah_hari > 4) {
+      return NextResponse.json({ message: "Pengajuan cuti tidak dapat melebihi 4 hari." }, { status: 400 });
+    }
+
+    // Ambil atasan_id (kita gunakan kolom atasan_id jika ada, jika tidak ada, top level)
     const karyRes = await pool.query(`SELECT atasan_id, sisa_cuti, nama_lengkap FROM karyawan WHERE id = $1`, [karyawan_id]);
     if (karyRes.rows.length === 0) {
       return NextResponse.json({ message: "Karyawan tidak ditemukan" }, { status: 404 });
@@ -21,19 +27,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: `Sisa cuti tidak mencukupi. Sisa cuti Anda: ${sisa_cuti} hari.` }, { status: 400 });
     }
 
-    // Tentukan status awal
-    // Jika tidak punya atasan_id (Top Level), langsung lompat ke PENDING_HC
-    const statusAwal = atasan_id ? 'PENDING_ATASAN' : 'PENDING_HC';
+    // Status sesuai enum pengajuan_cuti
+    const statusAwal = atasan_id ? 'Menunggu Atasan' : 'Menunggu HC';
+    const magicToken = crypto.randomBytes(32).toString('hex');
 
     const insertQuery = `
-      INSERT INTO cuti (karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, status, atasan_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO pengajuan_cuti (karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, alasan, status, magic_token, tanggal_pengajuan)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_DATE)
       RETURNING *;
     `;
 
+    // Note: Kita menggabungkan alasan ke kolom 'alasan'.
     const result = await pool.query(insertQuery, [
-      karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, statusAwal, atasan_id
+      karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, statusAwal, magicToken
     ]);
+
+    // Kirim Email Magic Link
+    try {
+        if (statusAwal === 'Menunggu Atasan' && atasan_id) {
+            const atasanRes = await pool.query(`SELECT email, nama_lengkap FROM karyawan WHERE id = $1`, [atasan_id]);
+            if (atasanRes.rows.length > 0) {
+                const atasanEmail = atasanRes.rows[0].email;
+                const atasanName = atasanRes.rows[0].nama_lengkap;
+                if (atasanEmail) {
+                    await sendCutiMagicLink(atasanEmail, atasanName, nama_lengkap, tanggal_mulai, tanggal_selesai, keterangan, magicToken);
+                }
+            }
+        } else if (statusAwal === 'Menunggu HC') {
+            const hcRes = await pool.query(`
+              SELECT k.email, k.nama_lengkap 
+              FROM karyawan k
+              JOIN users u ON k.user_id = u.id
+              JOIN roles r ON u.role_id = r.id
+              WHERE r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
+            `);
+            for (const hc of hcRes.rows) {
+                if (hc.email) {
+                    await sendCutiMagicLink(hc.email, hc.nama_lengkap, nama_lengkap, tanggal_mulai, tanggal_selesai, keterangan, magicToken);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Gagal mengirim email magic link:", e);
+    }
 
     return NextResponse.json({
       message: "Pengajuan cuti berhasil dikirim",
@@ -50,12 +86,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const karyawan_id = searchParams.get('karyawan_id');
-    const atasan_id = searchParams.get('atasan_id');
+    const atasan_id = searchParams.get('atasan_id'); // We'll need a different approach for atasan filtering since it's not directly in pengajuan_cuti
     const status = searchParams.get('status');
 
+    // Karena pengajuan_cuti mungkin tidak menyimpan atasan_id (sebagai foreign key pemiliknya), kita bisa filter via JOIN ke karyawan
     let query = `
       SELECT c.*, k.nama_lengkap, j.nama_jabatan 
-      FROM cuti c
+      FROM pengajuan_cuti c
       JOIN karyawan k ON c.karyawan_id = k.id
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
       WHERE 1=1
@@ -70,7 +107,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (atasan_id) {
-      query += ` AND c.atasan_id = $${paramCount}`;
+      query += ` AND k.atasan_id = $${paramCount}`;
       params.push(atasan_id);
       paramCount++;
     }
@@ -81,7 +118,7 @@ export async function GET(request: NextRequest) {
       paramCount++;
     }
 
-    query += ` ORDER BY c.created_at DESC`;
+    query += ` ORDER BY c.tanggal_pengajuan DESC, c.id DESC`;
 
     const result = await pool.query(query, params);
     return NextResponse.json(result.rows);

@@ -9,17 +9,21 @@ import {
   ShieldCheck,
   Calendar
 } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export default function CutiTab() {
   const [leaveBalance, setLeaveBalance] = useState<number>(0);
   const [leaveHistory, setLeaveHistory] = useState<any[]>([]);
-  const [leaveForm, setLeaveForm] = useState({ tanggal_mulai: '', tanggal_selesai: '', tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
+  const [leaveForm, setLeaveForm] = useState({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
+  const [startDate, endDate] = dateRange;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cutiMessage, setCutiMessage] = useState<{type: 'error'|'success', text: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
-  const calculateDays = (start: string, end: string) => {
+  const calculateDays = (start: Date | null, end: Date | null) => {
     if (!start || !end) return 0;
     const sDate = new Date(start);
     const eDate = new Date(end);
@@ -29,12 +33,7 @@ export default function CutiTab() {
     return diffDays + 1;
   };
 
-  const getDayLabel = (dateStr: string) => {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  };
-
-  const jumlahHari = calculateDays(leaveForm.tanggal_mulai, leaveForm.tanggal_selesai);
+  const jumlahHari = calculateDays(startDate, endDate);
 
   useEffect(() => {
     const fetchCuti = async () => {
@@ -59,7 +58,7 @@ export default function CutiTab() {
               type: c.jenis_cuti || "Cuti",
               range: `${new Date(c.tanggal_mulai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})} - ${new Date(c.tanggal_selesai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})}`,
               status: c.status,
-              alasan: c.keterangan,
+              alasan: c.alasan || c.keterangan,
               jumlah_hari: c.jumlah_hari
             };
           }));
@@ -79,6 +78,18 @@ export default function CutiTab() {
     setCutiMessage(null);
     setIsSubmitting(true);
     
+    if (!startDate || !endDate) {
+      setCutiMessage({ type: 'error', text: `Silakan pilih rentang tanggal cuti.` });
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (jumlahHari > 4) {
+      setCutiMessage({ type: 'error', text: `Pengajuan cuti maksimal adalah 4 hari.` });
+      setIsSubmitting(false);
+      return;
+    }
+
     if (leaveForm.kategori === 'Tahunan' && jumlahHari > leaveBalance) {
       setCutiMessage({ type: 'error', text: `Sisa cuti tahunan tidak mencukupi. Anda hanya memiliki ${leaveBalance} hari.` });
       setIsSubmitting(false);
@@ -90,14 +101,21 @@ export default function CutiTab() {
       if (!userString) throw new Error("Sesi tidak ditemukan. Silakan login kembali.");
       const user = JSON.parse(userString);
 
+      // Convert Date object to YYYY-MM-DD
+      const formatYMD = (date: Date) => {
+        const d = new Date(date);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().split('T')[0];
+      };
+
       const payload = {
         karyawan_id: user.karyawan_id,
         jenis_cuti: leaveForm.kategori,
-        tanggal_mulai: leaveForm.tanggal_mulai,
-        tanggal_selesai: leaveForm.tanggal_selesai,
+        tanggal_mulai: formatYMD(startDate),
+        tanggal_selesai: formatYMD(endDate),
         tanggal_kembali: leaveForm.tanggal_kembali || null,
         jumlah_hari: jumlahHari,
-        keterangan: leaveForm.alasan
+        keterangan: leaveForm.alasan // Diteruskan ke kolom alasan
       };
 
       const res = await fetch(`${baseUrl}/cuti`, {
@@ -110,7 +128,8 @@ export default function CutiTab() {
       if (!res.ok) throw new Error(data.message || "Gagal mengajukan cuti.");
 
       setCutiMessage({ type: 'success', text: "Pengajuan cuti berhasil dikirim." });
-      setLeaveForm({ tanggal_mulai: '', tanggal_selesai: '', tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
+      setLeaveForm({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
+      setDateRange([null, null]);
       
       const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`);
       if (cutiRes.ok) {
@@ -121,7 +140,7 @@ export default function CutiTab() {
             type: c.jenis_cuti || "Cuti",
             range: `${new Date(c.tanggal_mulai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})} - ${new Date(c.tanggal_selesai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})}`,
             status: c.status,
-            alasan: c.keterangan,
+            alasan: c.alasan || c.keterangan,
             jumlah_hari: c.jumlah_hari
           };
         }));
@@ -172,29 +191,27 @@ export default function CutiTab() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5 bg-slate-50 rounded-[24px] border border-slate-100">
+              <div className="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5"><Calendar size={12}/> Dari Tanggal</label>
-                  <input
-                    type="date"
-                    value={leaveForm.tanggal_mulai}
-                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_mulai: e.target.value, tanggal_selesai: e.target.value > leaveForm.tanggal_selesai && leaveForm.tanggal_selesai ? e.target.value : leaveForm.tanggal_selesai})}
-                    required
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 text-sm"
-                  />
-                  {leaveForm.tanggal_mulai && <p className="text-[10px] text-slate-500 ml-1 font-medium">{getDayLabel(leaveForm.tanggal_mulai)}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5"><Calendar size={12}/> Sampai Tanggal</label>
-                  <input
-                    type="date"
-                    value={leaveForm.tanggal_selesai}
-                    min={leaveForm.tanggal_mulai}
-                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_selesai: e.target.value})}
-                    required
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 text-sm"
-                  />
-                  {leaveForm.tanggal_selesai && <p className="text-[10px] text-slate-500 ml-1 font-medium">{getDayLabel(leaveForm.tanggal_selesai)}</p>}
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5"><Calendar size={12}/> Rentang Tanggal Cuti</label>
+                  <div className="relative z-10 w-full">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 z-20 pointer-events-none">
+                      <Calendar size={16} />
+                    </div>
+                    <DatePicker
+                      selectsRange={true}
+                      startDate={startDate || undefined}
+                      endDate={endDate || undefined}
+                      onChange={(update) => setDateRange(update)}
+                      dateFormat="dd MMM yyyy"
+                      placeholderText="Pilih Rentang Tanggal (Maks 4 Hari)"
+                      className={`w-full bg-white border ${jumlahHari > 4 ? 'border-red-400 focus:ring-red-500/20' : 'border-slate-200 focus:ring-blue-500/20'} text-slate-700 py-3.5 pl-10 pr-4 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:border-blue-500 transition-all`}
+                      wrapperClassName="w-full"
+                    />
+                  </div>
+                  {jumlahHari > 4 && (
+                    <p className="text-[10px] text-red-500 ml-1 font-bold">Peringatan: Pengajuan cuti maksimal 4 hari.</p>
+                  )}
                 </div>
               </div>
               
@@ -204,7 +221,7 @@ export default function CutiTab() {
                       <p className="text-xs text-blue-600 font-medium leading-tight">Total hari kalender yang dipilih.</p>
                   </div>
                   <div className="bg-white px-4 py-2 rounded-xl border border-blue-100 shadow-sm text-center">
-                      <span className="text-2xl font-black text-blue-600 leading-none">{jumlahHari}</span>
+                      <span className={`text-2xl font-black leading-none ${jumlahHari > 4 ? 'text-red-500' : 'text-blue-600'}`}>{jumlahHari}</span>
                       <span className="text-[10px] font-bold text-blue-400 ml-1 uppercase">Hari</span>
                   </div>
               </div>
@@ -214,7 +231,7 @@ export default function CutiTab() {
                 <input
                     type="date"
                     value={leaveForm.tanggal_kembali}
-                    min={leaveForm.tanggal_selesai}
+                    min={endDate ? endDate.toISOString().split('T')[0] : ''}
                     onChange={(e) => setLeaveForm({...leaveForm, tanggal_kembali: e.target.value})}
                     className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-600 outline-none transition-all font-bold text-slate-800 text-sm"
                   />
@@ -234,7 +251,7 @@ export default function CutiTab() {
               </div>
 
               <button 
-                disabled={isSubmitting || jumlahHari <= 0 || (leaveForm.kategori === 'Tahunan' && jumlahHari > leaveBalance)}
+                disabled={isSubmitting || jumlahHari <= 0 || jumlahHari > 4 || (leaveForm.kategori === 'Tahunan' && jumlahHari > leaveBalance)}
                 className="w-full flex items-center justify-center gap-3 bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98] text-[10px] uppercase tracking-widest mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? "Memproses..." : <><Send size={16} /> Ajukan Permohonan Cuti</>}
@@ -269,7 +286,7 @@ export default function CutiTab() {
             </span>
           </div>
           <p className="text-xs text-blue-200/80 mt-4 font-medium leading-relaxed">
-            Pastikan Anda merencanakan cuti dari jauh hari agar operasional tim tetap berjalan lancar.
+            Pastikan Anda merencanakan cuti dari jauh hari agar operasional tim tetap berjalan lancar. Maksimal pengajuan adalah 4 hari.
           </p>
         </div>
 
@@ -296,8 +313,8 @@ export default function CutiTab() {
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-black text-slate-700">{item.type}</span>
                     <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
-                      item.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                      item.status.includes('PENDING') ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                      item.status === 'Disetujui' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                      item.status.includes('Menunggu') ? 'bg-amber-50 text-amber-600 border-amber-100' :
                       'bg-rose-50 text-rose-600 border-rose-100'
                     }`}>
                       {item.status.replace('_', ' ')}
