@@ -34,12 +34,17 @@ export async function POST(request: NextRequest) {
 
     if (action === 'reject') {
       newStatus = 'Ditolak';
+      
+      const approverNameRes = await pool.query(`SELECT nama_lengkap FROM karyawan WHERE id = $1`, [approver_id]);
+      const approverName = approverNameRes.rows[0]?.nama_lengkap || 'Atasan/HC';
+      const rejectedByStr = is_hc ? `HC (${approverName})` : `Atasan (${approverName})`;
+
       if (is_hc) {
-        query = `UPDATE pengajuan_cuti SET status = $1, hc_approved_by_id = $2, magic_token = NULL WHERE id = $3 RETURNING *`;
-        params = [newStatus, approver_id, cuti_id];
+        query = `UPDATE pengajuan_cuti SET status = $1, hc_approved_by_id = $2, magic_token = NULL, rejected_by = $4 WHERE id = $3 RETURNING *`;
+        params = [newStatus, approver_id, cuti_id, rejectedByStr];
       } else {
-        query = `UPDATE pengajuan_cuti SET status = $1, atasan_approved_by_id = $2, magic_token = NULL WHERE id = $3 RETURNING *`;
-        params = [newStatus, approver_id, cuti_id];
+        query = `UPDATE pengajuan_cuti SET status = $1, atasan_approved_by_id = $2, magic_token = NULL, rejected_by = $4 WHERE id = $3 RETURNING *`;
+        params = [newStatus, approver_id, cuti_id, rejectedByStr];
       }
     } else if (action === 'approve') {
       if (cuti.status === 'Menunggu Atasan') {

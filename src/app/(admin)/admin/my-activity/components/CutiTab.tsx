@@ -59,7 +59,8 @@ export default function CutiTab() {
               range: `${new Date(c.tanggal_mulai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})} - ${new Date(c.tanggal_selesai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})}`,
               status: c.status,
               alasan: c.alasan || c.keterangan,
-              jumlah_hari: c.jumlah_hari
+              jumlah_hari: c.jumlah_hari,
+              rejected_by: c.rejected_by
             };
           }));
         }
@@ -312,13 +313,18 @@ export default function CutiTab() {
                 <div key={item.id} className="p-4 rounded-2xl border border-slate-100 hover:border-blue-100 hover:shadow-lg hover:shadow-blue-500/5 transition-all bg-white group">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-black text-slate-700">{item.type}</span>
-                    <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
-                      item.status === 'Disetujui' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                      (item.status && item.status.includes('Menunggu')) ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                      'bg-rose-50 text-rose-600 border-rose-100'
-                    }`}>
-                      {(item.status || 'TIDAK DIKETAHUI').replace('_', ' ')}
-                    </span>
+                    <div className="flex flex-col items-end">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                        item.status === 'Disetujui' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                        (item.status && item.status.includes('Menunggu')) ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                        'bg-rose-50 text-rose-600 border-rose-100'
+                      }`}>
+                        {(item.status || 'TIDAK DIKETAHUI').replace('_', ' ')}
+                      </span>
+                      {item.status === 'Ditolak' && item.rejected_by && (
+                        <span className="text-[9px] font-bold text-rose-400 mt-1">Oleh: {item.rejected_by}</span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-[10px] font-bold text-blue-600 mb-1 flex items-center gap-1.5">
                     <Calendar size={10} /> {item.range} ({item.jumlah_hari} Hari)

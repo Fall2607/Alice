@@ -28,8 +28,8 @@ export const sendCutiMagicLink = async (data: CutiEmailData) => {
   const transporter = getTransporter();
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   
-  const approveUrl = `${baseUrl}/api/cuti/magic-approve?token=${data.token}&action=APPROVE`;
-  const rejectUrl = `${baseUrl}/api/cuti/magic-approve?token=${data.token}&action=REJECT`;
+  const approveUrl = `${baseUrl}/api/cuti/magic-approve?token=${data.token}&action=APPROVE&approver=${encodeURIComponent(data.approverName)}`;
+  const rejectUrl = `${baseUrl}/api/cuti/magic-approve?token=${data.token}&action=REJECT&approver=${encodeURIComponent(data.approverName)}`;
 
   const formatTgl = (tglStr: string) => {
     if (!tglStr) return "-";

@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const action = searchParams.get('action'); // 'APPROVE' or 'REJECT'
+    const approverName = searchParams.get('approver') || 'Atasan/HC';
 
     if (!token || !action) {
       return new NextResponse("Token dan action tidak valid.", { status: 400 });
@@ -46,8 +47,9 @@ export async function GET(request: NextRequest) {
     let message = '';
     
     if (action === 'REJECT') {
-      query = `UPDATE pengajuan_cuti SET status = 'Ditolak', magic_token = NULL WHERE id = $1`;
-      params = [cuti.id];
+      const rejectedByStr = cuti.status === 'Menunggu Atasan' ? `Atasan (${approverName})` : `HC (${approverName})`;
+      query = `UPDATE pengajuan_cuti SET status = 'Ditolak', magic_token = NULL, rejected_by = $2 WHERE id = $1`;
+      params = [cuti.id, rejectedByStr];
       message = `Permohonan cuti ${cuti.nama_lengkap} berhasil ditolak.`;
     } else if (action === 'APPROVE') {
       if (cuti.status === 'Menunggu Atasan') {
