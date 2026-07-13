@@ -49,7 +49,7 @@ export default function CutiTab() {
           setLeaveBalance(kData.sisa_cuti !== undefined ? kData.sisa_cuti : 0);
         }
 
-        const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`);
+        const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`, { cache: 'no-store' });
         if (cutiRes.ok) {
           const cutiData = await cutiRes.json();
           setLeaveHistory(cutiData.map((c: any) => {
@@ -131,7 +131,7 @@ export default function CutiTab() {
       setLeaveForm({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
       setDateRange([null, null]);
       
-      const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`);
+      const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`, { cache: 'no-store' });
       if (cutiRes.ok) {
         const cutiData = await cutiRes.json();
         setLeaveHistory(cutiData.map((c: any) => {

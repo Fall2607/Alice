@@ -24,16 +24,19 @@ export default function ApprovalCutiPage() {
       // HC bisa melihat semua yang PENDING_HC
       // ATASAN bisa melihat semua yang PENDING_ATASAN dan atasan_id = dirinya
       let isHC = user.role?.toLowerCase() === 'hc' || user.role?.toLowerCase() === 'human capital';
-      // Fallback role check, in actual app role handling might vary
-
+      let isAdmin = user.role?.toLowerCase() === 'admin';
+      
       let url = '';
-      if (isHC) {
+      if (isAdmin) {
+        // Admin melihat SEMUA pengajuan yang masih pending (baik di Atasan maupun HC) untuk keperluan tracking
+        url = `${baseUrl}/cuti?status=Menunggu`;
+      } else if (isHC) {
         url = `${baseUrl}/cuti?status=Menunggu HC`;
       } else {
         url = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=Menunggu Atasan`;
       }
 
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setPendingLeaves(data);
@@ -49,7 +52,7 @@ export default function ApprovalCutiPage() {
     if (!confirm(`Apakah Anda yakin ingin memproses pengajuan ini?`)) return;
 
     try {
-      const isHC = userInfo.role?.toLowerCase() === 'hc' || userInfo.role?.toLowerCase() === 'human capital';
+      const isHC = userInfo.role?.toLowerCase() === 'hc' || userInfo.role?.toLowerCase() === 'human capital' || userInfo.role?.toLowerCase() === 'admin';
       
       const res = await fetch(`${baseUrl}/cuti/approve`, {
         method: 'POST',
