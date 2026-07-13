@@ -60,9 +60,13 @@ export async function GET(request: NextRequest) {
         const hcRes = await pool.query(`
           SELECT k.email, k.nama_lengkap 
           FROM karyawan k
-          JOIN users u ON k.user_id = u.id
-          JOIN roles r ON u.role_id = r.id
-          WHERE r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
+          LEFT JOIN users u ON k.user_id = u.id
+          LEFT JOIN roles r ON u.role_id = r.id
+          LEFT JOIN jabatan j ON k.jabatan_id = j.id
+          LEFT JOIN departemen d ON j.departemen_id = d.id
+          WHERE 
+            r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
+            OR d.nama_departemen ILIKE '%hrd%' OR d.nama_departemen ILIKE '%hc%' OR d.nama_departemen ILIKE '%human capital%'
         `);
         for (const hc of hcRes.rows) {
             if (hc.email) {
