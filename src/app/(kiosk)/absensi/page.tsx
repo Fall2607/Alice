@@ -6,7 +6,7 @@ import { Camera, Clock, CheckCircle2, AlertCircle, ScanFace, MapPin, Wifi, Loade
 export default function KioskAbsensiPage() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [isClient, setIsClient] = useState(false);
-  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "success" | "error" | "early">("idle");
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "success" | "error" | "early" | "unresolved_checkout" | "info">("idle");
   const [cachedDescriptor, setCachedDescriptor] = useState<number[] | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mockUser, setMockUser] = useState<any>(null);
@@ -156,6 +156,13 @@ export default function KioskAbsensiPage() {
              setScanStatus("unresolved_checkout");
              setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
              return; // Jangan di-reset otomatis
+          }
+          if (response.status === 409 || response.status === 403) {
+             setScanStatus("info");
+             setCachedDescriptor(null);
+             setMockUser({ nama: resData.user?.nama, errorMessage: resData.message });
+             setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+             return;
           }
           setScanStatus("error");
           setCachedDescriptor(null);
@@ -387,6 +394,26 @@ export default function KioskAbsensiPage() {
                 <h2 className="text-2xl font-black uppercase tracking-tight mb-3">Wajah Tidak Dikenali</h2>
                 <p className="text-rose-200 text-xs font-bold leading-relaxed px-4 opacity-80">
                   {mockUser?.errorMessage || "Sistem tidak dapat mencocokkan profil wajah. Pastikan Anda tidak menggunakan masker/kacamata gelap, atau pencahayaan cukup."}
+                </p>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setScanStatus("idle"); setMockUser(null); setCachedDescriptor(null); }}
+                  className="mt-8 bg-white/10 hover:bg-white/20 border border-white/20 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-colors"
+                >
+                  Kembali
+                </button>
+              </div>
+            )}
+
+            {/* Info Overlay (Blue) */}
+            {scanStatus === "info" && (
+              <div className="absolute inset-0 bg-blue-900/95 backdrop-blur-md flex flex-col items-center justify-center text-white p-8 text-center animate-in fade-in zoom-in duration-300 z-30 animate-shake">
+                <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.5)] mb-6 border-4 border-blue-400/50">
+                  <ShieldCheck size={40} />
+                </div>
+                <h2 className="text-2xl font-black uppercase tracking-tight mb-3">Info Kehadiran</h2>
+                <p className="text-blue-200 text-xs font-bold leading-relaxed px-4 opacity-80">
+                  {mockUser?.nama && <span className="block mb-2">Halo {mockUser.nama},</span>}
+                  {mockUser?.errorMessage || "Informasi kehadiran Anda telah dicatat."}
                 </p>
                 <button 
                   onClick={(e) => { e.stopPropagation(); setScanStatus("idle"); setMockUser(null); setCachedDescriptor(null); }}
