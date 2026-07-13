@@ -1,162 +1,93 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
-import jwt from "jsonwebtoken";
-import { sendCutiMagicLink } from "@/app/lib/email";
 
-// GET /api/cuti
-// Mengambil daftar pengajuan cuti, mendukung filter by karyawan_id
-export async function GET(request: Request) {
+export const dynamic = 'force-dynamic';
+
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const karyawanId = searchParams.get("karyawan_id");
-    const waitingForId = searchParams.get("waiting_for_id");
+    const data = await request.json();
+    const { karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan } = data;
 
-    let query = `
-      SELECT 
-        pc.id,
-        pc.tanggal_pengajuan,
-        pc.tanggal_mulai,
-        pc.tanggal_selesai,
-        pc.alasan,
-        pc.status,
-        pc.karyawan_id,
-        pc.approved_by_id,
-        k.nama_lengkap AS nama_karyawan,
-        k.sisa_cuti,
-        a.nama_lengkap AS nama_approver
-      FROM pengajuan_cuti pc
-      LEFT JOIN karyawan k ON pc.karyawan_id = k.id
-      LEFT JOIN karyawan a ON pc.approved_by_id = a.id
-      WHERE 1=1
+    // Ambil atasan_id dari karyawan
+    const karyRes = await pool.query(`SELECT atasan_id, sisa_cuti, nama_lengkap FROM karyawan WHERE id = $1`, [karyawan_id]);
+    if (karyRes.rows.length === 0) {
+      return NextResponse.json({ message: "Karyawan tidak ditemukan" }, { status: 404 });
+    }
+
+    const { atasan_id, sisa_cuti, nama_lengkap } = karyRes.rows[0];
+
+    // Cek sisa cuti jika jenis cuti = Tahunan
+    if (jenis_cuti === 'Tahunan' && sisa_cuti < jumlah_hari) {
+      return NextResponse.json({ message: `Sisa cuti tidak mencukupi. Sisa cuti Anda: ${sisa_cuti} hari.` }, { status: 400 });
+    }
+
+    // Tentukan status awal
+    // Jika tidak punya atasan_id (Top Level), langsung lompat ke PENDING_HC
+    const statusAwal = atasan_id ? 'PENDING_ATASAN' : 'PENDING_HC';
+
+    const insertQuery = `
+      INSERT INTO cuti (karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, status, atasan_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *;
     `;
-    const params: any[] = [];
-    let paramIndex = 1;
 
-    if (karyawanId) {
-      query += ` AND pc.karyawan_id = $${paramIndex} `;
-      params.push(karyawanId);
-      paramIndex++;
-    }
+    const result = await pool.query(insertQuery, [
+      karyawan_id, jenis_cuti, tanggal_mulai, tanggal_selesai, tanggal_kembali, jumlah_hari, keterangan, statusAwal, atasan_id
+    ]);
 
-    if (waitingForId) {
-      query += ` 
-        AND (
-          (pc.status = 'Menunggu Atasan' AND k.atasan_id = $${paramIndex})
-          OR
-          (pc.status = 'Menunggu SPV' AND k.atasan_id IN (SELECT id FROM karyawan WHERE atasan_id = $${paramIndex}))
-        )
-      `;
-      params.push(waitingForId);
-      paramIndex++;
-    }
+    return NextResponse.json({
+      message: "Pengajuan cuti berhasil dikirim",
+      data: result.rows[0]
+    });
 
-    query += ` ORDER BY pc.tanggal_pengajuan DESC, pc.tanggal_mulai DESC `;
-
-    const result = await pool.query(query, params);
-    return NextResponse.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching cuti:", error);
-    return NextResponse.json(
-      { message: "Gagal mengambil data cuti", error: (error as Error).message },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("Error submitting cuti:", err);
+    return NextResponse.json({ message: "Terjadi kesalahan server", error: err.message }, { status: 500 });
   }
 }
 
-// POST /api/cuti
-// Mengirim pengajuan cuti baru
-export async function POST(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { karyawan_id, tanggal_mulai, tanggal_selesai, alasan } = await request.json();
+    const { searchParams } = new URL(request.url);
+    const karyawan_id = searchParams.get('karyawan_id');
+    const atasan_id = searchParams.get('atasan_id');
+    const status = searchParams.get('status');
 
-    if (!karyawan_id || !tanggal_mulai || !tanggal_selesai || !alasan) {
-      return NextResponse.json(
-        { message: "Semua field (karyawan_id, tanggal_mulai, tanggal_selesai, alasan) wajib diisi." },
-        { status: 400 }
-      );
+    let query = `
+      SELECT c.*, k.nama_lengkap, j.nama_jabatan 
+      FROM cuti c
+      JOIN karyawan k ON c.karyawan_id = k.id
+      LEFT JOIN jabatan j ON k.jabatan_id = j.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    let paramCount = 1;
+
+    if (karyawan_id) {
+      query += ` AND c.karyawan_id = $${paramCount}`;
+      params.push(karyawan_id);
+      paramCount++;
     }
 
-    const tglMulai = new Date(tanggal_mulai);
-    const tglSelesai = new Date(tanggal_selesai);
-
-    // Validasi Tanggal
-    if (tglMulai > tglSelesai) {
-      return NextResponse.json(
-        { message: "Tanggal mulai tidak boleh lebih besar dari tanggal selesai." },
-        { status: 400 }
-      );
+    if (atasan_id) {
+      query += ` AND c.atasan_id = $${paramCount}`;
+      params.push(atasan_id);
+      paramCount++;
     }
 
-    // Hitung durasi (asumsi sederhana selisih hari kalender)
-    const durasi = Math.ceil((tglSelesai.getTime() - tglMulai.getTime()) / (1000 * 3600 * 24)) + 1;
-
-    // Cek Sisa Cuti dan Data Karyawan serta Atasan
-    const karyawanRes = await pool.query(`
-      SELECT k.nama_lengkap, k.sisa_cuti, k.atasan_id, 
-             a.nama_lengkap as atasan_nama, a.email as atasan_email
-      FROM karyawan k
-      LEFT JOIN karyawan a ON k.atasan_id = a.id
-      WHERE k.id = $1
-    `, [karyawan_id]);
-    if (karyawanRes.rows.length === 0) {
-      return NextResponse.json({ message: "Karyawan tidak ditemukan." }, { status: 404 });
+    if (status) {
+      query += ` AND c.status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
     }
 
-    const sisaCuti = karyawanRes.rows[0].sisa_cuti;
+    query += ` ORDER BY c.created_at DESC`;
 
-    if (durasi > sisaCuti) {
-      return NextResponse.json(
-        { message: `Durasi cuti (${durasi} hari) melebihi sisa kuota cuti Anda (${sisaCuti} hari).` },
-        { status: 400 }
-      );
-    }
+    const result = await pool.query(query, params);
+    return NextResponse.json(result.rows);
 
-    // Insert pengajuan dengan status awal 'Menunggu Atasan'
-    const insertRes = await pool.query(
-      `INSERT INTO pengajuan_cuti (karyawan_id, tanggal_pengajuan, tanggal_mulai, tanggal_selesai, alasan, status) 
-       VALUES ($1, CURRENT_DATE, $2, $3, $4, 'Menunggu Atasan') 
-       RETURNING *`,
-      [karyawan_id, tanggal_mulai, tanggal_selesai, alasan]
-    );
-
-    const cutiRecord = insertRes.rows[0];
-    const kData = karyawanRes.rows[0];
-
-    // Kirim Email ke Atasan jika Atasan memiliki email
-    if (kData.atasan_id && kData.atasan_email) {
-      try {
-        const tokenPayload = {
-          cuti_id: cutiRecord.id,
-          approver_id: kData.atasan_id,
-          role: 'ATASAN'
-        };
-        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
-        
-        await sendCutiMagicLink(
-          kData.atasan_email,
-          kData.atasan_nama,
-          kData.nama_lengkap,
-          tglMulai.toLocaleDateString('id-ID'),
-          tglSelesai.toLocaleDateString('id-ID'),
-          alasan,
-          token
-        );
-      } catch (err) {
-        console.error("Gagal mengirim email magic link:", err);
-        // Kita tidak block response jika email gagal, biarkan pengajuan tetap masuk
-      }
-    }
-
-    return NextResponse.json({
-      message: "Pengajuan cuti berhasil dibuat.",
-      data: cutiRecord,
-    }, { status: 201 });
-
-  } catch (error) {
-    console.error("Error creating cuti:", error);
-    return NextResponse.json(
-      { message: "Gagal mengajukan cuti", error: (error as Error).message },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("Error fetching cuti:", err);
+    return NextResponse.json({ message: "Terjadi kesalahan server", error: err.message }, { status: 500 });
   }
 }

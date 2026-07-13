@@ -7,17 +7,34 @@ import {
   AlertCircle,
   CheckCircle2,
   ShieldCheck,
+  Calendar
 } from "lucide-react";
 
 export default function CutiTab() {
   const [leaveBalance, setLeaveBalance] = useState<number>(0);
   const [leaveHistory, setLeaveHistory] = useState<any[]>([]);
-  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
-  const [leaveForm, setLeaveForm] = useState({ tanggal_mulai: '', tanggal_selesai: '', alasan: '', kategori: 'Cuti Tahunan' });
+  const [leaveForm, setLeaveForm] = useState({ tanggal_mulai: '', tanggal_selesai: '', tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cutiMessage, setCutiMessage] = useState<{type: 'error'|'success', text: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
+
+  const calculateDays = (start: string, end: string) => {
+    if (!start || !end) return 0;
+    const sDate = new Date(start);
+    const eDate = new Date(end);
+    if (eDate < sDate) return 0;
+    const diffTime = Math.abs(eDate.getTime() - sDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    return diffDays + 1;
+  };
+
+  const getDayLabel = (dateStr: string) => {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  const jumlahHari = calculateDays(leaveForm.tanggal_mulai, leaveForm.tanggal_selesai);
 
   useEffect(() => {
     const fetchCuti = async () => {
@@ -37,23 +54,17 @@ export default function CutiTab() {
         if (cutiRes.ok) {
           const cutiData = await cutiRes.json();
           setLeaveHistory(cutiData.map((c: any) => {
-            const splitAlasan = c.alasan?.split(" - ");
-            const isCat = splitAlasan && splitAlasan.length > 1;
             return {
               id: c.id,
-              type: isCat ? splitAlasan[0] : "Cuti",
+              type: c.jenis_cuti || "Cuti",
               range: `${new Date(c.tanggal_mulai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})} - ${new Date(c.tanggal_selesai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})}`,
               status: c.status,
-              alasan: isCat ? splitAlasan[1] : c.alasan,
+              alasan: c.keterangan,
+              jumlah_hari: c.jumlah_hari
             };
           }));
         }
 
-        const pendingRes = await fetch(`${baseUrl}/cuti?waiting_for_id=${user.karyawan_id}`);
-        if (pendingRes.ok) {
-          const pendingData = await pendingRes.json();
-          setPendingApprovals(pendingData);
-        }
       } catch (err) {
         console.error("Failed to fetch cuti", err);
       } finally {
@@ -67,6 +78,13 @@ export default function CutiTab() {
     e.preventDefault();
     setCutiMessage(null);
     setIsSubmitting(true);
+    
+    if (leaveForm.kategori === 'Tahunan' && jumlahHari > leaveBalance) {
+      setCutiMessage({ type: 'error', text: `Sisa cuti tahunan tidak mencukupi. Anda hanya memiliki ${leaveBalance} hari.` });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const userString = localStorage.getItem("user");
       if (!userString) throw new Error("Sesi tidak ditemukan. Silakan login kembali.");
@@ -74,9 +92,12 @@ export default function CutiTab() {
 
       const payload = {
         karyawan_id: user.karyawan_id,
+        jenis_cuti: leaveForm.kategori,
         tanggal_mulai: leaveForm.tanggal_mulai,
         tanggal_selesai: leaveForm.tanggal_selesai,
-        alasan: `${leaveForm.kategori} - ${leaveForm.alasan}`
+        tanggal_kembali: leaveForm.tanggal_kembali || null,
+        jumlah_hari: jumlahHari,
+        keterangan: leaveForm.alasan
       };
 
       const res = await fetch(`${baseUrl}/cuti`, {
@@ -89,20 +110,19 @@ export default function CutiTab() {
       if (!res.ok) throw new Error(data.message || "Gagal mengajukan cuti.");
 
       setCutiMessage({ type: 'success', text: "Pengajuan cuti berhasil dikirim." });
-      setLeaveForm({ tanggal_mulai: '', tanggal_selesai: '', alasan: '', kategori: 'Cuti Tahunan' });
+      setLeaveForm({ tanggal_mulai: '', tanggal_selesai: '', tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
       
       const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`);
       if (cutiRes.ok) {
         const cutiData = await cutiRes.json();
         setLeaveHistory(cutiData.map((c: any) => {
-          const splitAlasan = c.alasan?.split(" - ");
-          const isCat = splitAlasan && splitAlasan.length > 1;
           return {
             id: c.id,
-            type: isCat ? splitAlasan[0] : "Cuti",
+            type: c.jenis_cuti || "Cuti",
             range: `${new Date(c.tanggal_mulai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})} - ${new Date(c.tanggal_selesai).toLocaleDateString("id-ID", {day:'numeric', month:'short'})}`,
-            status: c.status === 'PENDING' ? 'Pending' : c.status === 'APPROVED' ? 'Approved' : 'Rejected',
-            alasan: isCat ? splitAlasan[1] : c.alasan,
+            status: c.status,
+            alasan: c.keterangan,
+            jumlah_hari: c.jumlah_hari
           };
         }));
       }
@@ -110,36 +130,6 @@ export default function CutiTab() {
       setCutiMessage({ type: 'error', text: err.message });
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleApproval = async (id: string, action: 'APPROVE' | 'REJECT') => {
-    try {
-      const userString = localStorage.getItem("user");
-      if (!userString) return;
-      const user = JSON.parse(userString);
-      
-      const res = await fetch(`${baseUrl}/cuti/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          approver_id: user.karyawan_id,
-          approver_role: 'ATASAN'
-        })
-      });
-
-      if (!res.ok) throw new Error("Gagal memproses persetujuan.");
-      
-      // Refresh pending approvals
-      const pendingRes = await fetch(`${baseUrl}/cuti?waiting_for_id=${user.karyawan_id}`);
-      if (pendingRes.ok) {
-        const pendingData = await pendingRes.json();
-        setPendingApprovals(pendingData);
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Gagal memproses persetujuan.");
     }
   };
 
@@ -155,7 +145,7 @@ export default function CutiTab() {
           <div className="animate-in fade-in slide-in-from-left-4 duration-500">
             <h2 className="text-xl font-black text-slate-900 tracking-tight mb-8 flex items-center gap-3 uppercase">
               <div className="h-6 w-1.5 bg-blue-600 rounded-full"></div>
-              Formulir Cuti
+              Formulir Pengajuan Cuti
             </h2>
 
             <form className="space-y-6 relative z-10" onSubmit={handleCutiSubmit}>
@@ -166,63 +156,88 @@ export default function CutiTab() {
                 </div>
               )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Mulai Cuti</label>
-                  <input
-                    type="date"
-                    value={leaveForm.tanggal_mulai}
-                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_mulai: e.target.value})}
-                    required
-                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Selesai Cuti</label>
-                  <input
-                    type="date"
-                    value={leaveForm.tanggal_selesai}
-                    min={leaveForm.tanggal_mulai}
-                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_selesai: e.target.value})}
-                    required
-                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-600 outline-none transition-all font-bold text-slate-800 text-sm"
-                  />
-                </div>
-              </div>
-              
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Kategori Izin</label>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Kategori Cuti</label>
                 <div className="relative">
                   <select 
                     value={leaveForm.kategori}
                     onChange={(e) => setLeaveForm({...leaveForm, kategori: e.target.value})}
                     className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white outline-none font-bold text-slate-800 appearance-none text-sm cursor-pointer"
                   >
-                    <option>Cuti Tahunan</option>
-                    <option>Cuti Sakit</option>
-                    <option>Cuti Melahirkan</option>
-                    <option>Izin Penting</option>
+                    <option value="Tahunan">Cuti Tahunan</option>
+                    <option value="Sakit">Cuti Sakit</option>
+                    <option value="Melahirkan">Cuti Melahirkan</option>
+                    <option value="Izin Penting">Izin Penting (Kedukaan, Menikah, dll)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Catatan Keterangan</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5 bg-slate-50 rounded-[24px] border border-slate-100">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5"><Calendar size={12}/> Dari Tanggal</label>
+                  <input
+                    type="date"
+                    value={leaveForm.tanggal_mulai}
+                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_mulai: e.target.value, tanggal_selesai: e.target.value > leaveForm.tanggal_selesai && leaveForm.tanggal_selesai ? e.target.value : leaveForm.tanggal_selesai})}
+                    required
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 text-sm"
+                  />
+                  {leaveForm.tanggal_mulai && <p className="text-[10px] text-slate-500 ml-1 font-medium">{getDayLabel(leaveForm.tanggal_mulai)}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5"><Calendar size={12}/> Sampai Tanggal</label>
+                  <input
+                    type="date"
+                    value={leaveForm.tanggal_selesai}
+                    min={leaveForm.tanggal_mulai}
+                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_selesai: e.target.value})}
+                    required
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 text-sm"
+                  />
+                  {leaveForm.tanggal_selesai && <p className="text-[10px] text-slate-500 ml-1 font-medium">{getDayLabel(leaveForm.tanggal_selesai)}</p>}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
+                  <div className="flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-blue-800 mb-0.5">Durasi Cuti</p>
+                      <p className="text-xs text-blue-600 font-medium leading-tight">Total hari kalender yang dipilih.</p>
+                  </div>
+                  <div className="bg-white px-4 py-2 rounded-xl border border-blue-100 shadow-sm text-center">
+                      <span className="text-2xl font-black text-blue-600 leading-none">{jumlahHari}</span>
+                      <span className="text-[10px] font-bold text-blue-400 ml-1 uppercase">Hari</span>
+                  </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 text-emerald-600">Tanggal Kembali Bekerja (Opsional)</label>
+                <input
+                    type="date"
+                    value={leaveForm.tanggal_kembali}
+                    min={leaveForm.tanggal_selesai}
+                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_kembali: e.target.value})}
+                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-600 outline-none transition-all font-bold text-slate-800 text-sm"
+                  />
+                  <p className="text-[10px] text-slate-400 ml-1">Pilih tanggal jika ada day off setelah masa cuti berakhir.</p>
+              </div>
+
+              <div className="space-y-1.5 pt-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Alasan Lengkap (Wajib)</label>
                 <textarea
                   rows={3}
                   value={leaveForm.alasan}
                   onChange={(e) => setLeaveForm({...leaveForm, alasan: e.target.value})}
                   required
                   className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-[24px] focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-600 outline-none transition-all font-medium text-slate-700 text-sm"
-                  placeholder="Alasan pengambilan cuti..."
+                  placeholder="Ceritakan detail cuti Anda..."
                 ></textarea>
               </div>
 
               <button 
-                disabled={isSubmitting}
+                disabled={isSubmitting || jumlahHari <= 0 || (leaveForm.kategori === 'Tahunan' && jumlahHari > leaveBalance)}
                 className="w-full flex items-center justify-center gap-3 bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98] text-[10px] uppercase tracking-widest mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? "Memproses..." : <><Send size={16} /> Submit Permohonan</>}
+                {isSubmitting ? "Memproses..." : <><Send size={16} /> Ajukan Permohonan Cuti</>}
               </button>
             </form>
           </div>
@@ -238,7 +253,7 @@ export default function CutiTab() {
               <CalendarDays size={14} />
             </div>
             <h3 className="text-[9px] font-black text-blue-100 uppercase tracking-[0.3em]">
-              Sisa Jatah Cuti
+              Sisa Jatah Cuti Tahunan
             </h3>
           </div>
           <div className="flex items-end gap-2">
@@ -249,86 +264,54 @@ export default function CutiTab() {
                 {leaveBalance}
               </span>
             )}
-            <span className="text-lg font-bold text-blue-200 mb-1 uppercase tracking-widest">
+            <span className="text-sm font-bold text-blue-200 mb-2 uppercase tracking-widest">
               Hari
             </span>
           </div>
+          <p className="text-xs text-blue-200/80 mt-4 font-medium leading-relaxed">
+            Pastikan Anda merencanakan cuti dari jauh hari agar operasional tim tetap berjalan lancar.
+          </p>
         </div>
 
-        {pendingApprovals.length > 0 && (
-          <div className="bg-amber-50 rounded-[32px] border border-amber-100 shadow-lg p-6">
-            <h3 className="font-black text-amber-900 uppercase tracking-widest text-[10px] mb-4">
-              Menunggu Persetujuan Anda
-            </h3>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-              {pendingApprovals.map((p) => (
-                <div key={p.id} className="bg-white p-4 rounded-2xl border border-amber-100 flex flex-col gap-3">
-                  <div>
-                    <p className="font-bold text-slate-800 text-xs">{p.nama_karyawan}</p>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                      {new Date(p.tanggal_mulai).toLocaleDateString("id-ID")} - {new Date(p.tanggal_selesai).toLocaleDateString("id-ID")}
-                    </p>
-                    <p className="text-xs text-slate-600 mt-1">{p.alasan}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleApproval(p.id, 'APPROVE')} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold py-2 rounded-lg transition-colors uppercase tracking-widest">
-                      Setujui
-                    </button>
-                    <button onClick={() => handleApproval(p.id, 'REJECT')} className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold py-2 rounded-lg transition-colors uppercase tracking-widest">
-                      Tolak
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white rounded-[32px] border border-slate-100 shadow-lg shadow-slate-200/40 p-6 flex-1 flex flex-col h-full">
-          <div className="flex items-center justify-between mb-6 px-1">
-            <h3 className="font-black text-slate-900 uppercase tracking-widest text-[10px]">
-              Riwayat Cuti
-            </h3>
-          </div>
-          <div className="space-y-3 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+        <div className="bg-white rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-100 p-8">
+          <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
+            Riwayat Cuti Anda
+          </h3>
+          
+          <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
             {isLoading ? (
-              Array(3).fill(0).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl animate-pulse">
-                  <div className="h-10 w-10 bg-slate-200 rounded-xl"></div>
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 bg-slate-200 rounded w-1/2"></div>
-                    <div className="h-2 bg-slate-200 rounded w-1/3"></div>
-                  </div>
-                </div>
-              ))
+              <div className="space-y-3">
+                {[1,2,3].map(i => (
+                  <div key={i} className="h-16 bg-slate-50 rounded-2xl animate-pulse"></div>
+                ))}
+              </div>
             ) : leaveHistory.length === 0 ? (
-              <div className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Belum ada riwayat cuti.
+              <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
+                <ShieldCheck size={24} className="text-slate-300 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-400">Belum ada riwayat cuti</p>
               </div>
             ) : (
-              leaveHistory.map((item: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:bg-white hover:border-blue-100 transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${item.status === "Disetujui" ? "bg-emerald-50 text-emerald-500" : item.status === "Ditolak" ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500"}`}>
-                      <CalendarDays size={16} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800 text-xs truncate max-w-[120px]">{item.type}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{item.range}</p>
-                    </div>
+              leaveHistory.map((item) => (
+                <div key={item.id} className="p-4 rounded-2xl border border-slate-100 hover:border-blue-100 hover:shadow-lg hover:shadow-blue-500/5 transition-all bg-white group">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs font-black text-slate-700">{item.type}</span>
+                    <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
+                      item.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                      item.status.includes('PENDING') ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                      'bg-rose-50 text-rose-600 border-rose-100'
+                    }`}>
+                      {item.status.replace('_', ' ')}
+                    </span>
                   </div>
-                  <div className={`px-2 py-1 text-center rounded-lg text-[7px] font-black uppercase tracking-widest ${item.status === "Disetujui" ? "bg-emerald-500 text-white" : item.status === "Ditolak" ? "bg-red-500 text-white" : "bg-amber-500 text-white"}`}>
-                    {item.status}
+                  <div className="text-[10px] font-bold text-blue-600 mb-1 flex items-center gap-1.5">
+                    <Calendar size={10} /> {item.range} ({item.jumlah_hari} Hari)
                   </div>
+                  <p className="text-[10px] text-slate-500 line-clamp-1 mt-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                    "{item.alasan}"
+                  </p>
                 </div>
               ))
             )}
-          </div>
-          <div className="mt-6 p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
-            <div className="flex items-center justify-center gap-2 text-slate-300 font-bold text-[9px] uppercase tracking-widest">
-              <ShieldCheck size={12} />
-              <span>Alice Security Guard</span>
-            </div>
           </div>
         </div>
       </div>
