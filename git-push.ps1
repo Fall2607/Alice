@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fix: Cuti API 500 error caused by missing j.nama_jabatan column"
+git commit -m "Fix: Type cast ILIKE for enum status_cuti and move Approval Cuti to Kehadiran/Cuti"
 git push origin master
 git checkout development
 git merge master

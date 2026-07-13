@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
     if (status) {
       if (status === 'Menunggu') {
         // Admin melihat SEMUA pending cuti (Menunggu Atasan / Menunggu HC)
-        query += ` AND c.status ILIKE $${paramCount}`;
+        query += ` AND c.status::text ILIKE $${paramCount}`;
         params.push('%Menunggu%');
       } else {
         query += ` AND c.status = $${paramCount}`;
