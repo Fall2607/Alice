@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fix: Cuti HC email discovery logic to include employees in HC department even if they don't have user_id"
+git commit -m "Fix: Handle individual email errors inside loops to prevent whole loop abortion"
 git push origin master
 git checkout development
 git merge master
