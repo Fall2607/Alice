@@ -68,7 +68,17 @@ export async function POST(request: NextRequest) {
               `);
               for (const hc of hcRes.rows) {
                   if (hc.email) {
-                      await sendCutiMagicLink(hc.email, hc.nama_lengkap, namaPemohon, cuti.tanggal_mulai, cuti.tanggal_selesai, cuti.alasan, newMagicToken);
+                      await sendCutiMagicLink({
+                          toEmail: hc.email,
+                          approverName: hc.nama_lengkap,
+                          karyawanName: namaPemohon,
+                          tanggalMulai: cuti.tanggal_mulai,
+                          tanggalSelesai: cuti.tanggal_selesai,
+                          tanggalKembali: cuti.tanggal_kembali,
+                          jumlahHari: cuti.jumlah_hari,
+                          alasan: cuti.alasan,
+                          token: newMagicToken
+                      });
                   }
               }
           } catch(e) { console.error("Gagal mengirim magic link HC setelah Atasan approve di dashboard:", e); }

@@ -314,10 +314,10 @@ export default function CutiTab() {
                     <span className="text-xs font-black text-slate-700">{item.type}</span>
                     <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
                       item.status === 'Disetujui' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                      item.status.includes('Menunggu') ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                      (item.status && item.status.includes('Menunggu')) ? 'bg-amber-50 text-amber-600 border-amber-100' :
                       'bg-rose-50 text-rose-600 border-rose-100'
                     }`}>
-                      {item.status.replace('_', ' ')}
+                      {(item.status || 'TIDAK DIKETAHUI').replace('_', ' ')}
                     </span>
                   </div>
                   <div className="text-[10px] font-bold text-blue-600 mb-1 flex items-center gap-1.5">
