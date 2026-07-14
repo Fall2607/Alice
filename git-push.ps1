@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fix: Variable shadowing bug (TDZ) in api/absensi/[karyawan_id]"
+git commit -m "Feat: Implement Multi-Descriptor Face Recognition and Adaptive Learning for attendance"
 git push origin master
 git checkout development
 git merge master

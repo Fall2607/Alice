@@ -9,10 +9,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "NIP dan face_descriptor diperlukan." }, { status: 400 });
     }
 
-    // Pastikan face_descriptor adalah array atau string JSON yang valid
-    const descriptorStr = Array.isArray(face_descriptor) 
-        ? JSON.stringify(face_descriptor) 
-        : face_descriptor;
+    // Ubah ke format Multi-Descriptor (2D Array)
+    let descriptorToSave = face_descriptor;
+    if (typeof face_descriptor === 'string') {
+        descriptorToSave = JSON.parse(face_descriptor);
+    }
+    
+    // Pastikan selalu disimpan sebagai array of arrays (koleksi wajah)
+    const descriptorStr = JSON.stringify([descriptorToSave]);
 
     // Update kolom face_descriptor untuk karyawan dengan nip yang sesuai
     const updateRes = await pool.query(
