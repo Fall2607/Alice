@@ -10,8 +10,12 @@ export async function GET(
   try {
     const { karyawan_id } = await params;
 
-    const result = await pool.query(
-      `SELECT 
+    const url = new URL(request.url);
+    const monthStr = url.searchParams.get("month");
+    const yearStr = url.searchParams.get("year");
+
+    let query = `
+       SELECT 
          a.id, 
          a.tanggal, 
          a.jam_masuk, 
@@ -20,11 +24,18 @@ export async function GET(
          s.nama_shift
        FROM absensi a
        LEFT JOIN shift s ON a.shift_id = s.id
-       WHERE a.karyawan_id = $1 
-       ORDER BY a.tanggal DESC
-       LIMIT 30`,
-      [karyawan_id]
-    );
+       WHERE a.karyawan_id = $1
+    `;
+    const params: any[] = [karyawan_id];
+
+    if (monthStr && yearStr) {
+       query += ` AND EXTRACT(MONTH FROM a.tanggal) = $2 AND EXTRACT(YEAR FROM a.tanggal) = $3`;
+       params.push(parseInt(monthStr), parseInt(yearStr));
+    }
+
+    query += ` ORDER BY a.tanggal DESC`;
+
+    const result = await pool.query(query, params);
 
     return NextResponse.json(result.rows);
   } catch (err) {
