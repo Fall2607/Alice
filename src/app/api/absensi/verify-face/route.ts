@@ -60,11 +60,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Threshold standar FaceAPI = 0.5. Kita perketat menjadi 0.38 
-    // agar mengurangi drastis kemungkinan wajah tertukar (False Positive).
-    // Jika karyawan_id diberikan (Mobile App), margin error turun ke 0 karena hanya membandingkan 1 wajah,
-    // maka kita bisa melonggarkan threshold sedikit ke 0.45 agar lebih mudah terdeteksi.
-    const MATCH_THRESHOLD = karyawan_id ? 0.45 : 0.38;
+    // Threshold standar FaceAPI = 0.5. 
+    // Jika karyawan_id diberikan (user sudah input NIP terlebih dahulu), kita hanya melakukan pencocokan 1-to-1.
+    // Karena NIP sudah menjadi lapis keamanan pertama, kita bisa sangat melonggarkan threshold wajah ke 0.55 atau 0.6
+    // agar karyawan lebih mudah absen meski pencahayaan kurang baik atau memakai kacamata/masker sebagian.
+    // Jika tanpa NIP (1-to-N pencocokan massal), kita gunakan 0.40 agar tidak tertukar.
+    const MATCH_THRESHOLD = karyawan_id ? 0.60 : 0.40;
 
     if (!bestMatch || minDistance > MATCH_THRESHOLD) {
       return NextResponse.json(
