@@ -192,6 +192,13 @@ export default function AbsensiTab() {
              setScanResultMsg(resData.message);
              return;
           }
+          if (response.status === 409 || response.status === 403) {
+             setScanStatus("info");
+             setCachedDescriptor(null);
+             setScanResultMsg(resData.message);
+             setTimeout(() => { setScanStatus("idle"); setScanResultMsg(""); }, 5000);
+             return;
+          }
           setScanStatus("error");
           setCachedDescriptor(null);
           setScanResultMsg(resData.message || "Wajah tidak dikenali.");
@@ -472,7 +479,13 @@ export default function AbsensiTab() {
               {scanStatus === "error" && (
                 <div className="absolute inset-0 bg-rose-600/90 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in zoom-in duration-300">
                   <AlertCircle className="w-20 h-20 text-white mb-4" />
-                  <p className="text-sm font-bold text-white text-center px-6">{scanResultMsg}</p>
+                  <p className="text-sm font-bold text-white text-center px-6 leading-relaxed">{scanResultMsg}</p>
+                </div>
+              )}
+              {scanStatus === "info" && (
+                <div className="absolute inset-0 bg-blue-600/90 backdrop-blur-sm flex flex-col items-center justify-center z-20 animate-in zoom-in duration-300">
+                  <ShieldCheck className="w-20 h-20 text-white mb-4" />
+                  <p className="text-sm font-bold text-white text-center px-6 leading-relaxed">{scanResultMsg}</p>
                 </div>
               )}
               {scanStatus === "early" && (
