@@ -13,10 +13,21 @@ import {
   Loader2,
   ScanFace,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ChevronDown
 } from "lucide-react";
 
+const MONTHS = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+];
+
 export default function AbsensiTab() {
+  const currentDate = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+
   const [attendanceLog, setAttendanceLog] = useState<any[]>([]);
   const [stats, setStats] = useState({ hadir: 0, terlambat: 0, score: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -33,10 +44,10 @@ export default function AbsensiTab() {
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
-  const fetchAbsensi = async (kId: string) => {
+  const fetchAbsensi = async (kId: string, month: number, year: number) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${baseUrl}/absensi/${kId}`);
+      const response = await fetch(`${baseUrl}/absensi/${kId}?month=${month}&year=${year}`);
       if (response.ok) {
         const data = await response.json();
         let hadir = 0;
@@ -92,8 +103,8 @@ export default function AbsensiTab() {
     const user = JSON.parse(userString);
     if (!user.karyawan_id) return;
     setKaryawanId(user.karyawan_id);
-    fetchAbsensi(user.karyawan_id);
-  }, [baseUrl]);
+    fetchAbsensi(user.karyawan_id, selectedMonth, selectedYear);
+  }, [baseUrl, selectedMonth, selectedYear]);
 
   // Load Models
   useEffect(() => {
@@ -209,7 +220,7 @@ export default function AbsensiTab() {
           setScanResultMsg(resData.message || "Absen berhasil!");
           setTimeout(() => { 
             setIsLiveAbsenOpen(false); 
-            fetchAbsensi(karyawanId); // Refresh logs
+            fetchAbsensi(karyawanId, selectedMonth, selectedYear); // Refresh logs
           }, 2000);
         }
       } catch (error) {
@@ -251,9 +262,50 @@ export default function AbsensiTab() {
                 >
                   <Camera size={14} /> Absen Sekarang
                 </button>
-                <button className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-blue-600 border border-slate-100 transition-all">
-                  <Filter size={16} />
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsFilterOpen(!isFilterOpen)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-xs font-bold ${isFilterOpen ? "bg-slate-100 text-slate-800 border-slate-200" : "bg-slate-50 text-slate-500 border-slate-100 hover:text-blue-600"}`}
+                  >
+                    <Filter size={14} />
+                    <span>{MONTHS[selectedMonth - 1]} {selectedYear}</span>
+                    <ChevronDown size={14} className={`transition-transform duration-300 ${isFilterOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  
+                  {isFilterOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-30 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Bulan</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-4">
+                        <select 
+                          value={selectedMonth} 
+                          onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                          className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        >
+                          {MONTHS.map((m, i) => (
+                            <option key={i} value={i + 1}>{m}</option>
+                          ))}
+                        </select>
+                        <select 
+                          value={selectedYear} 
+                          onChange={(e) => setSelectedYear(Number(e.target.value))}
+                          className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        >
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <option key={i} value={currentDate.getFullYear() - i}>{currentDate.getFullYear() - i}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button 
+                        onClick={() => setIsFilterOpen(false)}
+                        className="w-full py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-100 transition-all"
+                      >
+                        Terapkan
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
