@@ -1,5 +1,5 @@
 git add .
-git commit -m "Feat: Loosen facial recognition threshold for NIP-based 1-to-1 check-ins"
+git commit -m "Fix: Make NIP visible on mobile profile header and display NIP prominently below QR code"
 git push origin master
 git checkout development
 git merge master

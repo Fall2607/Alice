@@ -214,8 +214,8 @@ export default function ProfilePage() {
               <span className="text-slate-500 font-bold text-xs uppercase tracking-[0.1em]">
                 {profile.nama_departemen}
               </span>
-              <div className="hidden md:block w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-              <span className="hidden md:inline text-slate-400 font-medium text-xs">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+              <span className="text-slate-400 font-bold text-xs uppercase tracking-widest">
                 NIP: {profile.nip}
               </span>
             </div>
@@ -245,6 +245,12 @@ export default function ProfilePage() {
                 className="w-48 h-48 mix-blend-multiply"
               />
               <div className="absolute inset-0 border-2 border-primary/5 rounded-[40px] pointer-events-none"></div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-8">
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Nomor Induk Pegawai (NIP)</p>
+              <p className="text-2xl font-black text-slate-800 tracking-widest">{profile.nip}</p>
+              <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">Gunakan NIP ini saat melakukan absensi di mesin Kiosk</p>
             </div>
 
             <div className="space-y-6">
