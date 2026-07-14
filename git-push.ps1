@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fix: Make NIP visible on mobile profile header and display NIP prominently below QR code"
+git commit -m "Feat: Add Live Absensi (Self-Service) modal inside My Activity dashboard"
 git push origin master
 git checkout development
 git merge master
