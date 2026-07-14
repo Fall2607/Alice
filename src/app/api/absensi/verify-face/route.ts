@@ -40,31 +40,38 @@ export async function POST(request: NextRequest) {
 
     let bestMatch: any = null;
     let minDistance = 999;
+    let bestMatchDescriptorList: number[][] = [];
 
-    // 2. Loop dan cari wajah yang paling mirip (Threshold standar FaceAPI = 0.5, kita pakai 0.45 agar lebih ketat)
+    // 2. Loop dan cari wajah yang paling mirip
     for (const row of karyawanRes.rows) {
-      // Parse descriptor dari database (JSON string/array)
-      let dbDescriptor: number[] = [];
+      let parsedData: any = [];
       if (typeof row.face_descriptor === 'string') {
-          dbDescriptor = JSON.parse(row.face_descriptor);
+          parsedData = JSON.parse(row.face_descriptor);
       } else if (Array.isArray(row.face_descriptor)) {
-          dbDescriptor = row.face_descriptor;
+          parsedData = row.face_descriptor;
       }
 
-      if (dbDescriptor.length === 128) {
-        const distance = euclideanDistance(descriptor, dbDescriptor);
-        if (distance < minDistance) {
-          minDistance = distance;
-          bestMatch = row;
-        }
+      // Backward compatibility: If 1D array (old format), convert to 2D
+      let dbDescriptorList: number[][] = [];
+      if (parsedData.length === 128 && typeof parsedData[0] === 'number') {
+          dbDescriptorList = [parsedData];
+      } else if (parsedData.length > 0 && Array.isArray(parsedData[0])) {
+          dbDescriptorList = parsedData;
+      }
+
+      // Cek satu per satu koleksi wajah karyawan ini
+      for (const dbDescriptor of dbDescriptorList) {
+          if (dbDescriptor.length === 128) {
+            const distance = euclideanDistance(descriptor, dbDescriptor);
+            if (distance < minDistance) {
+              minDistance = distance;
+              bestMatch = row;
+              bestMatchDescriptorList = dbDescriptorList;
+            }
+          }
       }
     }
 
-    // Threshold standar FaceAPI = 0.5. 
-    // Jika karyawan_id diberikan (user sudah input NIP terlebih dahulu), kita hanya melakukan pencocokan 1-to-1.
-    // Karena NIP sudah menjadi lapis keamanan pertama, kita bisa sangat melonggarkan threshold wajah ke 0.55 atau 0.6
-    // agar karyawan lebih mudah absen meski pencahayaan kurang baik atau memakai kacamata/masker sebagian.
-    // Jika tanpa NIP (1-to-N pencocokan massal), kita gunakan 0.40 agar tidak tertukar.
     const MATCH_THRESHOLD = karyawan_id ? 0.60 : 0.40;
 
     if (!bestMatch || minDistance > MATCH_THRESHOLD) {
@@ -72,6 +79,25 @@ export async function POST(request: NextRequest) {
         { message: "Wajah tidak dikenali. Pastikan posisi wajah sesuai dan pencahayaan cukup." }, 
         { status: 401 }
       );
+    }
+
+    // 2.5 Adaptive Learning (Auto-Update Wajah)
+    // Jika akurasi sangat tinggi (< batas_aman) tapi BUKAN persis foto yang sama (> 0.05)
+    // Kita simpan wajah terbaru ini agar sistem makin pintar mengenali karyawan dari sudut/cahaya baru
+    const ADAPTIVE_THRESHOLD = MATCH_THRESHOLD - 0.15;
+    if (minDistance > 0.05 && minDistance <= ADAPTIVE_THRESHOLD) {
+       const updatedDescriptorList = [...bestMatchDescriptorList, descriptor];
+       
+       // Batasi maksimal 5 wajah (koleksi terlama dihapus)
+       if (updatedDescriptorList.length > 5) {
+           updatedDescriptorList.shift();
+       }
+       
+       // Update database secara background tanpa memblokir kecepatan absen
+       pool.query(
+          `UPDATE karyawan SET face_descriptor = $1 WHERE id = $2`,
+          [JSON.stringify(updatedDescriptorList), bestMatch.id]
+       ).catch(err => console.error("Gagal melakukan adaptive learning wajah:", err));
     }
 
     // 3. Wajah Dikenali -> Proses Absensi (Masuk / Keluar)
