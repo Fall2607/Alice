@@ -26,16 +26,16 @@ export async function GET(
        LEFT JOIN shift s ON a.shift_id = s.id
        WHERE a.karyawan_id = $1
     `;
-    const params: any[] = [karyawan_id];
+    const queryParams: any[] = [karyawan_id];
 
     if (monthStr && yearStr) {
        query += ` AND EXTRACT(MONTH FROM a.tanggal) = $2 AND EXTRACT(YEAR FROM a.tanggal) = $3`;
-       params.push(parseInt(monthStr), parseInt(yearStr));
+       queryParams.push(parseInt(monthStr), parseInt(yearStr));
     }
 
     query += ` ORDER BY a.tanggal DESC`;
 
-    const result = await pool.query(query, params);
+    const result = await pool.query(query, queryParams);
 
     return NextResponse.json(result.rows);
   } catch (err) {
