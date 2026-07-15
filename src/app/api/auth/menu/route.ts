@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const roleId = searchParams.get("roleId");
+    const karyawanId = searchParams.get("karyawanId");
 
     if (!roleId) {
       return NextResponse.json(
@@ -19,9 +20,20 @@ export async function GET(request: Request) {
       );
     }
 
+    // Cek apakah karyawan ini memiliki delegasi jadwal (hanya jika karyawanId ada)
+    let hasDelegation = false;
+    if (karyawanId) {
+      const delCheck = await pool.query(
+        `SELECT 1 FROM schedule_delegations WHERE karyawan_id = $1 LIMIT 1`,
+        [karyawanId]
+      );
+      hasDelegation = delCheck.rows.length > 0;
+    }
+
     // 1. Ambil semua menu yang diizinkan untuk role ini (termasuk parent jika child-nya diizinkan)
+    // Jika ada delegasi, tambahkan menu Manajemen Jadwal dan Plotting Shift (menggunakan path)
     const menuResult = await pool.query(
-      `SELECT 
+      `SELECT DISTINCT
         m.id, 
         m.parent_id, 
         m.nama_menu as label, 
@@ -41,9 +53,11 @@ export async function GET(request: Request) {
                  AND sub_rma.can_view = true
                  AND sub_m.is_active = true
              )
+             OR ($2::boolean = true AND m.path IN ('/admin/jadwal-kerja/plotting'))
+             OR ($2::boolean = true AND m.id = '69903b4c-9613-47af-883b-7d18c0c3f21c') -- ID Manajemen Jadwal
          )
        ORDER BY m.urutan ASC`,
-      [roleId],
+      [roleId, hasDelegation],
     );
 
     const allMenus = menuResult.rows;

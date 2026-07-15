@@ -101,7 +101,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
             : `${cleanBase}/api/auth/menu`;
         }
 
-        const res = await fetch(`${apiUrl}?roleId=${user.role_id}`);
+        const res = await fetch(`${apiUrl}?roleId=${user.role_id}&karyawanId=${user.karyawan_id || ""}`);
 
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));

@@ -85,7 +85,7 @@ export default function Sidebar({
 
       const fetchMenu = async () => {
         try {
-          const response = await fetch(`/api/auth/menu?roleId=${user.role_id}`);
+          const response = await fetch(`/api/auth/menu?roleId=${user.role_id}&karyawanId=${user.karyawan_id || ""}`);
           if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data)) {
