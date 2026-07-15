@@ -30,11 +30,17 @@ export async function GET(req: Request) {
                     UNION
                     SELECT k.id FROM karyawan k
                     INNER JOIN subordinates s ON s.id = k.atasan_id
+                ),
+                delegated_karyawan AS (
+                    SELECT k.id FROM karyawan k
+                    INNER JOIN jabatan j ON k.jabatan_id = j.id
+                    INNER JOIN schedule_delegations sd ON j.departemen_id = sd.departemen_id
+                    WHERE sd.karyawan_id = $${values.length + 1}
                 )
                 ${query}
             `;
             values.push(superiorId);
-            conditions.push(`k.id IN (SELECT id FROM subordinates)`);
+            conditions.push(`k.id IN (SELECT id FROM subordinates UNION SELECT id FROM delegated_karyawan)`);
         }
         
         if (conditions.length > 0) {
@@ -68,8 +74,14 @@ export async function POST(req: Request) {
                     UNION
                     SELECT k.id FROM karyawan k
                     INNER JOIN subordinates s ON s.id = k.atasan_id
+                ),
+                delegated_karyawan AS (
+                    SELECT k.id FROM karyawan k
+                    INNER JOIN jabatan j ON k.jabatan_id = j.id
+                    INNER JOIN schedule_delegations sd ON j.departemen_id = sd.departemen_id
+                    WHERE sd.karyawan_id = $1
                 )
-                SELECT id FROM subordinates
+                SELECT id FROM subordinates UNION SELECT id FROM delegated_karyawan
             `, [superior_id]);
             
             const subIds = subRes.rows.map(r => r.id);
