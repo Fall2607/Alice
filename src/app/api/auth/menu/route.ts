@@ -87,7 +87,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Menu API Error:", error);
     return NextResponse.json(
-      { message: "Gagal memuat menu navigasi." },
+      { message: "Gagal memuat menu navigasi.", error: error instanceof Error ? error.message : String(error) },
       { status: 500 },
     );
   }

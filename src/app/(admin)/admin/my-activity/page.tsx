@@ -11,12 +11,14 @@ import {
   Clock,
   Timer,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 import AbsensiTab from "./components/AbsensiTab";
+import ShiftTab from "./components/ShiftTab";
 import CutiTab from "./components/CutiTab";
 import LemburTab from "./components/LemburTab";
 
-type ActiveTab = "cuti" | "lembur" | "absensi";
+type ActiveTab = "absensi" | "shift" | "cuti" | "lembur";
 
 export default function SelfServicePage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("absensi");
@@ -47,6 +49,12 @@ export default function SelfServicePage() {
             <Calendar size={14} /> Absensi
           </button>
           <button
+            onClick={() => setActiveTab("shift")}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === "shift" ? "bg-white text-blue-600 shadow-md" : "text-slate-400 hover:text-slate-600"}`}
+          >
+            <RefreshCw size={14} /> Shift
+          </button>
+          <button
             onClick={() => setActiveTab("cuti")}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === "cuti" ? "bg-white text-blue-600 shadow-md" : "text-slate-400 hover:text-slate-600"}`}
           >
@@ -63,6 +71,7 @@ export default function SelfServicePage() {
 
       {/* Render Active Tab */}
       {activeTab === "absensi" && <AbsensiTab />}
+      {activeTab === "shift" && <ShiftTab />}
       {activeTab === "cuti" && <CutiTab />}
       {activeTab === "lembur" && <LemburTab />}
 

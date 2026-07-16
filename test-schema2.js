@@ -1,0 +1,1 @@
+const { Pool } = require('pg'); const pool = new Pool({host: '182.253.37.109', user: 'postgres', password: '1234', database: 'hris', port: 5432}); async function run() { try { const res = await pool.query('SELECT * FROM menus;'); console.log(JSON.stringify(res.rows, null, 2)); } catch(e) { console.error(e); } finally { process.exit(0); } } run();
