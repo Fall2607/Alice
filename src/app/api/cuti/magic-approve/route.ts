@@ -62,9 +62,9 @@ export async function GET(request: NextRequest) {
         const hcRes = await pool.query(`
           SELECT u.email, COALESCE(k.nama_lengkap, u.email) as nama_lengkap
           FROM users u
-          JOIN roles r ON u.role_id = r.id
+          LEFT JOIN roles r ON u.role_id = r.id
           LEFT JOIN karyawan k ON k.user_id = u.id OR k.email = u.email
-          WHERE r.nama_role ILIKE '%hrd%' OR r.nama_role ILIKE '%hc%' OR r.nama_role ILIKE '%human capital%'
+          WHERE u.email = 'friscachoiriatul@gmail.com' OR k.nip = '12001059'
         `);
         for (const hc of hcRes.rows) {
             if (hc.email) {
