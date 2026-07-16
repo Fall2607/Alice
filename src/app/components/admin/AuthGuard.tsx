@@ -78,7 +78,6 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     setMounted(true);
 
     const verifyAccess = async () => {
-      setStatus("loading");
       setErrorDetail(null);
 
       const userString =
@@ -93,24 +92,37 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         if (!user.role_id)
           throw new Error("ID Peran tidak terdeteksi dalam sistem.");
 
-        let apiUrl = "/api/auth/menu";
-        if (baseUrl) {
-          const cleanBase = baseUrl.replace(/\/$/, "");
-          apiUrl = cleanBase.endsWith("/api")
-            ? `${cleanBase}/auth/menu`
-            : `${cleanBase}/api/auth/menu`;
+        let allowedMenus = null;
+        const cachedMenus = sessionStorage.getItem("alice_auth_menus");
+        const cacheRole = sessionStorage.getItem("alice_auth_role");
+
+        if (cachedMenus && cacheRole === String(user.role_id)) {
+          allowedMenus = JSON.parse(cachedMenus);
+        } else {
+          setStatus("loading");
+          
+          let apiUrl = "/api/auth/menu";
+          if (baseUrl) {
+            const cleanBase = baseUrl.replace(/\/$/, "");
+            apiUrl = cleanBase.endsWith("/api")
+              ? `${cleanBase}/auth/menu`
+              : `${cleanBase}/api/auth/menu`;
+          }
+
+          const res = await fetch(`${apiUrl}?roleId=${user.role_id}&karyawanId=${user.karyawan_id || ""}`);
+
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(
+              errorData.message || `Gangguan protokol (Status: ${res.status})`,
+            );
+          }
+
+          allowedMenus = await res.json();
+          sessionStorage.setItem("alice_auth_menus", JSON.stringify(allowedMenus));
+          sessionStorage.setItem("alice_auth_role", String(user.role_id));
         }
 
-        const res = await fetch(`${apiUrl}?roleId=${user.role_id}&karyawanId=${user.karyawan_id || ""}`);
-
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(
-            errorData.message || `Gangguan protokol (Status: ${res.status})`,
-          );
-        }
-
-        const allowedMenus = await res.json();
         const isAllowed = hasPermission(allowedMenus, pathname);
 
         if (isAllowed) {
