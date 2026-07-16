@@ -13,9 +13,6 @@ const createPool = (): Pool => {
         password: process.env.PGPASSWORD,
         port: Number(process.env.PGPORT) || 5432,
         
-        // Tambahkan SSL untuk koneksi production (Vercel ke Cloud DB seperti Supabase, Neon)
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-
         // --- SERVERLESS OPTIMIZATION (VERCEL) ---
         max: 5, // Batasi koneksi per lambda instance agar tidak kehabisan kuota DB
         idleTimeoutMillis: 10000, // Tutup koneksi yang idle setelah 10 detik
