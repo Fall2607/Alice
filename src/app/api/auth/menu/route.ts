@@ -20,9 +20,9 @@ export async function GET(request: Request) {
       );
     }
 
-    // Cek apakah karyawan ini memiliki delegasi jadwal (hanya jika karyawanId ada)
+    // Cek apakah karyawan ini memiliki delegasi jadwal (hanya jika karyawanId valid)
     let hasDelegation = false;
-    if (karyawanId) {
+    if (karyawanId && karyawanId !== "null" && karyawanId.length > 10) {
       const delCheck = await pool.query(
         `SELECT 1 FROM schedule_delegations WHERE karyawan_id = $1 LIMIT 1`,
         [karyawanId]
