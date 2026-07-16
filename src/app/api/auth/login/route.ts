@@ -65,6 +65,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Login error:", error);
-    return NextResponse.json({ message: "Terjadi kesalahan pada server." }, { status: 500 });
+    return NextResponse.json({ message: "Terjadi kesalahan pada server.", error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
