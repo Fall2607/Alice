@@ -18,6 +18,7 @@ interface UserData {
 
 interface LoginResponse {
   message?: string;
+  error?: string; // Menambahkan field error
   token?: string;
   user?: UserData;
 }
@@ -45,7 +46,11 @@ export default function App() {
       });
 
       const data: LoginResponse = await response.json();
-      if (!response.ok) throw new Error(data.message || "Login gagal.");
+      
+      if (!response.ok) {
+        const errorMessage = data.error ? `${data.message} (${data.error})` : (data.message || "Login gagal.");
+        throw new Error(errorMessage);
+      }
 
       // Simpan Token dan Data User (termasuk role_id)
       if (data.token) localStorage.setItem("authToken", data.token);
