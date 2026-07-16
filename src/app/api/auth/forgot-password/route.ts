@@ -36,12 +36,11 @@ export async function POST(request: Request) {
 
     // 2. Buat Token Reset (Berlaku 1 jam)
     const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 3600000); 
 
-    // 3. Simpan Token ke Database
+    // 3. Simpan Token ke Database (Menggunakan NOW() dari Postgres agar terhindar dari masalah zona waktu Vercel vs Windows)
     await pool.query(
-      "UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE LOWER(email) = LOWER($3)",
-      [token, expires, email]
+      "UPDATE users SET reset_password_token = $1, reset_password_expires = NOW() + INTERVAL '1 hour' WHERE LOWER(email) = LOWER($2)",
+      [token, email]
     );
 
     // 4. Konfigurasi Transporter menggunakan .env.local
