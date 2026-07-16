@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, XCircle, Clock, Calendar, ArrowRightLeft, UserCircle2, Loader2, RefreshCw } from "lucide-react";
 
-export default function ApproveTukarShiftPage() {
+function ApproveTukarShiftContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -167,5 +167,18 @@ export default function ApproveTukarShiftPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ApproveTukarShiftPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Memuat halaman...</p>
+      </div>
+    }>
+      <ApproveTukarShiftContent />
+    </Suspense>
   );
 }
