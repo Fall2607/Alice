@@ -33,7 +33,7 @@ export default function ApprovalCutiPage() {
       } else if (isHC) {
         url = `${baseUrl}/cuti?status=Menunggu HC`;
       } else {
-        url = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=Menunggu Atasan`;
+        url = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=Menunggu Atasan,Menunggu SPV`;
       }
 
       const res = await fetch(url, { cache: 'no-store' });

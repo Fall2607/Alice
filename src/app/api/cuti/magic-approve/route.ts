@@ -47,18 +47,16 @@ export async function GET(request: NextRequest) {
     let message = '';
     
     if (action === 'REJECT') {
-      const rejectedByStr = cuti.status === 'Menunggu Atasan' ? `Atasan (${approverName})` : `HC (${approverName})`;
+      let rejectedByStr = `Atasan (${approverName})`;
+      if (cuti.status === 'Menunggu SPV') rejectedByStr = `SPV (${approverName})`;
+      if (cuti.status === 'Menunggu HC') rejectedByStr = `HC (${approverName})`;
+
       query = `UPDATE pengajuan_cuti SET status = 'Ditolak', magic_token = NULL, rejected_by = $2 WHERE id = $1 RETURNING *`;
       params = [cuti.id, rejectedByStr];
       message = `Permohonan cuti ${cuti.nama_lengkap} berhasil ditolak.`;
     } else if (action === 'APPROVE') {
-      if (cuti.status === 'Menunggu Atasan') {
-        // Atasan approve -> Naik ke Menunggu HC
-        query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
-        params = [newMagicToken, cuti.atasan_id, cuti.id];
-        message = `Permohonan cuti ${cuti.nama_lengkap} disetujui (Tahap 1). Diteruskan ke HC untuk persetujuan final.`;
-        
-        // Kirim email ke HC
+      
+      const sendEmailToHC = async (tokenHC: string) => {
         const hcRes = await pool.query(`
           SELECT u.email, COALESCE(k.nama_lengkap, u.email) as nama_lengkap
           FROM users u
@@ -70,21 +68,70 @@ export async function GET(request: NextRequest) {
             if (hc.email) {
                 try {
                     await sendCutiMagicLink({
-                        toEmail: hc.email,
-                        approverName: hc.nama_lengkap,
-                        karyawanName: cuti.nama_lengkap,
-                        tanggalMulai: cuti.tanggal_mulai,
-                        tanggalSelesai: cuti.tanggal_selesai,
-                        tanggalKembali: cuti.tanggal_kembali,
-                        jumlahHari: cuti.jumlah_hari,
-                        alasan: cuti.alasan,
-                        token: newMagicToken
+                        toEmail: hc.email, approverName: hc.nama_lengkap, karyawanName: cuti.nama_lengkap,
+                        tanggalMulai: cuti.tanggal_mulai, tanggalSelesai: cuti.tanggal_selesai,
+                        tanggalKembali: cuti.tanggal_kembali, jumlahHari: cuti.jumlah_hari,
+                        alasan: cuti.alasan, token: tokenHC
                     });
-                } catch (emailErr) {
-                    console.error("Gagal mengirim magic link HC ke:", hc.email, emailErr);
-                }
+                } catch (emailErr) { console.error("Gagal mengirim magic link HC:", emailErr); }
             }
         }
+      };
+
+      if (cuti.status === 'Menunggu Atasan') {
+        // Cek level atasan
+        const atasanRes = await pool.query(`
+          SELECT k.id, k.atasan_id, lj.nama_level, k.nama_lengkap, k.email 
+          FROM karyawan k
+          LEFT JOIN jabatan j ON k.jabatan_id = j.id
+          LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
+          WHERE k.id = $1
+        `, [cuti.atasan_id]);
+        
+        const atasanInfo = atasanRes.rows[0];
+        const isSpvOrHigher = ['Supervisor', 'Wakil Direktur', 'Direktur'].includes(atasanInfo?.nama_level);
+        
+        // Cek apakah SPV (atasannya atasan) punya email
+        let spvInfo = null;
+        if (!isSpvOrHigher && atasanInfo?.atasan_id) {
+           const spvRes = await pool.query(`SELECT email, nama_lengkap FROM karyawan WHERE id = $1`, [atasanInfo.atasan_id]);
+           if (spvRes.rows.length > 0 && spvRes.rows[0].email) {
+              spvInfo = spvRes.rows[0];
+           }
+        }
+
+        if (isSpvOrHigher || !spvInfo) {
+          // Lanjut ke HC
+          query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
+          params = [newMagicToken, cuti.atasan_id, cuti.id];
+          message = `Permohonan cuti ${cuti.nama_lengkap} disetujui oleh Atasan. Diteruskan ke HC.`;
+          await sendEmailToHC(newMagicToken);
+        } else {
+          // Lanjut ke SPV
+          query = `UPDATE pengajuan_cuti SET status = 'Menunggu SPV', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
+          params = [newMagicToken, cuti.atasan_id, cuti.id];
+          message = `Permohonan cuti ${cuti.nama_lengkap} disetujui oleh Atasan. Diteruskan ke SPV untuk persetujuan.`;
+          
+          try {
+             await sendCutiMagicLink({
+                 toEmail: spvInfo.email, approverName: spvInfo.nama_lengkap, karyawanName: cuti.nama_lengkap,
+                 tanggalMulai: cuti.tanggal_mulai, tanggalSelesai: cuti.tanggal_selesai,
+                 tanggalKembali: cuti.tanggal_kembali, jumlahHari: cuti.jumlah_hari,
+                 alasan: cuti.alasan, token: newMagicToken
+             });
+          } catch(e) { console.error("Gagal mengirim email ke SPV:", e); }
+        }
+
+      } else if (cuti.status === 'Menunggu SPV') {
+         // SPV Approve -> Naik ke HC
+         const spvRes = await pool.query(`SELECT atasan_id FROM karyawan WHERE id = $1`, [cuti.atasan_id]);
+         const spvId = spvRes.rows[0]?.atasan_id || null;
+
+         query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, spv_approved_by_id = $2 WHERE id = $3 RETURNING *`;
+         params = [newMagicToken, spvId, cuti.id];
+         message = `Permohonan cuti ${cuti.nama_lengkap} disetujui oleh SPV. Diteruskan ke HC.`;
+         await sendEmailToHC(newMagicToken);
+
       } else if (cuti.status === 'Menunggu HC') {
         // HC approve -> Disetujui final
         query = `UPDATE pengajuan_cuti SET status = 'Disetujui', magic_token = NULL WHERE id = $1 RETURNING *`;
