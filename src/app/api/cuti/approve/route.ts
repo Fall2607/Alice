@@ -47,52 +47,91 @@ export async function POST(request: NextRequest) {
         params = [newStatus, approver_id, cuti_id, rejectedByStr];
       }
     } else if (action === 'approve') {
+      const sendEmailToHC = async (tokenHC: string, namaPemohon: string) => {
+        try {
+            const hcRes = await pool.query(`
+            SELECT u.email, COALESCE(k.nama_lengkap, u.email) as nama_lengkap
+            FROM users u
+            LEFT JOIN roles r ON u.role_id = r.id
+            LEFT JOIN karyawan k ON k.user_id = u.id OR k.email = u.email
+            WHERE u.email = 'friscachoiriatul@gmail.com' OR k.nip = '12001059'
+            `);
+            for (const hc of hcRes.rows) {
+                if (hc.email) {
+                    try {
+                        await sendCutiMagicLink({
+                            toEmail: hc.email, approverName: hc.nama_lengkap, karyawanName: namaPemohon,
+                            tanggalMulai: cuti.tanggal_mulai, tanggalSelesai: cuti.tanggal_selesai,
+                            tanggalKembali: cuti.tanggal_kembali, jumlahHari: cuti.jumlah_hari,
+                            alasan: cuti.alasan, token: tokenHC
+                        });
+                    } catch (emailErr) { console.error("Gagal mengirim ke HC:", emailErr); }
+                }
+            }
+        } catch(e) { console.error("Gagal mengirim magic link HC:", e); }
+      };
+
       if (cuti.status === 'Menunggu Atasan') {
-        // Harus diverifikasi bahwa yg approve adalah atasannya
         if (cuti.atasan_id !== approver_id) {
           return NextResponse.json({ message: "Unauthorized. Anda bukan atasan dari pemohon cuti ini." }, { status: 403 });
         }
         
         const newMagicToken = crypto.randomBytes(32).toString('hex');
-        newStatus = 'Menunggu HC';
-        query = `UPDATE pengajuan_cuti SET status = $1, atasan_approved_by_id = $2, magic_token = $3 WHERE id = $4 RETURNING *`;
-        params = [newStatus, approver_id, newMagicToken, cuti_id];
         
-        // Asynchronously send emails to HC
-        (async () => {
-          try {
-              const pemohonRes = await pool.query(`SELECT nama_lengkap FROM karyawan WHERE id = $1`, [cuti.karyawan_id]);
-              const namaPemohon = pemohonRes.rows[0]?.nama_lengkap || 'Karyawan';
-              
-              const hcRes = await pool.query(`
-              SELECT u.email, COALESCE(k.nama_lengkap, u.email) as nama_lengkap
-              FROM users u
-              LEFT JOIN roles r ON u.role_id = r.id
-              LEFT JOIN karyawan k ON k.user_id = u.id OR k.email = u.email
-              WHERE u.email = 'friscachoiriatul@gmail.com' OR k.nip = '12001059'
-              `);
-              for (const hc of hcRes.rows) {
-                  if (hc.email) {
-                      try {
-                          await sendCutiMagicLink({
-                              toEmail: hc.email,
-                              approverName: hc.nama_lengkap,
-                              karyawanName: namaPemohon,
-                              tanggalMulai: cuti.tanggal_mulai,
-                              tanggalSelesai: cuti.tanggal_selesai,
-                              tanggalKembali: cuti.tanggal_kembali,
-                              jumlahHari: cuti.jumlah_hari,
-                              alasan: cuti.alasan,
-                              token: newMagicToken
-                          });
-                      } catch (emailErr) {
-                          console.error("Gagal mengirim ke HC:", hc.email, emailErr);
-                      }
-                  }
-              }
-          } catch(e) { console.error("Gagal mengirim magic link HC setelah Atasan approve di dashboard:", e); }
-        })();
+        // Cek level jabatan approver_id
+        const atasanRes = await pool.query(`
+          SELECT k.id, k.atasan_id, lj.nama_level, k.nama_lengkap, k.email 
+          FROM karyawan k
+          LEFT JOIN jabatan j ON k.jabatan_id = j.id
+          LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
+          WHERE k.id = $1
+        `, [approver_id]);
         
+        const atasanInfo = atasanRes.rows[0];
+        const isSpvOrHigher = ['Supervisor', 'Wakil Direktur', 'Direktur'].includes(atasanInfo?.nama_level);
+
+        let spvInfo = null;
+        if (!isSpvOrHigher && atasanInfo?.atasan_id) {
+           const spvRes = await pool.query(`SELECT email, nama_lengkap FROM karyawan WHERE id = $1`, [atasanInfo.atasan_id]);
+           if (spvRes.rows.length > 0 && spvRes.rows[0].email) {
+              spvInfo = spvRes.rows[0];
+           }
+        }
+
+        if (isSpvOrHigher || !spvInfo) {
+           newStatus = 'Menunggu HC';
+           query = `UPDATE pengajuan_cuti SET status = $1, atasan_approved_by_id = $2, magic_token = $3 WHERE id = $4 RETURNING *`;
+           params = [newStatus, approver_id, newMagicToken, cuti_id];
+           await sendEmailToHC(newMagicToken, cuti.nama_lengkap);
+        } else {
+           newStatus = 'Menunggu SPV';
+           query = `UPDATE pengajuan_cuti SET status = $1, atasan_approved_by_id = $2, magic_token = $3 WHERE id = $4 RETURNING *`;
+           params = [newStatus, approver_id, newMagicToken, cuti_id];
+           
+           try {
+             await sendCutiMagicLink({
+                 toEmail: spvInfo.email, approverName: spvInfo.nama_lengkap, karyawanName: cuti.nama_lengkap,
+                 tanggalMulai: cuti.tanggal_mulai, tanggalSelesai: cuti.tanggal_selesai,
+                 tanggalKembali: cuti.tanggal_kembali, jumlahHari: cuti.jumlah_hari,
+                 alasan: cuti.alasan, token: newMagicToken
+             });
+           } catch(e) { console.error("Gagal mengirim email ke SPV dari dashboard:", e); }
+        }
+        
+      } else if (cuti.status === 'Menunggu SPV') {
+         // Verifikasi bahwa approver adalah SPV-nya (atasannya Atasan)
+         const spvRes = await pool.query(`SELECT atasan_id FROM karyawan WHERE id = $1`, [cuti.atasan_id]);
+         const spvId = spvRes.rows[0]?.atasan_id || null;
+         
+         if (spvId !== approver_id) {
+            return NextResponse.json({ message: "Unauthorized. Anda bukan SPV yang dituju untuk permohonan ini." }, { status: 403 });
+         }
+
+         const newMagicToken = crypto.randomBytes(32).toString('hex');
+         newStatus = 'Menunggu HC';
+         query = `UPDATE pengajuan_cuti SET status = $1, spv_approved_by_id = $2, magic_token = $3 WHERE id = $4 RETURNING *`;
+         params = [newStatus, approver_id, newMagicToken, cuti_id];
+         await sendEmailToHC(newMagicToken, cuti.nama_lengkap);
       } else if (cuti.status === 'Menunggu HC') {
         if (!is_hc) {
           return NextResponse.json({ message: "Unauthorized. Anda tidak memiliki akses HC." }, { status: 403 });
