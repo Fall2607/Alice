@@ -132,16 +132,23 @@ export async function GET(request: NextRequest) {
     }
 
     if (atasan_id) {
-      query += ` AND k.atasan_id = $${paramCount}`;
+      // Mendukung 2-tier: melihat bawahan langsung, dan bawahannya bawahan (untuk Menunggu SPV)
+      query += ` AND (k.atasan_id = $${paramCount} OR k.atasan_id IN (SELECT id FROM karyawan WHERE atasan_id = $${paramCount}))`;
       params.push(atasan_id);
       paramCount++;
     }
 
     if (status) {
       if (status === 'Menunggu') {
-        // Admin melihat SEMUA pending cuti (Menunggu Atasan / Menunggu HC)
+        // Admin melihat SEMUA pending cuti (Menunggu Atasan / Menunggu SPV / Menunggu HC)
         query += ` AND c.status::text ILIKE $${paramCount}`;
         params.push('%Menunggu%');
+      } else if (status.includes(',')) {
+        const statuses = status.split(',').map(s => s.trim());
+        const placeholders = statuses.map((_, i) => `$${paramCount + i}`).join(', ');
+        query += ` AND c.status IN (${placeholders})`;
+        params.push(...statuses);
+        paramCount += statuses.length - 1;
       } else {
         query += ` AND c.status = $${paramCount}`;
         params.push(status);
