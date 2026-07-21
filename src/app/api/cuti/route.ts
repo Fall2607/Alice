@@ -110,8 +110,10 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const karyawan_id = searchParams.get('karyawan_id');
-    const atasan_id = searchParams.get('atasan_id'); // We'll need a different approach for atasan filtering since it's not directly in pengajuan_cuti
+    const atasan_id = searchParams.get('atasan_id'); 
     const status = searchParams.get('status');
+    const year = searchParams.get('year');
+    const month = searchParams.get('month');
 
     // Karena pengajuan_cuti mungkin tidak menyimpan atasan_id (sebagai foreign key pemiliknya), kita bisa filter via JOIN ke karyawan
     let query = `
@@ -154,6 +156,12 @@ export async function GET(request: NextRequest) {
         params.push(status);
       }
       paramCount++;
+    }
+
+    if (year && month) {
+      query += ` AND EXTRACT(YEAR FROM c.tanggal_mulai) = $${paramCount} AND EXTRACT(MONTH FROM c.tanggal_mulai) = $${paramCount + 1}`;
+      params.push(year, month);
+      paramCount += 2;
     }
 
     query += ` ORDER BY c.tanggal_pengajuan DESC, c.id DESC`;

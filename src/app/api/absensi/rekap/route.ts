@@ -89,13 +89,14 @@ export async function GET(request: NextRequest) {
 
         // 2.5 Ambil Data Shift Date Range
         const shiftQuery = `
-            SELECT karyawan_id, tanggal
-            FROM karyawan_shift
-            WHERE tanggal >= $1 AND tanggal <= $2 AND karyawan_id = ANY($3::uuid[])
+            SELECT ks.karyawan_id, ks.tanggal, s.nama_shift
+            FROM karyawan_shift ks
+            JOIN shift s ON ks.shift_id = s.id
+            WHERE ks.tanggal >= $1 AND ks.tanggal <= $2 AND ks.karyawan_id = ANY($3::uuid[])
         `;
         const shiftRes = await pool.query(shiftQuery, [startDateParam, endDateParam, karyawanIds]);
         
-        const shiftMap: Record<string, Record<string, boolean>> = {};
+        const shiftMap: Record<string, Record<string, string>> = {};
         for (const row of shiftRes.rows) {
             if (!shiftMap[row.karyawan_id]) {
                 shiftMap[row.karyawan_id] = {};
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             const dateStr = d.toISOString().split('T')[0];
             
-            shiftMap[row.karyawan_id][dateStr] = true;
+            shiftMap[row.karyawan_id][dateStr] = row.nama_shift;
         }
 
         // Generate dates array
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest) {
             let totalHadir = 0;
             let totalTelat = 0;
             let totalAlpha = 0;
+            let totalIzin = 0;
 
             for (const dateStr of dates) {
                 const currentDate = new Date(dateStr);
@@ -126,9 +128,15 @@ export async function GET(request: NextRequest) {
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 const absenHariIni = absensiMap[kar.id]?.[dateStr];
-                const adaShift = shiftMap[kar.id]?.[dateStr];
+                const adaShift = shiftMap[kar.id]?.[dateStr]; // This is now a string (nama_shift)
 
-                if (absenHariIni) {
+                // Cek Cuti / Izin dari shift
+                const isCuti = adaShift && adaShift.toLowerCase().includes('cuti');
+
+                if (isCuti) {
+                    totalIzin++;
+                    harian[dateStr] = { status: 'izin' };
+                } else if (absenHariIni) {
                     totalHadir++;
                     if (absenHariIni.is_late) {
                         totalTelat++;
@@ -157,7 +165,7 @@ export async function GET(request: NextRequest) {
                     hadir: totalHadir,
                     telat: totalTelat,
                     alpha: totalAlpha,
-                    izin: 0 // Placeholder until cuti table is integrated
+                    izin: totalIzin
                 },
                 harian
             };
