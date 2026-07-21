@@ -1,16 +1,21 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, XCircle, Clock, Search, Briefcase, Calendar } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Search, Briefcase, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Grid } from "lucide-react";
 
 export default function ApprovalCutiPage() {
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
+  const [approvedLeaves, setApprovedLeaves] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCalendarLoading, setIsCalendarLoading] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
+
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
   useEffect(() => {
     fetchPendingLeaves();
+    fetchApprovedLeaves(currentDate);
   }, [baseUrl]);
 
   const fetchPendingLeaves = async () => {
@@ -28,7 +33,6 @@ export default function ApprovalCutiPage() {
       
       let url = '';
       if (isAdmin) {
-        // Admin melihat SEMUA pengajuan yang masih pending (baik di Atasan maupun HC) untuk keperluan tracking
         url = `${baseUrl}/cuti?status=Menunggu`;
       } else if (isHC) {
         url = `${baseUrl}/cuti?status=Menunggu HC`;
@@ -46,6 +50,34 @@ export default function ApprovalCutiPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchApprovedLeaves = async (date: Date) => {
+    try {
+      setIsCalendarLoading(true);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const res = await fetch(`${baseUrl}/cuti?status=Disetujui&year=${year}&month=${month}`);
+      if (res.ok) {
+        setApprovedLeaves(await res.json());
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsCalendarLoading(false);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    setCurrentDate(newDate);
+    fetchApprovedLeaves(newDate);
+  };
+
+  const handleNextMonth = () => {
+    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    setCurrentDate(newDate);
+    fetchApprovedLeaves(newDate);
   };
 
   const handleApproveReject = async (cuti_id: string, action: 'approve' | 'reject') => {
@@ -68,7 +100,8 @@ export default function ApprovalCutiPage() {
       const data = await res.json();
       if (res.ok) {
         alert(data.message);
-        fetchPendingLeaves(); // Refresh data
+        fetchPendingLeaves(); // Refresh pending
+        fetchApprovedLeaves(currentDate); // Refresh calendar
       } else {
         alert(data.message || "Terjadi kesalahan.");
       }
@@ -78,18 +111,103 @@ export default function ApprovalCutiPage() {
     }
   };
 
+  // Calendar Logic
+  const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+  const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+  const firstDay = getFirstDayOfMonth(currentDate.getFullYear(), currentDate.getMonth());
+  
+  const monthName = currentDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const weekDays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+  const getCutiForDate = (day: number) => {
+    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dateObj = new Date(dateStr);
+    
+    return approvedLeaves.filter(cuti => {
+      const start = new Date(cuti.tanggal_mulai);
+      const end = new Date(cuti.tanggal_selesai);
+      // Reset times to midnight for accurate comparison
+      start.setHours(0,0,0,0);
+      end.setHours(0,0,0,0);
+      return dateObj >= start && dateObj <= end;
+    });
+  };
+
   return (
     <div className="p-8 font-sans max-w-7xl mx-auto min-h-screen">
       <div className="mb-10">
         <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-2">
-          Approval Cuti
+          Dashboard Cuti
         </h1>
         <p className="text-slate-500 font-medium text-sm">
-          Kelola dan tinjau pengajuan cuti yang menunggu persetujuan Anda.
+          Kelola persetujuan cuti dan pantau karyawan yang sedang cuti bulan ini.
         </p>
       </div>
 
-      <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 min-h-[500px]">
+      {/* KALENDER CUTI */}
+      <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 mb-10">
+        <div className="flex items-center justify-between mb-8">
+            <div>
+                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+                    <Grid className="text-blue-500" /> Kalender Cuti Karyawan
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">Menampilkan karyawan yang cutinya telah disetujui.</p>
+            </div>
+            <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                <button onClick={handlePrevMonth} className="p-2 bg-white rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm"><ChevronLeft size={20} /></button>
+                <span className="font-black text-slate-700 min-w-[120px] text-center">{monthName}</span>
+                <button onClick={handleNextMonth} className="p-2 bg-white rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm"><ChevronRight size={20} /></button>
+            </div>
+        </div>
+
+        {isCalendarLoading ? (
+            <div className="h-64 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+        ) : (
+            <div className="grid grid-cols-7 gap-2">
+                {weekDays.map(day => (
+                    <div key={day} className="text-center text-xs font-black uppercase text-slate-400 pb-2">
+                        {day}
+                    </div>
+                ))}
+                
+                {Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`empty-${i}`} className="min-h-[100px] p-2 bg-slate-50/50 rounded-xl border border-slate-50 opacity-50"></div>
+                ))}
+
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const isToday = new Date().getDate() === day && new Date().getMonth() === currentDate.getMonth() && new Date().getFullYear() === currentDate.getFullYear();
+                    const cutiHariIni = getCutiForDate(day);
+
+                    return (
+                        <div key={day} className={`min-h-[100px] p-2 rounded-xl border transition-all ${isToday ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-blue-100 hover:shadow-md'}`}>
+                            <div className={`text-sm font-black mb-2 ${isToday ? 'text-blue-600' : 'text-slate-500'}`}>
+                                {day}
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                {cutiHariIni.map((c, idx) => (
+                                    <div key={idx} title={`${c.nama_lengkap} - ${c.jenis_cuti}`} className="text-[10px] font-bold bg-blue-500 text-white px-2 py-1 rounded-md truncate cursor-pointer hover:bg-blue-600 shadow-sm shadow-blue-200">
+                                        {c.nama_lengkap.split(' ')[0]}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 min-h-[400px]">
+        <div className="mb-6 border-b border-slate-100 pb-4">
+            <h2 className="text-2xl font-black text-slate-800">Menunggu Persetujuan</h2>
+            <p className="text-sm text-slate-500 mt-1">Daftar pengajuan cuti yang membutuhkan tindak lanjut Anda.</p>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -131,7 +249,7 @@ export default function ApprovalCutiPage() {
                     <div className="col-span-2">
                       <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Tanggal</p>
                       <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                        <Calendar size={14} className="text-blue-500"/>
+                        <CalendarIcon size={14} className="text-blue-500"/>
                         {new Date(cuti.tanggal_mulai).toLocaleDateString("id-ID")} - {new Date(cuti.tanggal_selesai).toLocaleDateString("id-ID")}
                       </p>
                     </div>
