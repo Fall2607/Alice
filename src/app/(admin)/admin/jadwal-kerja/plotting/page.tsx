@@ -69,13 +69,14 @@ export default function ManajemenJadwalKaryawanPage() {
 
   const getShiftCategory = (nama_shift: string): string => {
       const name = nama_shift.toLowerCase();
+      if (name.includes('cuti') || name.includes('izin')) return 'Cuti';
       if (name.includes('libur') || name.includes('lepas')) return 'Libur';
       if (name.includes('malam')) return 'Malam';
       if (name.includes('siang')) return 'Siang';
       if (name.includes('middle')) return 'Middle';
       return 'Pagi'; 
   };
-  const categories = ['Pagi', 'Middle', 'Siang', 'Malam', 'Libur'];
+  const categories = ['Pagi', 'Middle', 'Siang', 'Malam', 'Libur', 'Cuti'];
 
   const fetchData = async () => {
     try {
@@ -495,26 +496,35 @@ export default function ManajemenJadwalKaryawanPage() {
                                                       const shiftInfo = shifts.find(s => s.id === b.shift_id);
                                                       return b.tanggal === dateStr && shiftInfo && getShiftCategory(shiftInfo.nama_shift) === cat;
                                                  });
+                                                 
+                                                 const isCutiCol = cat === 'Cuti';
 
                                                  return (
-                                                     <td key={cat} onClick={() => handleCellClickCat(dateStr, cat)} className="px-2 py-2 border-r border-slate-200 cursor-pointer align-top group hover:bg-blue-50/50 transition-colors">
+                                                     <td key={cat} onClick={() => !isCutiCol && handleCellClickCat(dateStr, cat)} className={`px-2 py-2 border-r border-slate-200 align-top group transition-colors ${!isCutiCol ? 'cursor-pointer hover:bg-blue-50/50' : 'bg-slate-50/30'}`}>
                                                          <div className="flex flex-wrap gap-1 min-h-[40px] items-start content-start">
                                                               {assignedInCat.length > 0 ? (
                                                                   assignedInCat.map((a, i) => {
                                                                       const shiftInfo = shifts.find(s => s.id === a.shift_id);
                                                                       const shiftName = shiftInfo?.nama_shift || '';
+                                                                      
+                                                                      let bgClass = 'bg-white text-slate-700 shadow-sm border-slate-200';
+                                                                      if (cat === 'Libur') bgClass = 'bg-orange-100 text-orange-800 border-orange-200';
+                                                                      if (cat === 'Cuti') bgClass = 'bg-blue-100 text-blue-800 border-blue-200 font-bold';
+                                                                      
                                                                       return (
-                                                                          <span key={i} title={shiftName} className={`text-[11px] px-2 py-1 rounded border ${cat === 'Libur' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-white text-slate-700 shadow-sm border-slate-200'}`}>
+                                                                          <span key={i} title={shiftName} className={`text-[11px] px-2 py-1 rounded border ${bgClass}`}>
                                                                               {a.nama_lengkap.split(' ')[0]} <span className="opacity-50 ml-1">({shiftName})</span>
                                                                           </span>
                                                                       );
                                                                   })
                                                               ) : (
+                                                                  !isCutiCol ? (
                                                                   <div className="w-full h-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                                       <span className="flex items-center gap-1 text-xs text-blue-500 bg-blue-50 px-2 py-1 rounded-full">
                                                                           <Plus size={12}/> Assign {cat}
                                                                       </span>
                                                                   </div>
+                                                                  ) : null
                                                               )}
                                                          </div>
                                                      </td>
