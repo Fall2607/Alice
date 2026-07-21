@@ -45,8 +45,8 @@ export async function injectCutiToShift(karyawan_id: string, tanggal_mulai: stri
         for (const tgl of dateArray) {
           await pool.query(`
             INSERT INTO karyawan_shift (karyawan_id, shift_id, tanggal, assigned_by)
-            VALUES ($1, $2, $3, $4)
-          `, [karyawan_id, shiftCutiId, tgl, approver_id]);
+            VALUES ($1, $2, $3, NULL)
+          `, [karyawan_id, shiftCutiId, tgl]);
         }
 
         await pool.query('COMMIT');
