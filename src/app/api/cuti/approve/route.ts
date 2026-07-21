@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 import crypto from "crypto";
 import { sendCutiMagicLink, sendCutiStatusEmail } from "@/app/lib/email";
+import { injectCutiToShift } from "../inject-shift";
 
 export const dynamic = 'force-dynamic';
 
@@ -144,6 +145,9 @@ export async function POST(request: NextRequest) {
         if (cuti.jenis_cuti === 'Tahunan') {
             await pool.query(`UPDATE karyawan SET sisa_cuti = sisa_cuti - $1 WHERE id = $2`, [cuti.jumlah_hari, cuti.karyawan_id]);
         }
+        
+        // INJECT JADWAL CUTI
+        await injectCutiToShift(cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, approver_id);
       }
     }
 

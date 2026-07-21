@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 import crypto from "crypto";
 import { sendCutiMagicLink, sendCutiStatusEmail } from "@/app/lib/email";
+import { injectCutiToShift } from "../inject-shift";
 
 export const dynamic = 'force-dynamic';
 
@@ -145,8 +146,14 @@ export async function GET(request: NextRequest) {
       const updatedCuti = result.rows[0];
 
       // POTONG SALDO JIKA DISETUJUI FINAL DAN TAHUNAN
-      if (action === 'APPROVE' && updatedCuti?.status === 'Disetujui' && cuti.jenis_cuti === 'Tahunan') {
-        await pool.query(`UPDATE karyawan SET sisa_cuti = sisa_cuti - $1 WHERE id = $2`, [cuti.jumlah_hari, cuti.karyawan_id]);
+      if (action === 'APPROVE' && updatedCuti?.status === 'Disetujui') {
+        // POTONG SALDO JIKA TAHUNAN
+        if (cuti.jenis_cuti === 'Tahunan') {
+          await pool.query(`UPDATE karyawan SET sisa_cuti = sisa_cuti - $1 WHERE id = $2`, [cuti.jumlah_hari, cuti.karyawan_id]);
+        }
+        
+        // INJECT JADWAL CUTI
+        await injectCutiToShift(cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, cuti.atasan_id || cuti.karyawan_id);
       }
 
       // KIRIM EMAIL NOTIFIKASI KE KARYAWAN
