@@ -7,33 +7,60 @@ import {
   AlertCircle,
   CheckCircle2,
   ShieldCheck,
-  Calendar
+  Calendar,
+  Users
 } from "lucide-react";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+import Select from "react-select";
 
 export default function CutiTab() {
   const [leaveBalance, setLeaveBalance] = useState<number>(0);
   const [leaveHistory, setLeaveHistory] = useState<any[]>([]);
-  const [leaveForm, setLeaveForm] = useState({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
-  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
-  const [startDate, endDate] = dateRange;
+  const [delegationPeers, setDelegationPeers] = useState<any[]>([]);
+  const [leaveForm, setLeaveForm] = useState({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan', delegasi: '' });
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cutiMessage, setCutiMessage] = useState<{type: 'error'|'success', text: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
-  const calculateDays = (start: Date | null, end: Date | null) => {
-    if (!start || !end) return 0;
-    const sDate = new Date(start);
-    const eDate = new Date(end);
-    if (eDate < sDate) return 0;
-    const diffTime = Math.abs(eDate.getTime() - sDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    return diffDays + 1;
+  const jumlahHari = selectedDates.length;
+
+  const getPeriodDates = () => {
+    if (!selectedPeriod) return [];
+    const [yearStr, monthStr] = selectedPeriod.split('-');
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr) - 1; 
+    const startDate = new Date(year, month - 1, 26);
+    const endDate = new Date(year, month, 25);
+    
+    const dates = [];
+    const cur = new Date(startDate);
+    while (cur <= endDate) {
+      dates.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
   };
 
-  const jumlahHari = calculateDays(startDate, endDate);
+  const periodDates = getPeriodDates();
+
+  const toggleDate = (date: Date) => {
+    const isSelected = selectedDates.find(d => d.getTime() === date.getTime());
+    if (isSelected) {
+      setSelectedDates(selectedDates.filter(d => d.getTime() !== date.getTime()));
+    } else {
+      if (selectedDates.length >= 4) {
+         setCutiMessage({ type: 'error', text: 'Maksimal 4 hari cuti dalam satu pengajuan.'});
+         return;
+      }
+      setSelectedDates([...selectedDates, date].sort((a,b) => a.getTime() - b.getTime()));
+    }
+    setCutiMessage(null);
+  };
 
   useEffect(() => {
     const fetchCuti = async () => {
@@ -47,6 +74,25 @@ export default function CutiTab() {
         if (karyawanRes.ok) {
           const kData = await karyawanRes.json();
           setLeaveBalance(kData.sisa_cuti !== undefined ? kData.sisa_cuti : 0);
+
+          let combinedPeers: any[] = [];
+
+          if (kData.departemen_id) {
+            const peersRes = await fetch(`${baseUrl}/karyawan?departemen_id=${kData.departemen_id}`);
+            if (peersRes.ok) {
+              combinedPeers.push(...await peersRes.json());
+            }
+          }
+
+          // Fetch subordinates as well, just in case user is SPV/Coordinator of cross-unit members
+          const subRes = await fetch(`${baseUrl}/karyawan?superior_id=${user.karyawan_id}`);
+          if (subRes.ok) {
+             combinedPeers.push(...await subRes.json());
+          }
+
+          // Remove duplicates based on id
+          const uniquePeers = Array.from(new Map(combinedPeers.map(item => [item.id, item])).values());
+          setDelegationPeers(uniquePeers.filter((p: any) => p.id !== user.karyawan_id));
         }
 
         const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`, { cache: 'no-store' });
@@ -79,8 +125,8 @@ export default function CutiTab() {
     setCutiMessage(null);
     setIsSubmitting(true);
     
-    if (!startDate || !endDate) {
-      setCutiMessage({ type: 'error', text: `Silakan pilih rentang tanggal cuti.` });
+    if (selectedDates.length === 0) {
+      setCutiMessage({ type: 'error', text: `Silakan pilih minimal 1 hari cuti pada kalender.` });
       setIsSubmitting(false);
       return;
     }
@@ -109,14 +155,22 @@ export default function CutiTab() {
         return d.toISOString().split('T')[0];
       };
 
+      const earliestDate = selectedDates[0];
+      const latestDate = selectedDates[selectedDates.length - 1];
+      const dateStrings = selectedDates.map(d => formatYMD(d)).join(',');
+      let finalAlasan = `[DATES: ${dateStrings}] ${leaveForm.alasan}`;
+      if (leaveForm.delegasi) {
+          finalAlasan += `\n[DELEGASI: ${leaveForm.delegasi}]`;
+      }
+
       const payload = {
         karyawan_id: user.karyawan_id,
         jenis_cuti: leaveForm.kategori,
-        tanggal_mulai: formatYMD(startDate),
-        tanggal_selesai: formatYMD(endDate),
+        tanggal_mulai: formatYMD(earliestDate),
+        tanggal_selesai: formatYMD(latestDate),
         tanggal_kembali: leaveForm.tanggal_kembali || null,
         jumlah_hari: jumlahHari,
-        keterangan: leaveForm.alasan // Diteruskan ke kolom alasan
+        keterangan: finalAlasan // Diteruskan ke kolom alasan
       };
 
       const res = await fetch(`${baseUrl}/cuti`, {
@@ -129,8 +183,8 @@ export default function CutiTab() {
       if (!res.ok) throw new Error(data.message || "Gagal mengajukan cuti.");
 
       setCutiMessage({ type: 'success', text: "Pengajuan cuti berhasil dikirim." });
-      setLeaveForm({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan' });
-      setDateRange([null, null]);
+      setLeaveForm({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan', delegasi: '' });
+      setSelectedDates([]);
       
       const cutiRes = await fetch(`${baseUrl}/cuti?karyawan_id=${user.karyawan_id}`, { cache: 'no-store' });
       if (cutiRes.ok) {
@@ -178,85 +232,182 @@ export default function CutiTab() {
               
               <div className="space-y-1.5">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Kategori Cuti</label>
-                <div className="relative">
-                  <select 
-                    value={leaveForm.kategori}
-                    onChange={(e) => setLeaveForm({...leaveForm, kategori: e.target.value})}
-                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white outline-none font-bold text-slate-800 appearance-none text-sm cursor-pointer"
-                  >
-                    <option value="Tahunan">Cuti Tahunan</option>
-                    <option value="Sakit">Cuti Sakit</option>
-                    <option value="Melahirkan">Cuti Melahirkan</option>
-                    <option value="Izin Penting">Izin Penting (Kedukaan, Menikah, dll)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5"><Calendar size={12}/> Rentang Tanggal Cuti</label>
-                  <div className="relative z-10 w-full">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 z-20 pointer-events-none">
-                      <Calendar size={16} />
-                    </div>
-                    <DatePicker
-                      selectsRange={true}
-                      startDate={startDate || undefined}
-                      endDate={endDate || undefined}
-                      onChange={(update) => setDateRange(update)}
-                      dateFormat="dd MMM yyyy"
-                      placeholderText="Pilih Rentang Tanggal (Maks 4 Hari)"
-                      className={`w-full bg-white border ${jumlahHari > 4 ? 'border-red-400 focus:ring-red-500/20' : 'border-slate-200 focus:ring-blue-500/20'} text-slate-700 py-3.5 pl-10 pr-4 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:border-blue-500 transition-all`}
-                      wrapperClassName="w-full"
-                    />
-                  </div>
-                  {jumlahHari > 4 && (
-                    <p className="text-[10px] text-red-500 ml-1 font-bold">Peringatan: Pengajuan cuti maksimal 4 hari.</p>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
-                  <div className="flex-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-blue-800 mb-0.5">Durasi Cuti</p>
-                      <p className="text-xs text-blue-600 font-medium leading-tight">Total hari kalender yang dipilih.</p>
-                  </div>
-                  <div className="bg-white px-4 py-2 rounded-xl border border-blue-100 shadow-sm text-center">
-                      <span className={`text-2xl font-black leading-none ${jumlahHari > 4 ? 'text-red-500' : 'text-blue-600'}`}>{jumlahHari}</span>
-                      <span className="text-[10px] font-bold text-blue-400 ml-1 uppercase">Hari</span>
-                  </div>
-              </div>
-
-              <div className="space-y-1.5 pt-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 text-emerald-600">Tanggal Kembali Bekerja (Opsional)</label>
-                <input
-                    type="date"
-                    value={leaveForm.tanggal_kembali}
-                    min={endDate ? endDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => setLeaveForm({...leaveForm, tanggal_kembali: e.target.value})}
-                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-600 outline-none transition-all font-bold text-slate-800 text-sm"
+                <div className="relative z-50">
+                  <Select
+                    options={[
+                        { value: "Tahunan", label: "Cuti Tahunan" },
+                        { value: "Sakit", label: "Cuti Sakit" },
+                        { value: "Melahirkan", label: "Cuti Melahirkan" },
+                        { value: "Izin Penting", label: "Izin Penting (Kedukaan, Menikah, dll)" }
+                    ]}
+                    value={{ value: leaveForm.kategori, label: leaveForm.kategori === 'Izin Penting' ? 'Izin Penting (Kedukaan, Menikah, dll)' : `Cuti ${leaveForm.kategori}` }}
+                    onChange={(selected: any) => {
+                        setLeaveForm({...leaveForm, kategori: selected.value});
+                        setSelectedDates([]);
+                        setCutiMessage(null);
+                    }}
+                    styles={{
+                        control: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isFocused ? 'white' : '#f8fafc',
+                            borderColor: state.isFocused ? '#3b82f6' : '#f1f5f9',
+                            boxShadow: state.isFocused ? '0 0 0 1px #3b82f6' : 'none',
+                            padding: '6px',
+                            borderRadius: '1rem',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                            fontWeight: '700',
+                            color: '#1e293b'
+                        }),
+                        menu: base => ({ ...base, zIndex: 50, borderRadius: '1rem', overflow: 'hidden', padding: '4px' }),
+                        option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected ? '#eff6ff' : state.isFocused ? '#f8fafc' : 'white',
+                            color: state.isSelected ? '#2563eb' : '#334155',
+                            fontWeight: state.isSelected ? '700' : '500',
+                            borderRadius: '0.75rem',
+                            cursor: 'pointer',
+                            padding: '10px 12px'
+                        })
+                    }}
                   />
-                  <p className="text-[10px] text-slate-400 ml-1">Pilih tanggal jika ada day off setelah masa cuti berakhir.</p>
+                </div>
               </div>
 
-              <div className="space-y-1.5 pt-2">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Alasan Lengkap (Wajib)</label>
-                <textarea
-                  rows={3}
-                  value={leaveForm.alasan}
-                  onChange={(e) => setLeaveForm({...leaveForm, alasan: e.target.value})}
-                  required
-                  className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-[24px] focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-600 outline-none transition-all font-medium text-slate-700 text-sm"
-                  placeholder="Ceritakan detail cuti Anda..."
-                ></textarea>
-              </div>
+              {leaveForm.kategori !== 'Tahunan' ? (
+                <div className="p-10 bg-slate-50 border border-slate-100 rounded-[24px] text-center">
+                    <AlertCircle size={48} className="text-slate-300 mx-auto mb-4" />
+                    <h3 className="font-black text-slate-800 mb-2 text-lg">Fitur Masih Dalam Pengembangan</h3>
+                    <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto leading-relaxed">
+                        Pengajuan jenis cuti ini saat ini belum tersedia secara digital. Silakan hubungi tim Human Capital untuk mengajukan cuti khusus ini secara manual.
+                    </p>
+                </div>
+              ) : (
+                <>
+                  <div className="p-3 sm:p-5 bg-slate-50 rounded-[20px] sm:rounded-[24px] border border-slate-100">
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Calendar size={12}/> Kalender Periodik (26-25)</label>
+                          <input 
+                              type="month" 
+                              value={selectedPeriod} 
+                              onChange={e => { setSelectedPeriod(e.target.value); setSelectedDates([]); }} 
+                              className="bg-white border border-slate-200 text-slate-700 py-1.5 px-3 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:border-blue-500 transition-all w-full sm:w-auto"
+                          />
+                      </div>
+                      
+                      <div className="grid grid-cols-7 gap-0.5 sm:gap-1.5 mt-2">
+                          {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map(day => (
+                              <div key={day} className="text-center text-[9px] sm:text-[10px] font-black text-slate-400 py-1">{day}</div>
+                          ))}
+                          {[...Array(periodDates.length > 0 ? periodDates[0].getDay() : 0).fill(null), ...periodDates].map((date, idx) => {
+                              if (!date) return <div key={`empty-${idx}`} className="p-1 sm:p-2"></div>;
+                              const isSelected = selectedDates.find(d => d.getTime() === date.getTime());
+                              const isToday = date.toDateString() === new Date().toDateString();
+                              const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                              return (
+                                  <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => toggleDate(date)}
+                                      className={`p-1 sm:p-1.5 rounded-lg sm:rounded-xl font-bold flex flex-col items-center justify-center transition-all aspect-square 
+                                          ${isSelected ? 'bg-blue-600 text-white shadow-md shadow-blue-500/40 ring-1 sm:ring-2 ring-blue-600 ring-offset-1 sm:ring-offset-2 scale-105' : 
+                                            'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200 hover:border-blue-300'
+                                          } ${isToday && !isSelected ? 'text-blue-600 ring-1 ring-blue-300' : ''} ${isWeekend && !isSelected ? 'text-rose-500 bg-rose-50/20' : ''}`}
+                                  >
+                                      <span className="text-xs sm:text-sm">{date.getDate()}</span>
+                                  </button>
+                              )
+                          })}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
+                      <div className="flex-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-blue-800 mb-0.5">Durasi Cuti</p>
+                          <p className="text-xs text-blue-600 font-medium leading-tight">Total hari kalender yang dipilih (Maksimal 4 hari).</p>
+                      </div>
+                      <div className="bg-white px-4 py-2 rounded-xl border border-blue-100 shadow-sm text-center">
+                          <span className={`text-2xl font-black leading-none ${jumlahHari > 4 ? 'text-red-500' : 'text-blue-600'}`}>{jumlahHari}</span>
+                          <span className="text-[10px] font-bold text-blue-400 ml-1 uppercase">Hari</span>
+                      </div>
+                  </div>
 
-              <button 
-                disabled={isSubmitting || jumlahHari <= 0 || jumlahHari > 4 || (leaveForm.kategori === 'Tahunan' && jumlahHari > leaveBalance)}
-                className="w-full flex items-center justify-center gap-3 bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98] text-[10px] uppercase tracking-widest mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? "Memproses..." : <><Send size={16} /> Ajukan Permohonan Cuti</>}
-              </button>
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 text-emerald-600">Tanggal Kembali Bekerja (Opsional)</label>
+                    <input
+                        type="date"
+                        value={leaveForm.tanggal_kembali}
+                        min={selectedDates.length > 0 ? new Date(selectedDates[selectedDates.length-1].getTime() + 86400000).toISOString().split('T')[0] : ''}
+                        onChange={(e) => setLeaveForm({...leaveForm, tanggal_kembali: e.target.value})}
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-white focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-600 outline-none transition-all font-bold text-slate-800 text-sm"
+                      />
+                      <p className="text-[10px] text-slate-400 ml-1">Pilih tanggal jika ada day off setelah masa cuti berakhir.</p>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1 text-blue-600"><Users size={12}/> Delegasi Pekerjaan (Opsional)</label>
+                    <div className="relative z-40">
+                        <Select
+                            options={delegationPeers.map(peer => ({
+                                value: peer.nama_lengkap,
+                                label: `${peer.nama_lengkap} ${peer.nama_level ? `(${peer.nama_level})` : ''}`
+                            }))}
+                            value={leaveForm.delegasi ? { value: leaveForm.delegasi, label: leaveForm.delegasi } : null}
+                            onChange={(selected: any) => setLeaveForm({...leaveForm, delegasi: selected ? selected.value : ''})}
+                            isClearable
+                            placeholder="Pilih Partner Delegasi"
+                            noOptionsMessage={() => "Tidak ada rekan dalam satu unit"}
+                            styles={{
+                                control: (base, state) => ({
+                                    ...base,
+                                    backgroundColor: state.isFocused ? 'white' : '#f8fafc',
+                                    borderColor: state.isFocused ? '#3b82f6' : '#f1f5f9',
+                                    boxShadow: state.isFocused ? '0 0 0 1px #3b82f6' : 'none',
+                                    padding: '6px',
+                                    borderRadius: '1rem',
+                                    cursor: 'pointer',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '700',
+                                    color: '#1e293b'
+                                }),
+                                menu: base => ({ ...base, zIndex: 50, borderRadius: '1rem', overflow: 'hidden', padding: '4px' }),
+                                option: (base, state) => ({
+                                    ...base,
+                                    backgroundColor: state.isSelected ? '#eff6ff' : state.isFocused ? '#f8fafc' : 'white',
+                                    color: state.isSelected ? '#2563eb' : '#334155',
+                                    fontWeight: state.isSelected ? '700' : '500',
+                                    borderRadius: '0.75rem',
+                                    cursor: 'pointer',
+                                    padding: '10px 12px'
+                                })
+                            }}
+                        />
+                    </div>
+                    <p className="text-[10px] text-slate-400 ml-1">Pilih rekan yang akan menggantikan tugas Anda selama cuti.</p>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Alasan Lengkap (Wajib)</label>
+                    <textarea
+                      rows={3}
+                      value={leaveForm.alasan}
+                      onChange={(e) => setLeaveForm({...leaveForm, alasan: e.target.value})}
+                      required
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-[24px] focus:bg-white focus:ring-4 focus:ring-blue-500/5 focus:border-blue-600 outline-none transition-all font-medium text-slate-700 text-sm"
+                      placeholder="Ceritakan detail cuti Anda..."
+                    ></textarea>
+                  </div>
+
+                  <button 
+                    disabled={isSubmitting || jumlahHari <= 0 || jumlahHari > 4 || (leaveForm.kategori === 'Tahunan' && jumlahHari > leaveBalance)}
+                    className="w-full flex items-center justify-center gap-3 bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98] text-[10px] uppercase tracking-widest mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? "Memproses..." : <><Send size={16} /> Ajukan Permohonan Cuti</>}
+                  </button>
+                </>
+              )}
             </form>
           </div>
         </div>
