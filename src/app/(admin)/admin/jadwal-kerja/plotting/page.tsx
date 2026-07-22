@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, UserCheck, CalendarRange, Search, Plus, ShieldCheck, Download, Upload, FileSpreadsheet } from "lucide-react";
+import Select from "react-select";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
@@ -13,6 +14,7 @@ interface Karyawan {
   nik: string;
   nama_jadwal?: string;
   jadwal_kerja_id?: number;
+  nama_departemen?: string;
 }
 
 interface Shift {
@@ -41,6 +43,9 @@ export default function ManajemenJadwalKaryawanPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<'DEFAULT' | 'BOARD_SHIFT' | 'BOARD_PIKET'>('DEFAULT');
+
+  const [isAdminOrHRD, setIsAdminOrHRD] = useState(false);
+  const [selectedUnit, setSelectedUnit] = useState<{value: string, label: string} | null>(null);
 
   // --- TAB 1: DEFAULT STATE ---
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,7 +92,9 @@ export default function ManajemenJadwalKaryawanPage() {
         const userStr = localStorage.getItem("user");
         if (userStr) {
             const user = JSON.parse(userStr);
-            if (user.role && !user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hrd') && user.karyawan_id) {
+            if (user.role && (user.role.toLowerCase().includes('admin') || user.role.toLowerCase().includes('hrd'))) {
+                setIsAdminOrHRD(true);
+            } else if (user.role && !user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hrd') && user.karyawan_id) {
                 fetchKaryawanUrl = `/api/karyawan?superior_id=${user.karyawan_id}`;
             }
         }
@@ -345,13 +352,29 @@ export default function ManajemenJadwalKaryawanPage() {
 
 
   // Filtering for Default List
-  const totalPages = Math.ceil(karyawans.length / itemsPerPage);
-  const currentKaryawans = karyawans.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const uniqueUnits = Array.from(new Set(karyawans.map(k => k.nama_departemen).filter(Boolean))) as string[];
+  const unitOptions = [
+      { value: '', label: 'Semua Unit' },
+      ...uniqueUnits.map(u => ({ value: u, label: u }))
+  ];
 
-  const filteredKaryawanForModal = karyawans.filter(k => {
+  const filteredKaryawans = (selectedUnit && selectedUnit.value !== '')
+      ? karyawans.filter(k => k.nama_departemen === selectedUnit.value)
+      : karyawans;
+
+  const totalPages = Math.ceil(filteredKaryawans.length / itemsPerPage);
+  const currentKaryawans = filteredKaryawans.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const filteredKaryawanForModal = filteredKaryawans.filter(k => {
     const searchLower = searchKaryawan.toLowerCase();
     return k.nama_lengkap.toLowerCase().includes(searchLower) || 
            (k.nip && k.nip.toLowerCase().includes(searchLower));
+  });
+
+  const filteredBoardData = boardData.filter(b => {
+      if (!selectedUnit || selectedUnit.value === '') return true;
+      const k = karyawans.find(kar => kar.id === b.karyawan_id);
+      return k && k.nama_departemen === selectedUnit.value;
   });
 
   // Filter shifts based on active tab
@@ -367,6 +390,22 @@ export default function ManajemenJadwalKaryawanPage() {
           Gunakan <b>Board Shifting</b> khusus untuk tenaga medis / lapangan (Pagi/Siang/Malam/Libur). <br/>
           Gunakan <b>Board Piket Sabtu</b> untuk mengatur piket Koordinator/SPV. (Piket otomatis memicu jam 8-4 Mon-Fri).
         </p>
+
+        {isAdminOrHRD && (
+            <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <span className="font-semibold text-slate-700">Filter Unit:</span>
+                <div className="w-72">
+                    <Select
+                        options={unitOptions}
+                        value={selectedUnit || unitOptions[0]}
+                        onChange={(option) => setSelectedUnit(option as any)}
+                        placeholder="Pilih Unit / Departemen..."
+                        isClearable
+                        styles={{ menu: base => ({ ...base, zIndex: 50 }) }}
+                    />
+                </div>
+            </div>
+        )}
 
         <div className="flex border-b">
           <button 
@@ -492,7 +531,7 @@ export default function ManajemenJadwalKaryawanPage() {
                                          {(activeTab === 'BOARD_SHIFT' ? categories : piketCols).map((catOrShift, idx) => {
                                              if (activeTab === 'BOARD_SHIFT') {
                                                  const cat = catOrShift as string;
-                                                 const assignedInCat = boardData.filter(b => {
+                                                 const assignedInCat = filteredBoardData.filter(b => {
                                                       const shiftInfo = shifts.find(s => s.id === b.shift_id);
                                                       return b.tanggal === dateStr && shiftInfo && getShiftCategory(shiftInfo.nama_shift) === cat;
                                                  });
@@ -531,7 +570,7 @@ export default function ManajemenJadwalKaryawanPage() {
                                                  )
                                              } else {
                                                  const s = catOrShift as Shift;
-                                                 const assigned = boardData.filter(b => b.tanggal === dateStr && b.shift_id === s.id);
+                                                 const assigned = filteredBoardData.filter(b => b.tanggal === dateStr && b.shift_id === s.id);
                                                  return (
                                                      <td 
                                                         key={s.id} 

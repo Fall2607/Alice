@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const superiorId = searchParams.get('superior_id');
+    const departemenId = searchParams.get('departemen_id');
 
     let query = `
       SELECT
@@ -89,6 +90,15 @@ export async function GET(request: NextRequest) {
         WHERE k.id IN (SELECT id FROM subordinates UNION SELECT id FROM delegated_karyawan)
       `;
       values.push(superiorId);
+    }
+
+    if (departemenId) {
+      if (values.length > 0) {
+        query += ` AND d.id = $${values.length + 1}`;
+      } else {
+        query += ` WHERE d.id = $${values.length + 1}`;
+      }
+      values.push(departemenId);
     }
 
     query += ` ORDER BY k.nama_lengkap ASC`;

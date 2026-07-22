@@ -13,71 +13,67 @@ export default function ApprovalCutiPage() {
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
-  useEffect(() => {
-    fetchPendingLeaves();
-    fetchApprovedLeaves(currentDate);
-  }, [baseUrl]);
-
-  const fetchPendingLeaves = async () => {
+  const fetchData = async (date: Date) => {
     try {
       setIsLoading(true);
+      setIsCalendarLoading(true);
+      
       const userStr = localStorage.getItem("user");
       if (!userStr) return;
       const user = JSON.parse(userStr);
       setUserInfo(user);
 
-      // HC bisa melihat semua yang PENDING_HC
-      // ATASAN bisa melihat semua yang PENDING_ATASAN dan atasan_id = dirinya
       let isHC = user.role?.toLowerCase() === 'hc' || user.role?.toLowerCase() === 'human capital';
       let isAdmin = user.role?.toLowerCase() === 'admin';
+      let isHCAdmin = isHC || isAdmin;
       
-      let url = '';
+      // Fetch Pending Leaves
+      let urlPending = '';
       if (isAdmin) {
-        url = `${baseUrl}/cuti?status=Menunggu`;
+        urlPending = `${baseUrl}/cuti?status=Menunggu`;
       } else if (isHC) {
-        url = `${baseUrl}/cuti?status=Menunggu HC`;
+        urlPending = `${baseUrl}/cuti?status=Menunggu HC`;
       } else {
-        url = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=Menunggu Atasan,Menunggu SPV`;
+        urlPending = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=Menunggu Atasan,Menunggu SPV`;
       }
 
-      const res = await fetch(url, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        setPendingLeaves(data);
+      const resPending = await fetch(urlPending, { cache: 'no-store' });
+      if (resPending.ok) {
+        setPendingLeaves(await resPending.json());
       }
+
+      // Fetch Calendar Leaves (Approved & Pending)
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      let urlCal = `${baseUrl}/cuti?year=${year}&month=${month}&status=Disetujui,Menunggu Atasan,Menunggu SPV,Menunggu HC`;
+      if (!isHCAdmin && user.karyawan_id) {
+         urlCal += `&atasan_id=${user.karyawan_id}`;
+      }
+      
+      const resCal = await fetch(urlCal, { cache: 'no-store' });
+      if (resCal.ok) {
+        setApprovedLeaves(await resCal.json());
+      }
+
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchApprovedLeaves = async (date: Date) => {
-    try {
-      setIsCalendarLoading(true);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
-      const res = await fetch(`${baseUrl}/cuti?status=Disetujui&year=${year}&month=${month}`);
-      if (res.ok) {
-        setApprovedLeaves(await res.json());
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
       setIsCalendarLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchData(currentDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate]);
+
   const handlePrevMonth = () => {
-    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-    setCurrentDate(newDate);
-    fetchApprovedLeaves(newDate);
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
 
   const handleNextMonth = () => {
-    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-    setCurrentDate(newDate);
-    fetchApprovedLeaves(newDate);
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
   const handleApproveReject = async (cuti_id: string, action: 'approve' | 'reject') => {
@@ -100,8 +96,7 @@ export default function ApprovalCutiPage() {
       const data = await res.json();
       if (res.ok) {
         alert(data.message);
-        fetchPendingLeaves(); // Refresh pending
-        fetchApprovedLeaves(currentDate); // Refresh calendar
+        fetchData(currentDate); // Refresh both pending and calendar
       } else {
         alert(data.message || "Terjadi kesalahan.");
       }
@@ -122,16 +117,28 @@ export default function ApprovalCutiPage() {
   const weekDays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
   const getCutiForDate = (day: number) => {
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dateObj = new Date(dateStr);
+    const yearStr = currentDate.getFullYear();
+    const monthStr = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const targetDateStr = `${yearStr}-${monthStr}-${dayStr}`;
+    const dateObj = new Date(yearStr, currentDate.getMonth(), day, 0, 0, 0);
     
     return approvedLeaves.filter(cuti => {
+      // Dukungan untuk multiple disjoint dates dari fitur cuti yang baru
+      const alasan = cuti.alasan || cuti.keterangan || "";
+      const datesMatch = alasan.match(/\[DATES:\s*(.*?)\]/);
+      
+      if (datesMatch) {
+         const datesArr = datesMatch[1].split(',').map((d: string) => d.trim());
+         return datesArr.includes(targetDateStr);
+      }
+      
+      // Fallback untuk range tanggal konvensional
       const start = new Date(cuti.tanggal_mulai);
       const end = new Date(cuti.tanggal_selesai);
-      // Reset times to midnight for accurate comparison
       start.setHours(0,0,0,0);
       end.setHours(0,0,0,0);
-      return dateObj >= start && dateObj <= end;
+      return dateObj.getTime() >= start.getTime() && dateObj.getTime() <= end.getTime();
     });
   };
 
@@ -153,7 +160,7 @@ export default function ApprovalCutiPage() {
                 <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
                     <Grid className="text-blue-500" /> Kalender Cuti Karyawan
                 </h2>
-                <p className="text-sm text-slate-500 mt-1">Menampilkan karyawan yang cutinya telah disetujui.</p>
+                <p className="text-sm text-slate-500 mt-1">Menampilkan data pengajuan cuti. <span className="font-bold text-amber-500">Kuning: Menunggu</span> | <span className="font-bold text-emerald-500">Hijau: Disetujui</span></p>
             </div>
             <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
                 <button onClick={handlePrevMonth} className="p-2 bg-white rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm"><ChevronLeft size={20} /></button>
@@ -189,11 +196,15 @@ export default function ApprovalCutiPage() {
                                 {day}
                             </div>
                             <div className="flex flex-col gap-1">
-                                {cutiHariIni.map((c, idx) => (
-                                    <div key={idx} title={`${c.nama_lengkap} - ${c.jenis_cuti}`} className="text-[10px] font-bold bg-blue-500 text-white px-2 py-1 rounded-md truncate cursor-pointer hover:bg-blue-600 shadow-sm shadow-blue-200">
-                                        {c.nama_lengkap.split(' ')[0]}
-                                    </div>
-                                ))}
+                                {cutiHariIni.map((c, idx) => {
+                                    const isApproved = c.status === 'Disetujui';
+                                    const bgColor = isApproved ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200' : 'bg-amber-500 hover:bg-amber-600 shadow-amber-200 text-slate-900';
+                                    return (
+                                        <div key={idx} title={`${c.nama_lengkap} - ${c.jenis_cuti} (${c.status.replace('_', ' ')})`} className={`text-[10px] font-bold px-2 py-1 rounded-md truncate cursor-pointer shadow-sm ${isApproved ? 'text-white' : 'text-white'} ${bgColor}`}>
+                                            {c.nama_lengkap.split(' ')[0]}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     );

@@ -101,7 +101,7 @@ export const sendCutiMagicLink = async (data: CutiEmailData) => {
   await transporter.sendMail({
     from: `"HRIS Alice" <${process.env.SMTP_USER}>`,
     to: data.toEmail,
-    subject: "Persetujuan Cuti Karyawan",
+    subject: `Persetujuan Cuti - ${data.karyawanName}`,
     html: htmlContent,
   });
 };

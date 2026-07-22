@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
         }
         
         // INJECT JADWAL CUTI
-        await injectCutiToShift(cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, cuti.atasan_id || cuti.karyawan_id);
+        await injectCutiToShift(cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, cuti.atasan_id || cuti.karyawan_id, cuti.alasan);
       }
 
       // KIRIM EMAIL NOTIFIKASI KE KARYAWAN

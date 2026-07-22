@@ -41,7 +41,7 @@ export async function GET(
         k.id, k.nip, k.nama_lengkap, k.nik, k.profesi, k.sip, k.masa_berlaku_sip,
         k.handphone, k.email, k.tanggal_lahir, k.jenis_kelamin, k.alamat,
         k.tanggal_masuk, k.status_kepegawaian, k.gaji_pokok, k.jabatan_id,
-        d.nama_departemen, lj.nama_level, k.user_id, k.atasan_id, k.sisa_cuti,
+        d.id as departemen_id, d.nama_departemen, lj.nama_level, k.user_id, k.atasan_id, k.sisa_cuti,
         k.rekening_bsi, k.alamat_domisili,
         atasan.nama_lengkap AS nama_atasan,
         CASE WHEN k.face_descriptor IS NOT NULL THEN true ELSE false END AS has_face_descriptor

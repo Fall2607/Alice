@@ -1,6 +1,6 @@
 import pool from "@/app/lib/db";
 
-export async function injectCutiToShift(karyawan_id: string, tanggal_mulai: string | Date, tanggal_selesai: string | Date, approver_id: string) {
+export async function injectCutiToShift(karyawan_id: string, tanggal_mulai: string | Date, tanggal_selesai: string | Date, approver_id: string, alasan?: string) {
   try {
     // 1. Cari atau buat Master Shift "Cuti"
     let shiftCutiId = null;
@@ -17,19 +17,25 @@ export async function injectCutiToShift(karyawan_id: string, tanggal_mulai: stri
       shiftCutiId = insertShift.rows[0].id;
     }
 
-    // 2. Generate daftar tanggal (YYYY-MM-DD) dari mulai sampai selesai
-    const startDate = new Date(tanggal_mulai);
-    const endDate = new Date(tanggal_selesai);
-    const dateArray: string[] = [];
-
-    let currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      const yyyy = currentDate.getFullYear();
-      const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const dd = String(currentDate.getDate()).padStart(2, '0');
-      dateArray.push(`${yyyy}-${mm}-${dd}`);
-      currentDate.setDate(currentDate.getDate() + 1);
+    // 2. Generate daftar tanggal (YYYY-MM-DD)
+    let dateArray: string[] = [];
+    const datesMatch = alasan?.match(/\[DATES:\s*([^\]]+)\]/);
+    if (datesMatch) {
+       dateArray = datesMatch[1].split(',').map(d => d.trim());
+    } else {
+       const startDate = new Date(tanggal_mulai);
+       const endDate = new Date(tanggal_selesai);
+       let currentDate = new Date(startDate);
+       while (currentDate <= endDate) {
+         const yyyy = currentDate.getFullYear();
+         const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+         const dd = String(currentDate.getDate()).padStart(2, '0');
+         dateArray.push(`${yyyy}-${mm}-${dd}`);
+         currentDate.setDate(currentDate.getDate() + 1);
+       }
     }
+
+    // removed contiguous loop
 
     // 3. Update database (Hapus jadwal lama, masukkan jadwal cuti)
     if (dateArray.length > 0) {
