@@ -147,11 +147,7 @@ export async function POST(request: NextRequest) {
         }
         
         // INJECT JADWAL CUTI
-<<<<<<< HEAD
-        await injectCutiToShift(cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, approver_id);
-=======
         await injectCutiToShift(cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, approver_id, cuti.alasan);
->>>>>>> development
       }
     }
 
