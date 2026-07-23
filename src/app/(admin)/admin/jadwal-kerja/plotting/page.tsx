@@ -391,7 +391,7 @@ export default function ManajemenJadwalKaryawanPage() {
           Gunakan <b>Board Piket Sabtu</b> untuk mengatur piket Koordinator/SPV. (Piket otomatis memicu jam 8-4 Mon-Fri).
         </p>
 
-        {isAdminOrHRD && (
+        {(isAdminOrHRD || uniqueUnits.length > 0) && (
             <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
                 <span className="font-semibold text-slate-700">Filter Unit:</span>
                 <div className="w-72">
