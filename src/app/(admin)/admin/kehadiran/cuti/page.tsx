@@ -24,7 +24,7 @@ export default function ApprovalCutiPage() {
       const user = JSON.parse(userStr);
       setUserInfo(user);
 
-      let isHC = user.role?.toLowerCase() === 'hc' || user.role?.toLowerCase() === 'human capital';
+      let isHC = user.role?.toLowerCase() === 'hc' || user.role?.toLowerCase() === 'human capital' || user.role?.toLowerCase().includes('hrd');
       let isAdmin = user.role?.toLowerCase() === 'admin';
       let isHCAdmin = isHC || isAdmin;
       setIsHCAdminUser(isHCAdmin);
@@ -80,7 +80,7 @@ export default function ApprovalCutiPage() {
     if (!confirm(`Apakah Anda yakin ingin memproses pengajuan ini?`)) return;
 
     try {
-      const isHC = userInfo.role?.toLowerCase() === 'hc' || userInfo.role?.toLowerCase() === 'human capital' || userInfo.role?.toLowerCase() === 'admin';
+      const isHC = userInfo.role?.toLowerCase() === 'hc' || userInfo.role?.toLowerCase() === 'human capital' || userInfo.role?.toLowerCase().includes('hrd') || userInfo.role?.toLowerCase() === 'admin';
       
       const res = await fetch(`${baseUrl}/cuti/approve`, {
         method: 'POST',
