@@ -10,6 +10,7 @@ export default function ApprovalCutiPage() {
   const [isCalendarLoading, setIsCalendarLoading] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isHCAdminUser, setIsHCAdminUser] = useState(false);
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
@@ -26,13 +27,12 @@ export default function ApprovalCutiPage() {
       let isHC = user.role?.toLowerCase() === 'hc' || user.role?.toLowerCase() === 'human capital';
       let isAdmin = user.role?.toLowerCase() === 'admin';
       let isHCAdmin = isHC || isAdmin;
+      setIsHCAdminUser(isHCAdmin);
       
       // Fetch Pending Leaves
       let urlPending = '';
-      if (isAdmin) {
+      if (isHCAdmin) {
         urlPending = `${baseUrl}/cuti?status=Menunggu`;
-      } else if (isHC) {
-        urlPending = `${baseUrl}/cuti?status=Menunggu HC`;
       } else {
         urlPending = `${baseUrl}/cuti?atasan_id=${user.karyawan_id}&status=Menunggu Atasan,Menunggu SPV`;
       }
@@ -273,18 +273,26 @@ export default function ApprovalCutiPage() {
                 </div>
 
                 <div className="flex lg:flex-col gap-3 min-w-[200px]">
-                  <button 
-                    onClick={() => handleApproveReject(cuti.id, 'approve')}
-                    className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 px-6 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95 text-xs uppercase tracking-widest"
-                  >
-                    <CheckCircle2 size={16} /> Approve
-                  </button>
-                  <button 
-                    onClick={() => handleApproveReject(cuti.id, 'reject')}
-                    className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-white hover:bg-rose-50 text-rose-500 font-black py-4 px-6 rounded-2xl border border-rose-200 transition-all active:scale-95 text-xs uppercase tracking-widest"
-                  >
-                    <XCircle size={16} /> Reject
-                  </button>
+                  {(!isHCAdminUser || cuti.status === 'Menunggu HC') ? (
+                      <>
+                          <button 
+                            onClick={() => handleApproveReject(cuti.id, 'approve')}
+                            className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 px-6 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 active:scale-95 text-xs uppercase tracking-widest"
+                          >
+                            <CheckCircle2 size={16} /> Approve
+                          </button>
+                          <button 
+                            onClick={() => handleApproveReject(cuti.id, 'reject')}
+                            className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-white hover:bg-rose-50 text-rose-500 font-black py-4 px-6 rounded-2xl border border-rose-200 transition-all active:scale-95 text-xs uppercase tracking-widest"
+                          >
+                            <XCircle size={16} /> Reject
+                          </button>
+                      </>
+                  ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center gap-2 bg-slate-100 text-slate-400 font-black py-4 px-6 rounded-2xl border border-slate-200 text-xs uppercase tracking-widest text-center">
+                          <Clock size={20} /> Tertahan di {cuti.status.replace('Menunggu ', '')}
+                      </div>
+                  )}
                 </div>
               </div>
             ))}
