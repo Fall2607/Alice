@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cutiRes = await pool.query(
-      `SELECT tanggal_mulai as old_tanggal_mulai, tanggal_selesai as old_tanggal_selesai, alasan as old_alasan, status, backup_jadwal FROM pengajuan_cuti WHERE id = $1 AND karyawan_id = $2`,
+      `SELECT tanggal_mulai as old_tanggal_mulai, tanggal_selesai as old_tanggal_selesai, alasan as old_alasan, status, backup_jadwal, jenis_cuti, jumlah_hari as old_jumlah_hari FROM pengajuan_cuti WHERE id = $1 AND karyawan_id = $2`,
       [cuti_id, karyawan_id]
     );
 
@@ -89,6 +89,11 @@ export async function POST(req: NextRequest) {
       const { atasan_id, nama_lengkap } = karyRes.rows[0] || {};
       const statusAwal = atasan_id ? 'Menunggu Atasan' : 'Menunggu HC';
       const magicToken = crypto.randomBytes(32).toString('hex');
+
+      // 4. Refund Saldo Cuti jika cuti lama sudah disetujui (karena akan diajukan ulang)
+      if (cuti.status === 'Disetujui' && cuti.jenis_cuti === 'Tahunan') {
+          await pool.query(`UPDATE karyawan SET sisa_cuti = sisa_cuti + $1 WHERE id = $2`, [cuti.old_jumlah_hari, karyawan_id]);
+      }
 
       // 2. Update Pengajuan Cuti (Tanggal baru, reset status, hapus backup)
       await pool.query(`
