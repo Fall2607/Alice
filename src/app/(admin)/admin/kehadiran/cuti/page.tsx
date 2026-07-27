@@ -431,7 +431,8 @@ export default function ApprovalCutiPage() {
                               ...base,
                               border: '1px solid #e2e8f0',
                               borderRadius: '0.75rem',
-                              padding: '2px',
+                              padding: '2px 4px',
+                              minHeight: '46px',
                               backgroundColor: '#f8fafc',
                               boxShadow: 'none',
                               '&:hover': { borderColor: '#3b82f6' }
@@ -445,7 +446,7 @@ export default function ApprovalCutiPage() {
                           placeholder="Cari nama karyawan..." 
                           value={searchKar}
                           onChange={e => setSearchKar(e.target.value)}
-                          className="pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-500 w-full sm:w-64"
+                          className="pl-10 pr-4 h-[46px] bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-500 w-full sm:w-64"
                       />
                   </div>
               </div>
