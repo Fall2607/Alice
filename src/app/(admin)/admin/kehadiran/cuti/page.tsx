@@ -11,6 +11,7 @@ export default function ApprovalCutiPage() {
   const [userInfo, setUserInfo] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isHCAdminUser, setIsHCAdminUser] = useState(false);
+  const [filterPending, setFilterPending] = useState<string>('All');
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
@@ -219,21 +220,57 @@ export default function ApprovalCutiPage() {
             <p className="text-sm text-slate-500 mt-1">Daftar pengajuan cuti yang membutuhkan tindak lanjut Anda.</p>
         </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : pendingLeaves.length === 0 ? (
-          <div className="text-center py-20 flex flex-col items-center">
-            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-              <CheckCircle2 size={40} className="text-emerald-500" />
-            </div>
-            <h3 className="text-lg font-black text-slate-800">Semua Beres!</h3>
-            <p className="text-slate-500 text-sm mt-1">Tidak ada pengajuan cuti yang tertunda saat ini.</p>
-          </div>
-        ) : (
-          <div className="grid gap-6">
-            {pendingLeaves.map((cuti) => (
+        {(() => {
+          const countAtasan = pendingLeaves.filter(c => c.status === 'Menunggu Atasan').length;
+          const countSpv = pendingLeaves.filter(c => c.status === 'Menunggu SPV').length;
+          const countHc = pendingLeaves.filter(c => c.status === 'Menunggu HC').length;
+          
+          const displayPendingLeaves = pendingLeaves.filter(c => {
+            if (filterPending === 'All') return true;
+            if (filterPending === 'Atasan') return c.status === 'Menunggu Atasan';
+            if (filterPending === 'SPV') return c.status === 'Menunggu SPV';
+            if (filterPending === 'HC') return c.status === 'Menunggu HC';
+            return true;
+          });
+
+          return (
+            <>
+              {pendingLeaves.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-6">
+                    <button onClick={() => setFilterPending('All')} className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${filterPending === 'All' ? 'bg-slate-800 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                        Semua [{pendingLeaves.length}]
+                    </button>
+                    <button onClick={() => setFilterPending('Atasan')} className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${filterPending === 'Atasan' ? 'bg-amber-500 text-white shadow-md shadow-amber-200' : 'bg-slate-100 text-slate-500 hover:bg-amber-50 hover:text-amber-600'}`}>
+                        Tunggu Atasan [{countAtasan}]
+                    </button>
+                    <button onClick={() => setFilterPending('SPV')} className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${filterPending === 'SPV' ? 'bg-blue-500 text-white shadow-md shadow-blue-200' : 'bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600'}`}>
+                        Tunggu SPV [{countSpv}]
+                    </button>
+                    <button onClick={() => setFilterPending('HC')} className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${filterPending === 'HC' ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'}`}>
+                        Tunggu HC [{countHc}]
+                    </button>
+                </div>
+              )}
+
+              {isLoading ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : pendingLeaves.length === 0 ? (
+                <div className="text-center py-20 flex flex-col items-center">
+                  <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+                    <CheckCircle2 size={40} className="text-emerald-500" />
+                  </div>
+                  <h3 className="text-lg font-black text-slate-800">Semua Beres!</h3>
+                  <p className="text-slate-500 text-sm mt-1">Tidak ada pengajuan cuti yang tertunda saat ini.</p>
+                </div>
+              ) : displayPendingLeaves.length === 0 ? (
+                <div className="text-center py-12 flex flex-col items-center">
+                  <h3 className="text-md font-bold text-slate-500">Tidak ada pengajuan pada filter ini.</h3>
+                </div>
+              ) : (
+                <div className="grid gap-6">
+                  {displayPendingLeaves.map((cuti) => (
               <div key={cuti.id} className="p-6 rounded-[24px] border border-slate-200 bg-slate-50 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:shadow-lg hover:border-blue-200 transition-all">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
@@ -298,6 +335,9 @@ export default function ApprovalCutiPage() {
             ))}
           </div>
         )}
+        </>
+        );
+        })()}
       </div>
     </div>
   );
