@@ -1,6 +1,6 @@
 import pool from "@/app/lib/db";
 
-export async function injectCutiToShift(karyawan_id: string, tanggal_mulai: string | Date, tanggal_selesai: string | Date, approver_id: string, alasan?: string) {
+export async function injectCutiToShift(cuti_id: string, karyawan_id: string, tanggal_mulai: string | Date, tanggal_selesai: string | Date, approver_id: string, alasan?: string) {
   try {
     // 1. Cari atau buat Master Shift "Cuti"
     let shiftCutiId = null;
@@ -35,19 +35,32 @@ export async function injectCutiToShift(karyawan_id: string, tanggal_mulai: stri
        }
     }
 
-    // removed contiguous loop
-
     // 3. Update database (Hapus jadwal lama, masukkan jadwal cuti)
     if (dateArray.length > 0) {
-      // Mulai transaksi (opsional, tapi disarankan)
       await pool.query('BEGIN');
       
       try {
-        // Hapus jadwal yang bentrok
         const placeholders = dateArray.map((_, i) => `$${i + 2}`).join(',');
+
+        // a. Backup old shifts
+        const oldShiftsRes = await pool.query(`
+          SELECT tanggal, shift_id, assigned_by 
+          FROM karyawan_shift 
+          WHERE karyawan_id = $1 AND tanggal IN (${placeholders})
+        `, [karyawan_id, ...dateArray]);
+        
+        if (oldShiftsRes.rows.length > 0 && cuti_id) {
+            await pool.query(`
+                UPDATE pengajuan_cuti 
+                SET backup_jadwal = $1 
+                WHERE id = $2
+            `, [JSON.stringify(oldShiftsRes.rows), cuti_id]);
+        }
+
+        // b. Delete old shifts
         await pool.query(`DELETE FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal IN (${placeholders})`, [karyawan_id, ...dateArray]);
 
-        // Masukkan jadwal cuti
+        // c. Insert 'Cuti' shifts
         for (const tgl of dateArray) {
           await pool.query(`
             INSERT INTO karyawan_shift (karyawan_id, shift_id, tanggal, assigned_by)
