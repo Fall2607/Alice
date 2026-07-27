@@ -5,7 +5,7 @@ import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    const { cuti_id, karyawan_id, tanggal_mulai, tanggal_selesai, alasan, jumlah_hari } = await req.json();
+    const { cuti_id, karyawan_id, tanggal_mulai, tanggal_selesai, tanggal_kembali, alasan, jumlah_hari } = await req.json();
 
     if (!cuti_id || !karyawan_id || !tanggal_mulai || !tanggal_selesai) {
       return NextResponse.json({ message: "Data tidak lengkap" }, { status: 400 });
@@ -105,14 +105,15 @@ export async function POST(req: NextRequest) {
           jumlah_hari = $4,
           status = $5,
           magic_token = $6,
+          tanggal_kembali = $7,
           backup_jadwal = NULL,
           approved_by_id = NULL,
           atasan_approved_by_id = NULL,
           spv_approved_by_id = NULL,
           hc_approved_by_id = NULL,
           rejected_by = NULL
-        WHERE id = $7
-      `, [tanggal_mulai, tanggal_selesai, alasan, jumlah_hari, statusAwal, magicToken, cuti_id]);
+        WHERE id = $8
+      `, [tanggal_mulai, tanggal_selesai, alasan, jumlah_hari, statusAwal, magicToken, tanggal_kembali, cuti_id]);
 
       // Kirim Email Magic Link
       try {
@@ -128,10 +129,12 @@ export async function POST(req: NextRequest) {
                           karyawanName: nama_lengkap || 'Karyawan',
                           tanggalMulai: tanggal_mulai,
                           tanggalSelesai: tanggal_selesai,
-                          tanggalKembali: null, // Optional
+                          tanggalKembali: tanggal_kembali,
                           jumlahHari: jumlah_hari,
-                          alasan: alasan,
-                          token: magicToken
+                          alasan: `[PERMOHONAN GANTI JADWAL]\n${alasan}`,
+                          token: magicToken,
+                          title: "Persetujuan Pergantian Jadwal Cuti",
+                          subject: `Persetujuan Pergantian Jadwal Cuti - ${nama_lengkap || 'Karyawan'}`
                       });
                   }
               }
@@ -152,10 +155,12 @@ export async function POST(req: NextRequest) {
                               karyawanName: nama_lengkap || 'Karyawan',
                               tanggalMulai: tanggal_mulai,
                               tanggalSelesai: tanggal_selesai,
-                              tanggalKembali: null,
+                              tanggalKembali: tanggal_kembali,
                               jumlahHari: jumlah_hari,
-                              alasan: alasan,
-                              token: magicToken
+                              alasan: `[PERMOHONAN GANTI JADWAL]\n${alasan}`,
+                              token: magicToken,
+                              title: "Persetujuan Pergantian Jadwal Cuti",
+                              subject: `Persetujuan Pergantian Jadwal Cuti - ${nama_lengkap || 'Karyawan'}`
                           });
                       } catch (emailErr) {
                           console.error("Gagal mengirim magic link HC saat pengajuan:", hc.email, emailErr);
