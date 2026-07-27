@@ -159,9 +159,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (year && month) {
-      query += ` AND EXTRACT(YEAR FROM c.tanggal_mulai) = $${paramCount} AND EXTRACT(MONTH FROM c.tanggal_mulai) = $${paramCount + 1}`;
-      params.push(year, month);
-      paramCount += 2;
+      const paddedMonth = String(month).padStart(2, '0');
+      const dateSearchStr = `%${year}-${paddedMonth}-%`;
+      
+      query += ` AND (
+        (EXTRACT(YEAR FROM c.tanggal_mulai) = $${paramCount} AND EXTRACT(MONTH FROM c.tanggal_mulai) = $${paramCount + 1})
+        OR
+        (EXTRACT(YEAR FROM c.tanggal_selesai) = $${paramCount} AND EXTRACT(MONTH FROM c.tanggal_selesai) = $${paramCount + 1})
+        OR
+        (c.alasan LIKE $${paramCount + 2})
+      )`;
+      params.push(year, month, dateSearchStr);
+      paramCount += 3;
     }
 
     query += ` ORDER BY c.tanggal_pengajuan DESC, c.id DESC`;
