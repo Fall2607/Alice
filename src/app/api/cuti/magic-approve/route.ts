@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const cuti = cutiRes.rows[0];
 
     // Jika cuti sudah berstatus akhir
-    if (cuti.status === 'Disetujui' || cuti.status === 'Ditolak') {
+    if (cuti.status === 'Disetujui' || cuti.status === 'Ditolak' || cuti.status === 'Batal') {
       return new NextResponse(
         generateHTML("Sudah Diproses", "Pengajuan cuti ini sudah diproses sebelumnya.", "info"),
         { status: 400, headers: { 'Content-Type': 'text/html' } }
@@ -47,7 +47,34 @@ export async function GET(request: NextRequest) {
     const newMagicToken = crypto.randomBytes(32).toString('hex');
     let message = '';
     
-    if (action === 'REJECT') {
+    // PENANGANAN KHUSUS UNTUK MENUNGGU PEMBATALAN
+    if (cuti.status === 'Menunggu Pembatalan') {
+        if (action === 'APPROVE') {
+            query = `UPDATE pengajuan_cuti SET status = 'Batal', magic_token = NULL, backup_jadwal = NULL WHERE id = $1 RETURNING *`;
+            params = [cuti.id];
+            message = `Permohonan pembatalan cuti ${cuti.nama_lengkap} berhasil DISETUJUI. Cuti telah dibatalkan.`;
+            
+            // Restore backup
+            const backup = typeof cuti.backup_jadwal === 'string' ? JSON.parse(cuti.backup_jadwal) : cuti.backup_jadwal;
+            if (backup && Array.isArray(backup) && backup.length > 0) {
+              const dates = backup.map((b: any) => b.tanggal);
+              const placeholders = dates.map((_: any, i: number) => `$${i + 2}`).join(',');
+              await pool.query(`DELETE FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal IN (${placeholders})`, [cuti.karyawan_id, ...dates]);
+              for (const shift of backup) {
+                await pool.query(`INSERT INTO karyawan_shift (karyawan_id, shift_id, tanggal, assigned_by) VALUES ($1, $2, $3, $4)`, [cuti.karyawan_id, shift.shift_id, shift.tanggal, shift.assigned_by]);
+              }
+            }
+
+            // Kembalikan saldo cuti tahunan
+            if (cuti.jenis_cuti === 'Tahunan') {
+                await pool.query(`UPDATE karyawan SET sisa_cuti = sisa_cuti + $1 WHERE id = $2`, [cuti.jumlah_hari, cuti.karyawan_id]);
+            }
+        } else if (action === 'REJECT') {
+            query = `UPDATE pengajuan_cuti SET status = 'Disetujui', magic_token = NULL WHERE id = $1 RETURNING *`;
+            params = [cuti.id];
+            message = `Permohonan pembatalan cuti ${cuti.nama_lengkap} DITOLAK. Cuti tetap berjalan sesuai jadwal awal.`;
+        }
+    } else if (action === 'REJECT') {
       let rejectedByStr = `Atasan (${approverName})`;
       if (cuti.status === 'Menunggu SPV') rejectedByStr = `SPV (${approverName})`;
       if (cuti.status === 'Menunggu HC') rejectedByStr = `HC (${approverName})`;
