@@ -388,6 +388,110 @@ export default function ApprovalCutiPage() {
         );
         })()}
       </div>
+      </>)}
+
+      {activeTab === 'HISTORY' && (
+        <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 min-h-[400px]">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
+              <div>
+                  <h2 className="text-2xl font-black text-slate-800">History Cuti Karyawan</h2>
+                  <p className="text-sm text-slate-500 mt-1">Daftar sisa cuti dan riwayat cuti yang telah diambil.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                  <select 
+                      value={unitFilter} 
+                      onChange={e => setUnitFilter(e.target.value)}
+                      className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-500"
+                  >
+                      <option value="">Semua Unit</option>
+                      {Array.from(new Set(karyawans.map(k => k.nama_departemen).filter(Boolean))).map((u: any) => (
+                          <option key={u} value={u}>{u}</option>
+                      ))}
+                  </select>
+                  <div className="relative">
+                      <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
+                      <input 
+                          type="text" 
+                          placeholder="Cari nama karyawan..." 
+                          value={searchKar}
+                          onChange={e => setSearchKar(e.target.value)}
+                          className="pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-500 w-full sm:w-64"
+                      />
+                  </div>
+              </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs uppercase bg-slate-50 text-slate-500 rounded-t-xl">
+                <tr>
+                  <th className="px-6 py-4 font-black rounded-tl-xl">Nama Karyawan</th>
+                  <th className="px-6 py-4 font-black">Unit / Jabatan</th>
+                  <th className="px-6 py-4 font-black text-center">Sisa Cuti</th>
+                  <th className="px-6 py-4 font-black text-center">Cuti Terpakai</th>
+                  <th className="px-6 py-4 font-black rounded-tr-xl text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {karyawanLoading ? (
+                  <tr><td colSpan={5} className="text-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div></td></tr>
+                ) : (
+                  karyawans
+                    .filter(k => (unitFilter === '' || k.nama_departemen === unitFilter) && k.nama_lengkap.toLowerCase().includes(searchKar.toLowerCase()))
+                    .map(k => (
+                      <tr key={k.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-slate-800">{k.nama_lengkap}</td>
+                        <td className="px-6 py-4 font-medium text-slate-500">{k.nama_departemen} <br/><span className="text-xs text-slate-400">{k.nama_jabatan || '-'}</span></td>
+                        <td className="px-6 py-4 text-center font-black text-emerald-600 bg-emerald-50/30">{k.sisa_cuti || 0} Hari</td>
+                        <td className="px-6 py-4 text-center font-black text-rose-600 bg-rose-50/30">{k.cuti_terpakai || 0} Hari</td>
+                        <td className="px-6 py-4 text-center">
+                            <button onClick={() => fetchHistoryLeaves(k)} className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm">Lihat History</button>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HISTORY */}
+      {isModalHistoryOpen && selectedKaryawan && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative">
+                  <button onClick={() => setIsModalHistoryOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-rose-500"><XCircle size={28} /></button>
+                  
+                  <div className="mb-6">
+                      <h2 className="text-2xl font-black text-slate-800">History Cuti</h2>
+                      <p className="text-slate-500 font-bold mt-1">{selectedKaryawan.nama_lengkap} - {selectedKaryawan.nama_departemen}</p>
+                  </div>
+
+                  {historyLoading ? (
+                      <div className="py-12 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+                  ) : historyLeaves.length === 0 ? (
+                      <div className="py-12 text-center text-slate-400 font-bold">Belum ada riwayat cuti yang disetujui.</div>
+                  ) : (
+                      <div className="grid gap-4">
+                          {historyLeaves.map(cuti => (
+                              <div key={cuti.id} className="p-4 border border-slate-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                  <div>
+                                      <p className="font-black text-slate-800">{cuti.jenis_cuti}</p>
+                                      <p className="text-sm font-bold text-slate-500 mb-2">{new Date(cuti.tanggal_mulai).toLocaleDateString('id-ID')} s/d {new Date(cuti.tanggal_selesai).toLocaleDateString('id-ID')}</p>
+                                      <p className="text-xs text-slate-500 italic">"{cuti.alasan}"</p>
+                                  </div>
+                                  <div className="px-4 py-2 bg-blue-50 rounded-xl text-center min-w-[80px]">
+                                      <p className="text-xl font-black text-blue-600 leading-none">{cuti.jumlah_hari}</p>
+                                      <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mt-1">Hari</p>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  )}
+              </div>
+          </div>
+      )}
+
     </div>
   );
 }
