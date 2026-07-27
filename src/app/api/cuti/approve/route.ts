@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
         }
         
         // INJECT JADWAL CUTI
-        await injectCutiToShift(cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, approver_id, cuti.alasan);
+        await injectCutiToShift(cuti.id, cuti.karyawan_id, cuti.tanggal_mulai, cuti.tanggal_selesai, approver_id, cuti.alasan);
       }
     }
 
