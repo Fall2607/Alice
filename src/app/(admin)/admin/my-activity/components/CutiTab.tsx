@@ -587,6 +587,23 @@ export default function CutiTab() {
                   <p className="text-[10px] text-slate-500 line-clamp-1 mt-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
                     "{item.alasan}"
                   </p>
+                  
+                  {item.status !== 'Ditolak' && item.status !== 'Batal' && checkHMin1(item.tanggal_mulai) && (
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                        <button 
+                            onClick={() => openRescheduleModal(item)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                        >
+                            <Edit size={10} /> Ganti Jadwal
+                        </button>
+                        <button 
+                            onClick={() => handleCancelCuti(item)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                        >
+                            <XCircle size={10} /> Batal
+                        </button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
