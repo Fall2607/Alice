@@ -36,7 +36,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Batas maksimal pembatalan adalah H-1 sebelum tanggal cuti." }, { status: 400 });
     }
 
-    // Get atasan details for email
+    // Jika cuti belum disetujui sepenuhnya, langsung batalkan tanpa persetujuan atasan
+    if (cuti.status !== 'Disetujui') {
+      await pool.query('BEGIN');
+      try {
+        await pool.query(
+          `UPDATE pengajuan_cuti SET status = $1, backup_jadwal = NULL, magic_token = NULL WHERE id = $2`,
+          ['Batal', cuti_id]
+        );
+        await pool.query('COMMIT');
+        return NextResponse.json({ message: "Cuti berhasil dibatalkan." });
+      } catch (err) {
+        await pool.query('ROLLBACK');
+        throw err;
+      }
+    }
+
+    // Get atasan details for email (hanya jika cuti sudah Disetujui sebelumnya)
     const karyRes = await pool.query(`SELECT atasan_id, nama_lengkap FROM karyawan WHERE id = $1`, [karyawan_id]);
     const { atasan_id, nama_lengkap } = karyRes.rows[0] || {};
     const magicToken = crypto.randomBytes(32).toString('hex');
