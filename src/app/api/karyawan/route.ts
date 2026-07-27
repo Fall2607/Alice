@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
         k.jadwal_kerja_id,
         jk.nama_jadwal,
         k.sisa_cuti,
+        (SELECT COALESCE(SUM(jumlah_hari), 0) FROM pengajuan_cuti pc WHERE pc.karyawan_id = k.id AND pc.status = 'Disetujui' AND EXTRACT(YEAR FROM pc.tanggal_mulai) = EXTRACT(YEAR FROM CURRENT_DATE)) AS cuti_terpakai,
         CASE WHEN k.face_descriptor IS NOT NULL THEN true ELSE false END AS has_face_descriptor
       FROM karyawan k
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
