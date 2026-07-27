@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { CheckCircle2, XCircle, Clock, Search, Briefcase, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Grid } from "lucide-react";
+import Select from "react-select";
 
 export default function ApprovalCutiPage() {
   const [pendingLeaves, setPendingLeaves] = useState<any[]>([]);
@@ -413,16 +414,30 @@ export default function ApprovalCutiPage() {
                   <p className="text-sm text-slate-500 mt-1">Daftar sisa cuti dan riwayat cuti yang telah diambil.</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
-                  <select 
-                      value={unitFilter} 
-                      onChange={e => setUnitFilter(e.target.value)}
-                      className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-500"
-                  >
-                      <option value="">Semua Unit</option>
-                      {Array.from(new Set(karyawans.map(k => k.nama_departemen).filter(Boolean))).map((u: any) => (
-                          <option key={u} value={u}>{u}</option>
-                      ))}
-                  </select>
+                  <Select 
+                      options={[
+                          { value: '', label: 'Semua Unit' },
+                          ...Array.from(new Set(karyawans.map(k => k.nama_departemen).filter(Boolean))).map((u: any) => ({
+                              value: u,
+                              label: u
+                          }))
+                      ]}
+                      value={{ value: unitFilter, label: unitFilter || 'Semua Unit' }}
+                      onChange={(selected: any) => setUnitFilter(selected?.value || '')}
+                      isSearchable
+                      className="w-full sm:w-64 text-sm font-bold text-slate-700"
+                      styles={{
+                          control: (base) => ({
+                              ...base,
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '0.75rem',
+                              padding: '2px',
+                              backgroundColor: '#f8fafc',
+                              boxShadow: 'none',
+                              '&:hover': { borderColor: '#3b82f6' }
+                          })
+                      }}
+                  />
                   <div className="relative">
                       <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
                       <input 
