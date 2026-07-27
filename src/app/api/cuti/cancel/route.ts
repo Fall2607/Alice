@@ -81,8 +81,10 @@ export async function POST(req: NextRequest) {
                           tanggalSelesai: cuti.tanggal_selesai,
                           tanggalKembali: null,
                           jumlahHari: cuti.jumlah_hari,
-                          alasan: `[PERMOHONAN PEMBATALAN] ${cuti.alasan}`,
-                          token: magicToken
+                          alasan: `[PERMOHONAN PEMBATALAN]\n${cuti.alasan}`,
+                          token: magicToken,
+                          title: "Persetujuan Pembatalan Cuti",
+                          subject: `Persetujuan Pembatalan Cuti - ${nama_lengkap || 'Karyawan'}`
                       });
                   }
               }

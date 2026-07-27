@@ -22,6 +22,8 @@ interface CutiEmailData {
   jumlahHari: number;
   alasan: string;
   token: string;
+  title?: string;
+  subject?: string;
 }
 
 export const sendCutiMagicLink = async (data: CutiEmailData) => {
@@ -43,11 +45,14 @@ export const sendCutiMagicLink = async (data: CutiEmailData) => {
   const isSameDay = data.tanggalMulai === data.tanggalSelesai;
   const rangeDisplay = isSameDay ? tglMulaiFmt : `${tglMulaiFmt} <b>hingga</b> ${tglSelesaiFmt}`;
 
+  const titleStr = data.title || "Persetujuan Cuti Karyawan";
+  const subjectStr = data.subject || `Persetujuan Cuti - ${data.karyawanName}`;
+
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
       <!-- Header -->
       <div style="background-color: #0f172a; padding: 30px 20px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">Persetujuan Cuti Karyawan</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">${titleStr}</h1>
         <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Tindakan Anda Diperlukan</p>
       </div>
 
@@ -101,7 +106,7 @@ export const sendCutiMagicLink = async (data: CutiEmailData) => {
   await transporter.sendMail({
     from: `"HRIS Alice" <${process.env.SMTP_USER}>`,
     to: data.toEmail,
-    subject: `Persetujuan Cuti - ${data.karyawanName}`,
+    subject: subjectStr,
     html: htmlContent,
   });
 };

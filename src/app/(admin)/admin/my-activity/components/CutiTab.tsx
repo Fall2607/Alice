@@ -198,12 +198,13 @@ export default function CutiTab() {
       
       setSelectedDates(prevDates);
       if (prevDates.length > 0) {
-          // Arahkan kalender ke bulan dari tanggal pertama
+      // Arahkan kalender ke bulan dari tanggal pertama
           const firstDate = prevDates[0];
           setSelectedPeriod(`${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, '0')}`);
       }
       
-      setLeaveForm({ ...leaveForm, alasan: cuti.alasan });
+      const tk = cuti.tanggal_kembali ? new Date(cuti.tanggal_kembali).toISOString().split('T')[0] : '';
+      setLeaveForm({ ...leaveForm, alasan: cuti.alasan, tanggal_kembali: tk });
   }
 
   const handleRescheduleSubmit = async () => {
@@ -232,6 +233,7 @@ export default function CutiTab() {
                   karyawan_id: user.karyawan_id,
                   tanggal_mulai: formatDates[0],
                   tanggal_selesai: formatDates[formatDates.length - 1],
+                  tanggal_kembali: leaveForm.tanggal_kembali || null,
                   jumlah_hari: selectedDates.length,
                   alasan: newAlasan
               })
