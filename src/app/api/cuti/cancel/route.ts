@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import { sendCutiMagicLink } from "@/app/lib/email";
+import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cutiRes = await pool.query(
-      `SELECT tanggal_mulai, status, backup_jadwal FROM pengajuan_cuti WHERE id = $1 AND karyawan_id = $2`,
+      `SELECT tanggal_mulai, tanggal_selesai, jumlah_hari, alasan, status, backup_jadwal FROM pengajuan_cuti WHERE id = $1 AND karyawan_id = $2`,
       [cuti_id, karyawan_id]
     );
 
@@ -34,35 +36,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Batas maksimal pembatalan adalah H-1 sebelum tanggal cuti." }, { status: 400 });
     }
 
+    // Get atasan details for email
+    const karyRes = await pool.query(`SELECT atasan_id, nama_lengkap FROM karyawan WHERE id = $1`, [karyawan_id]);
+    const { atasan_id, nama_lengkap } = karyRes.rows[0] || {};
+    const magicToken = crypto.randomBytes(32).toString('hex');
+    
     await pool.query('BEGIN');
     try {
-      // 1. Restore Backup Jadwal
-      const backup = typeof cuti.backup_jadwal === 'string' ? JSON.parse(cuti.backup_jadwal) : cuti.backup_jadwal;
-      
-      if (backup && Array.isArray(backup) && backup.length > 0) {
-        const dates = backup.map((b: any) => b.tanggal);
-        const placeholders = dates.map((_: any, i: number) => `$${i + 2}`).join(',');
-        
-        // Hapus Shift 'Cuti' yang terinjeksi
-        await pool.query(`DELETE FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal IN (${placeholders})`, [karyawan_id, ...dates]);
-        
-        // Insert kembali shift lama
-        for (const shift of backup) {
-          await pool.query(`
-            INSERT INTO karyawan_shift (karyawan_id, shift_id, tanggal, assigned_by)
-            VALUES ($1, $2, $3, $4)
-          `, [karyawan_id, shift.shift_id, shift.tanggal, shift.assigned_by]);
-        }
-      }
-
-      // 2. Update Status Cuti
+      // Set status to Menunggu Pembatalan
       await pool.query(
-        `UPDATE pengajuan_cuti SET status = $1, backup_jadwal = NULL WHERE id = $2`,
-        ['Batal', cuti_id]
+        `UPDATE pengajuan_cuti SET status = $1, magic_token = $2 WHERE id = $3`,
+        ['Menunggu Pembatalan', magicToken, cuti_id]
       );
 
+      // Send Email to Atasan
+      try {
+          if (atasan_id) {
+              const atasanRes = await pool.query(`SELECT email, nama_lengkap FROM karyawan WHERE id = $1`, [atasan_id]);
+              if (atasanRes.rows.length > 0) {
+                  const atasanEmail = atasanRes.rows[0].email;
+                  const atasanName = atasanRes.rows[0].nama_lengkap;
+                  if (atasanEmail) {
+                      await sendCutiMagicLink({
+                          toEmail: atasanEmail,
+                          approverName: atasanName,
+                          karyawanName: nama_lengkap || 'Karyawan',
+                          tanggalMulai: cuti.tanggal_mulai,
+                          tanggalSelesai: cuti.tanggal_selesai,
+                          tanggalKembali: null,
+                          jumlahHari: cuti.jumlah_hari,
+                          alasan: `[PERMOHONAN PEMBATALAN] ${cuti.alasan}`,
+                          token: magicToken
+                      });
+                  }
+              }
+          }
+      } catch (e) {
+          console.error("Gagal mengirim email magic link pembatalan:", e);
+      }
+
       await pool.query('COMMIT');
-      return NextResponse.json({ message: "Cuti berhasil dibatalkan dan jadwal telah dikembalikan." });
+      return NextResponse.json({ message: "Permohonan pembatalan berhasil dikirim. Menunggu persetujuan atasan." });
     } catch (err) {
       await pool.query('ROLLBACK');
       throw err;

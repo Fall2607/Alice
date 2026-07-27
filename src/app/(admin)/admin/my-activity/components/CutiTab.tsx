@@ -143,7 +143,7 @@ export default function CutiTab() {
       
       const res = await Swal.fire({
           title: 'Batalkan Cuti?',
-          text: "Jadwal Anda akan dikembalikan seperti semula.",
+          text: "Permohonan pembatalan akan dikirim ke atasan Anda untuk disetujui.",
           icon: 'warning',
           showCancelButton: true,
           confirmButtonColor: '#d33',
@@ -162,7 +162,7 @@ export default function CutiTab() {
               body: JSON.stringify({ cuti_id: cuti.id, karyawan_id: user.karyawan_id })
           });
           if(response.ok){
-              Swal.fire('Berhasil!', 'Cuti berhasil dibatalkan', 'success').then(() => window.location.reload());
+              Swal.fire('Berhasil!', 'Permohonan pembatalan berhasil dikirim.', 'success').then(() => window.location.reload());
           } else {
               const err = await response.json();
               Swal.fire('Gagal', err.message, 'error');
@@ -612,7 +612,7 @@ export default function CutiTab() {
                     "{item.alasan}"
                   </p>
                   
-                  {item.status !== 'Ditolak' && item.status !== 'Batal' && checkHMin1(item.tanggal_mulai) && (
+                  {item.status !== 'Ditolak' && item.status !== 'Batal' && item.status !== 'Menunggu Pembatalan' && checkHMin1(item.tanggal_mulai) && (
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
                         <button 
                             onClick={() => openRescheduleModal(item)}
