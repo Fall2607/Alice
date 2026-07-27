@@ -54,6 +54,35 @@ export async function GET(request: NextRequest) {
             params = [cuti.id];
             message = `Permohonan pembatalan cuti ${cuti.nama_lengkap} berhasil DISETUJUI. Cuti telah dibatalkan.`;
             
+            // Selalu hapus shift Cuti di rentang tanggal cuti yang dibatalkan terlepas ada backup atau tidak
+            const shiftRes = await pool.query(`SELECT id FROM shift WHERE nama_shift ILIKE 'Cuti' LIMIT 1`);
+            const shiftCutiId = shiftRes.rows.length > 0 ? shiftRes.rows[0].id : null;
+            if (shiftCutiId) {
+                let dateArray = [];
+                const datesMatch = cuti.alasan?.match(/\[DATES:\s*([^\]]+)\]/);
+                if (datesMatch) {
+                    dateArray = datesMatch[1].split(',').map((d: string) => d.trim());
+                } else {
+                    const start = new Date(cuti.tanggal_mulai);
+                    const end = new Date(cuti.tanggal_selesai);
+                    let cur = new Date(start);
+                    while (cur <= end) {
+                        const yyyy = cur.getFullYear();
+                        const mm = String(cur.getMonth() + 1).padStart(2, '0');
+                        const dd = String(cur.getDate()).padStart(2, '0');
+                        dateArray.push(`${yyyy}-${mm}-${dd}`);
+                        cur.setDate(cur.getDate() + 1);
+                    }
+                }
+                if (dateArray.length > 0) {
+                    const placeholders = dateArray.map((_: any, i: number) => `$${i + 3}`).join(',');
+                    await pool.query(
+                        `DELETE FROM karyawan_shift WHERE karyawan_id = $1 AND shift_id = $2 AND tanggal IN (${placeholders})`, 
+                        [cuti.karyawan_id, shiftCutiId, ...dateArray]
+                    );
+                }
+            }
+
             // Restore backup
             const backup = typeof cuti.backup_jadwal === 'string' ? JSON.parse(cuti.backup_jadwal) : cuti.backup_jadwal;
             if (backup && Array.isArray(backup) && backup.length > 0) {
