@@ -12,6 +12,54 @@ export default function ApprovalCutiPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isHCAdminUser, setIsHCAdminUser] = useState(false);
   const [filterPending, setFilterPending] = useState<string>('All');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD'|'HISTORY'>('DASHBOARD');
+  const [karyawans, setKaryawans] = useState<any[]>([]);
+  const [karyawanLoading, setKaryawanLoading] = useState(false);
+  const [searchKar, setSearchKar] = useState('');
+  const [unitFilter, setUnitFilter] = useState('');
+  const [isModalHistoryOpen, setIsModalHistoryOpen] = useState(false);
+  const [selectedKaryawan, setSelectedKaryawan] = useState<any>(null);
+  const [historyLeaves, setHistoryLeaves] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const fetchKaryawanList = async () => {
+    if (karyawans.length > 0) return;
+    setKaryawanLoading(true);
+    try {
+        let fetchUrl = `${baseUrl}/karyawan`;
+        if (!isHCAdminUser && userInfo?.karyawan_id) {
+            fetchUrl += `?superior_id=${userInfo.karyawan_id}`;
+        }
+        const res = await fetch(fetchUrl);
+        if (res.ok) setKaryawans(await res.json());
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setKaryawanLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'HISTORY') {
+       fetchKaryawanList();
+    }
+  }, [activeTab]);
+
+  const fetchHistoryLeaves = async (kar: any) => {
+    setSelectedKaryawan(kar);
+    setIsModalHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryLeaves([]);
+    try {
+        const res = await fetch(`${baseUrl}/cuti?karyawan_id=${kar.id}&status=Disetujui`);
+        if (res.ok) setHistoryLeaves(await res.json());
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setHistoryLoading(false);
+    }
+  };
+
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
@@ -154,6 +202,7 @@ export default function ApprovalCutiPage() {
         </p>
       </div>
 
+      {activeTab === 'DASHBOARD' && (<>
       {/* KALENDER CUTI */}
       <div className="bg-white rounded-[32px] shadow-2xl shadow-slate-200/50 border border-slate-100 p-8 mb-10">
         <div className="flex items-center justify-between mb-8">
