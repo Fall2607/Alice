@@ -195,11 +195,26 @@ export default function ApprovalCutiPage() {
     <div className="p-8 font-sans max-w-7xl mx-auto min-h-screen">
       <div className="mb-10">
         <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-2">
-          Dashboard Cuti
+          Persetujuan Izin / Cuti
         </h1>
-        <p className="text-slate-500 font-medium text-sm">
-          Kelola persetujuan cuti dan pantau karyawan yang sedang cuti bulan ini.
+        <p className="text-slate-500 font-medium text-sm mb-6">
+          Kelola persetujuan cuti dan pantau history karyawan.
         </p>
+
+        <div className="flex border-b border-slate-200">
+            <button 
+                className={`py-3 px-6 font-bold text-sm transition-all ${activeTab === 'DASHBOARD' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                onClick={() => setActiveTab('DASHBOARD')}
+            >
+                Dashboard Cuti
+            </button>
+            <button 
+                className={`py-3 px-6 font-bold text-sm transition-all ${activeTab === 'HISTORY' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                onClick={() => setActiveTab('HISTORY')}
+            >
+                History Cuti
+            </button>
+        </div>
       </div>
 
       {activeTab === 'DASHBOARD' && (<>
