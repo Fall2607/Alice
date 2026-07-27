@@ -177,8 +177,32 @@ export default function CutiTab() {
       }
       setRescheduleData(cuti);
       setIsRescheduleModalOpen(true);
-      // Reset selected dates so they can pick again
-      setSelectedDates([]);
+      
+      let prevDates: Date[] = [];
+      const alasan = cuti.alasan || "";
+      const datesMatch = alasan.match(/\[DATES:\s*(.*?)\]/);
+      if (datesMatch) {
+          const datesArr = datesMatch[1].split(',').map((d: string) => d.trim());
+          prevDates = datesArr.map((d: string) => new Date(d + 'T00:00:00'));
+      } else {
+          const startDate = new Date(cuti.tanggal_mulai);
+          startDate.setHours(0,0,0,0);
+          const endDate = new Date(cuti.tanggal_selesai);
+          endDate.setHours(0,0,0,0);
+          let cur = new Date(startDate);
+          while(cur <= endDate) {
+              prevDates.push(new Date(cur));
+              cur.setDate(cur.getDate() + 1);
+          }
+      }
+      
+      setSelectedDates(prevDates);
+      if (prevDates.length > 0) {
+          // Arahkan kalender ke bulan dari tanggal pertama
+          const firstDate = prevDates[0];
+          setSelectedPeriod(`${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, '0')}`);
+      }
+      
       setLeaveForm({ ...leaveForm, alasan: cuti.alasan });
   }
 

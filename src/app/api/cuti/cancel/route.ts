@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     const cuti = cutiRes.rows[0];
 
-    if (cuti.status === 'Dibatalkan') {
+    if (cuti.status === 'Batal') {
       return NextResponse.json({ message: "Cuti ini sudah dibatalkan" }, { status: 400 });
     }
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       // 2. Update Status Cuti
       await pool.query(
         `UPDATE pengajuan_cuti SET status = $1, backup_jadwal = NULL WHERE id = $2`,
-        ['Dibatalkan', cuti_id]
+        ['Batal', cuti_id]
       );
 
       await pool.query('COMMIT');
