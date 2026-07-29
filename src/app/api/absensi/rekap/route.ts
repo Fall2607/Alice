@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
         // 1. Ambil Karyawan (Filter by Unit if provided)
         let karQuery = `
-            SELECT k.id, k.nama_lengkap as nama, lj.nama_level as jabatan
+            SELECT k.id, k.nama_lengkap as nama, k.jadwal_kerja_id, lj.nama_level as jabatan
             FROM karyawan k
             LEFT JOIN jabatan j ON k.jabatan_id = j.id
             LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
@@ -121,6 +121,30 @@ export async function GET(request: NextRequest) {
             };
         }
 
+        // 2.6 Ambil Data Default Shift dari jadwal_kerja
+        const jadwalKerjaIds = Array.from(new Set(karyawanList.map(k => k.jadwal_kerja_id).filter(id => id)));
+        const defaultShiftMap: Record<number, Record<number, any>> = {};
+        
+        if (jadwalKerjaIds.length > 0) {
+            const defaultShiftQuery = `
+                SELECT jkd.jadwal_kerja_id, jkd.hari, s.nama_shift, s.jam_masuk, s.jam_keluar
+                FROM jadwal_kerja_detail jkd
+                JOIN shift s ON jkd.shift_id = s.id
+                WHERE jkd.jadwal_kerja_id = ANY($1::int[])
+            `;
+            const dsRes = await pool.query(defaultShiftQuery, [jadwalKerjaIds]);
+            for (const row of dsRes.rows) {
+                if (!defaultShiftMap[row.jadwal_kerja_id]) {
+                    defaultShiftMap[row.jadwal_kerja_id] = {};
+                }
+                defaultShiftMap[row.jadwal_kerja_id][row.hari] = {
+                    nama_shift: row.nama_shift,
+                    jam_masuk: row.jam_masuk,
+                    jam_keluar: row.jam_keluar
+                };
+            }
+        }
+
         // Generate dates array
         const dates: string[] = [];
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -141,7 +165,11 @@ export async function GET(request: NextRequest) {
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 const absenHariIni = absensiMap[kar.id]?.[dateStr];
-                const adaShift = shiftMap[kar.id]?.[dateStr]; // Object { nama_shift, jam_masuk, jam_keluar }
+                let adaShift = shiftMap[kar.id]?.[dateStr]; 
+                
+                if (!adaShift && kar.jadwal_kerja_id) {
+                    adaShift = defaultShiftMap[kar.jadwal_kerja_id]?.[dayOfWeek];
+                }
 
                 // Cek Cuti / Izin dari shift
                 const isCuti = adaShift && adaShift.nama_shift.toLowerCase().includes('cuti');
