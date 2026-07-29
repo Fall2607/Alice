@@ -84,6 +84,15 @@ export async function GET(request: NextRequest) {
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             const dateStr = d.toISOString().split('T')[0];
             
+            const formatTime = (timeVal: any) => {
+                if (!timeVal) return null;
+                const t = new Date(timeVal);
+                return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+            };
+
+            row.jam_masuk = formatTime(row.jam_masuk);
+            row.jam_keluar = formatTime(row.jam_keluar);
+
             absensiMap[row.karyawan_id][dateStr] = row;
         }
 
