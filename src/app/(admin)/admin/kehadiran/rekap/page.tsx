@@ -105,6 +105,112 @@ export default function RekapAbsensiPage() {
 
   const filteredData = data.filter(k => k.nama.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  const handleExport = async () => {
+    if (filteredData.length === 0) {
+      alert("Tidak ada data untuk diexport");
+      return;
+    }
+
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Rekap Absensi");
+
+      worksheet.mergeCells('A1:I1');
+      const titleCell = worksheet.getCell('A1');
+      titleCell.value = 'LAPORAN REKAPITULASI ABSENSI';
+      titleCell.font = { size: 16, bold: true };
+      titleCell.alignment = { horizontal: 'center' };
+
+      worksheet.mergeCells('A2:I2');
+      const subtitleCell = worksheet.getCell('A2');
+      const startStr = startDateObj ? startDateObj.toLocaleDateString('id-ID') : '-';
+      const endStr = endDateObj ? endDateObj.toLocaleDateString('id-ID') : '-';
+      subtitleCell.value = `Periode: ${startStr} s/d ${endStr}`;
+      subtitleCell.font = { size: 12, italic: true };
+      subtitleCell.alignment = { horizontal: 'center' };
+
+      worksheet.addRow([]);
+
+      const headerRow = worksheet.addRow([
+        'Nama Karyawan',
+        'Jabatan',
+        'Tanggal',
+        'Jadwal Shift',
+        'Check In',
+        'Check Out',
+        'Terlambat (Mnt)',
+        'Pulang Cepat (Mnt)',
+        'Status'
+      ]);
+
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.eachCell(cell => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF0173B6' }
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+        };
+      });
+
+      filteredData.forEach(kar => {
+        dates.forEach(dateStr => {
+          const harian = kar.harian[dateStr] || { status: 'Libur' };
+          const shiftText = harian.shift ? harian.shift.nama_shift : '-';
+          
+          const formatTime = (timeStr?: string) => {
+            if (!timeStr) return "-";
+            if (timeStr.includes('T')) {
+              const d = new Date(timeStr);
+              return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            }
+            return timeStr.substring(0, 5); 
+          };
+
+          const row = worksheet.addRow([
+            kar.nama,
+            kar.jabatan,
+            dateStr,
+            shiftText,
+            formatTime(harian.jam_masuk),
+            formatTime(harian.jam_keluar),
+            harian.menit_terlambat || 0,
+            harian.menit_pulang_cepat || 0,
+            harian.status.toUpperCase()
+          ]);
+
+          row.eachCell(cell => {
+            cell.border = {
+              top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+            };
+          });
+        });
+      });
+
+      worksheet.columns = [
+        { width: 25 }, { width: 20 }, { width: 15 }, { width: 30 }, 
+        { width: 12 }, { width: 12 }, { width: 18 }, { width: 20 }, { width: 15 }
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `Rekap_Absensi_${startStr}_sd_${endStr}.xlsx`.replace(/\//g, '-');
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+
+    } catch (e) {
+      console.error(e);
+      alert("Gagal melakukan export excel");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -191,7 +297,7 @@ export default function RekapAbsensiPage() {
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           </div>
-          <button className="flex items-center gap-2 bg-[#0173b6] hover:bg-[#005f98] text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-100 shrink-0">
+          <button onClick={handleExport} className="flex items-center gap-2 bg-[#0173b6] hover:bg-[#005f98] text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-100 shrink-0">
             <Download size={16} />
             <span className="hidden md:inline">Export</span>
           </button>
