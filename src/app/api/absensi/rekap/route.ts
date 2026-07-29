@@ -145,6 +145,18 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // 2.7 Ambil Shift 8-4 untuk Override (Piket Sabtu)
+        const shift84Query = `SELECT id, nama_shift, jam_masuk, jam_keluar FROM shift WHERE nama_shift LIKE '%8-4 (Senin-Jumat)%' LIMIT 1`;
+        const shift84Res = await pool.query(shift84Query);
+        let shift84Data: any = null;
+        if (shift84Res.rows.length > 0) {
+            shift84Data = {
+                nama_shift: shift84Res.rows[0].nama_shift,
+                jam_masuk: String(shift84Res.rows[0].jam_masuk).substring(0, 5),
+                jam_keluar: String(shift84Res.rows[0].jam_keluar).substring(0, 5)
+            };
+        }
+
         // Generate dates array
         const dates: string[] = [];
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -169,6 +181,19 @@ export async function GET(request: NextRequest) {
                 
                 if (!adaShift && kar.jadwal_kerja_id) {
                     adaShift = defaultShiftMap[kar.jadwal_kerja_id]?.[dayOfWeek];
+                }
+
+                // DYNAMIC OVERRIDE: Jika 8-5 dan ada piket sabtu di minggu yang sama -> jadi 8-4
+                if (dayOfWeek >= 1 && dayOfWeek <= 5 && adaShift && adaShift.nama_shift && adaShift.nama_shift.includes('8-5') && shift84Data) {
+                    const daysToSaturday = 6 - dayOfWeek;
+                    const satDate = new Date(currentDate);
+                    satDate.setDate(currentDate.getDate() + daysToSaturday);
+                    const satDateStr = satDate.toISOString().split('T')[0];
+                    
+                    const adaPiketSabtu = shiftMap[kar.id]?.[satDateStr];
+                    if (adaPiketSabtu) {
+                        adaShift = shift84Data;
+                    }
                 }
 
                 // Cek Cuti / Izin dari shift
