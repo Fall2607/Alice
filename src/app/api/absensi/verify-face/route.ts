@@ -385,10 +385,20 @@ export async function POST(request: NextRequest) {
           }, { status: 403 });
       }
 
+      let menit_pulang_cepat = 0;
+      let is_pulang_cepat = false;
+
+      if (jamKeluarNormal && today < jamKeluarNormal) {
+          menit_pulang_cepat = Math.round((jamKeluarNormal.getTime() - today.getTime()) / 60000);
+          if (menit_pulang_cepat > 0) {
+              is_pulang_cepat = true;
+          }
+      }
+
       // 3. Update Database
       const updateRes = await pool.query(
-        `UPDATE absensi SET jam_keluar = (NOW() AT TIME ZONE 'Asia/Jakarta') WHERE id = $1 RETURNING *`,
-        [existingAbsen.id]
+        `UPDATE absensi SET jam_keluar = (NOW() AT TIME ZONE 'Asia/Jakarta'), is_pulang_cepat = $2, menit_pulang_cepat = $3 WHERE id = $1 RETURNING *`,
+        [existingAbsen.id, is_pulang_cepat, menit_pulang_cepat]
       );
       absensiRecord = updateRes.rows[0];
       jenisAbsen = "Check-Out";

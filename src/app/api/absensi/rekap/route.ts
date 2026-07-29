@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 
         // 2. Ambil Data Absensi Date Range
         const absensiQuery = `
-            SELECT karyawan_id, tanggal, jam_masuk, jam_keluar, is_late, menit_terlambat
+            SELECT karyawan_id, tanggal, jam_masuk, jam_keluar, is_late, menit_terlambat, is_pulang_cepat, menit_pulang_cepat
             FROM absensi
             WHERE tanggal >= $1 AND tanggal <= $2 AND karyawan_id = ANY($3::uuid[])
         `;
@@ -89,14 +89,14 @@ export async function GET(request: NextRequest) {
 
         // 2.5 Ambil Data Shift Date Range
         const shiftQuery = `
-            SELECT ks.karyawan_id, ks.tanggal, s.nama_shift
+            SELECT ks.karyawan_id, ks.tanggal, s.nama_shift, s.jam_masuk, s.jam_keluar
             FROM karyawan_shift ks
             JOIN shift s ON ks.shift_id = s.id
             WHERE ks.tanggal >= $1 AND ks.tanggal <= $2 AND ks.karyawan_id = ANY($3::uuid[])
         `;
         const shiftRes = await pool.query(shiftQuery, [startDateParam, endDateParam, karyawanIds]);
         
-        const shiftMap: Record<string, Record<string, string>> = {};
+        const shiftMap: Record<string, Record<string, any>> = {};
         for (const row of shiftRes.rows) {
             if (!shiftMap[row.karyawan_id]) {
                 shiftMap[row.karyawan_id] = {};
@@ -105,7 +105,11 @@ export async function GET(request: NextRequest) {
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             const dateStr = d.toISOString().split('T')[0];
             
-            shiftMap[row.karyawan_id][dateStr] = row.nama_shift;
+            shiftMap[row.karyawan_id][dateStr] = {
+                nama_shift: row.nama_shift,
+                jam_masuk: row.jam_masuk,
+                jam_keluar: row.jam_keluar
+            };
         }
 
         // Generate dates array
@@ -128,31 +132,31 @@ export async function GET(request: NextRequest) {
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 const absenHariIni = absensiMap[kar.id]?.[dateStr];
-                const adaShift = shiftMap[kar.id]?.[dateStr]; // This is now a string (nama_shift)
+                const adaShift = shiftMap[kar.id]?.[dateStr]; // Object { nama_shift, jam_masuk, jam_keluar }
 
                 // Cek Cuti / Izin dari shift
-                const isCuti = adaShift && adaShift.toLowerCase().includes('cuti');
+                const isCuti = adaShift && adaShift.nama_shift.toLowerCase().includes('cuti');
 
                 if (isCuti) {
                     totalIzin++;
-                    harian[dateStr] = { status: 'izin' };
+                    harian[dateStr] = { status: 'izin', shift: adaShift };
                 } else if (absenHariIni) {
                     totalHadir++;
                     if (absenHariIni.is_late) {
                         totalTelat++;
-                        harian[dateStr] = { status: 'telat', ...absenHariIni };
+                        harian[dateStr] = { status: 'telat', shift: adaShift, ...absenHariIni };
                     } else {
-                        harian[dateStr] = { status: 'hadir', ...absenHariIni };
+                        harian[dateStr] = { status: 'hadir', shift: adaShift, ...absenHariIni };
                     }
                 } else {
                     if (adaShift) {
                         totalAlpha++;
-                        harian[dateStr] = { status: 'alpha' };
+                        harian[dateStr] = { status: 'alpha', shift: adaShift };
                     } else if (!isWeekend) {
                         totalAlpha++;
-                        harian[dateStr] = { status: 'alpha' };
+                        harian[dateStr] = { status: 'alpha', shift: adaShift };
                     } else {
-                        harian[dateStr] = { status: 'libur' };
+                        harian[dateStr] = { status: 'libur', shift: adaShift };
                     }
                 }
             }

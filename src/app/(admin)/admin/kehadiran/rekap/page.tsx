@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Filter, Download, CalendarDays, Users, Clock, AlertTriangle, TableProperties, Grid, Loader2, Calendar } from "lucide-react";
+import { Search, Filter, Download, CalendarDays, Users, Clock, AlertTriangle, TableProperties, Grid, Loader2, Calendar, X } from "lucide-react";
 import Select from "react-select";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -11,7 +11,16 @@ interface KaryawanRekap {
   nama: string;
   jabatan: string;
   rekap: { hadir: number; telat: number; alpha: number; izin: number };
-  harian: Record<string, { status: string; jam_masuk?: string; is_late?: boolean }>;
+  harian: Record<string, { 
+    status: string; 
+    jam_masuk?: string; 
+    jam_keluar?: string;
+    is_late?: boolean;
+    menit_terlambat?: number;
+    is_pulang_cepat?: boolean;
+    menit_pulang_cepat?: number;
+    shift?: { nama_shift: string; jam_masuk: string; jam_keluar: string };
+  }>;
 }
 
 export default function RekapAbsensiPage() {
@@ -25,6 +34,7 @@ export default function RekapAbsensiPage() {
   const [data, setData] = useState<KaryawanRekap[]>([]);
   const [dates, setDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedUserDetail, setSelectedUserDetail] = useState<KaryawanRekap | null>(null);
 
   // Stats
   const totalKaryawan = data.length;
@@ -242,8 +252,11 @@ export default function RekapAbsensiPage() {
                         <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-sm shrink-0">
                           {kar.nama.charAt(0)}
                         </div>
-                        <div>
-                          <p className="text-sm font-black text-slate-800">{kar.nama}</p>
+                        <div 
+                          className="cursor-pointer group"
+                          onClick={() => setSelectedUserDetail(kar)}
+                        >
+                          <p className="text-sm font-black text-slate-800 group-hover:text-[#0173b6] transition-colors">{kar.nama}</p>
                           <p className="text-[11px] font-bold text-slate-400 mt-0.5">{kar.jabatan}</p>
                         </div>
                       </div>
@@ -334,6 +347,110 @@ export default function RekapAbsensiPage() {
           </div>
         )}
       </div>
+
+      {/* Detail Modal */}
+      {selectedUserDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <div>
+                <h2 className="text-xl font-black text-slate-800">Detail Kehadiran</h2>
+                <p className="text-sm font-semibold text-slate-500 mt-1">
+                  {selectedUserDetail.nama} • {selectedUserDetail.jabatan}
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedUserDetail(null)}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
+              <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Tanggal</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Jadwal Shift</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Check In</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Check Out</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Keterlambatan</th>
+                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Pulang Cepat</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dates.map((dateStr, idx) => {
+                      const data = selectedUserDetail.harian[dateStr];
+                      const shift = data?.shift;
+                      
+                      const formatTime = (timeStr?: string) => {
+                        if (!timeStr) return "-";
+                        if (timeStr.includes('T')) {
+                          const d = new Date(timeStr);
+                          return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                        }
+                        return timeStr.substring(0, 5); 
+                      };
+
+                      const checkIn = formatTime(data?.jam_masuk);
+                      const checkOut = formatTime(data?.jam_keluar);
+                      const shiftIn = shift ? formatTime(shift.jam_masuk) : "-";
+                      const shiftOut = shift ? formatTime(shift.jam_keluar) : "-";
+                      const shiftName = shift?.nama_shift || (data?.status === 'libur' ? 'Libur' : '-');
+                      
+                      const lateness = data?.menit_terlambat || 0;
+                      
+                      const earlyLeave = data?.menit_pulang_cepat || 0;
+
+                      return (
+                        <tr key={dateStr} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                          <td className="py-3 px-4 text-sm font-semibold text-slate-700 whitespace-nowrap">
+                            {new Date(dateStr).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${shiftName.toLowerCase().includes('libur') ? 'bg-slate-100 text-slate-600' : (shiftName.toLowerCase().includes('cuti') ? 'bg-blue-100 text-blue-700' : 'bg-indigo-50 text-indigo-700')}`}>
+                              {shiftName} {shiftIn !== '-' && shiftOut !== '-' ? `(${shiftIn} - ${shiftOut})` : ''}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`text-sm font-bold ${checkIn !== '-' ? 'text-emerald-600' : 'text-slate-400'}`}>{checkIn}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`text-sm font-bold ${checkOut !== '-' ? 'text-emerald-600' : 'text-slate-400'}`}>{checkOut}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {lateness > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md">
+                                <Clock size={12} /> {lateness} mnt
+                              </span>
+                            ) : (
+                              <span className="text-sm font-medium text-slate-400">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {earlyLeave > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-md">
+                                <Clock size={12} /> {earlyLeave} mnt
+                              </span>
+                            ) : (
+                              <span className="text-sm font-medium text-slate-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
