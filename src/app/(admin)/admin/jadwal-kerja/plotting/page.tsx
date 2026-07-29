@@ -125,9 +125,9 @@ export default function ManajemenJadwalKaryawanPage() {
   }, []);
 
   // Fetch Board Data
-  const fetchBoardData = async () => {
+  const fetchBoardData = async (quiet = false) => {
       if (!plotMonth) return;
-      setIsFetchingBoard(true);
+      if (!quiet) setIsFetchingBoard(true);
       try {
           let fetchBoardUrl = `/api/karyawan-shift/board?month=${plotMonth}`;
           try {
@@ -147,7 +147,7 @@ export default function ManajemenJadwalKaryawanPage() {
       } catch (err) {
           console.error(err);
       } finally {
-          setIsFetchingBoard(false);
+          if (!quiet) setIsFetchingBoard(false);
       }
   };
 
@@ -292,7 +292,7 @@ export default function ManajemenJadwalKaryawanPage() {
           if (!res.ok) throw new Error("Gagal menyimpan plotting board.");
           showSuccessToast("Berhasil menyimpan assignment!");
           setIsBoardModalOpen(false);
-          fetchBoardData(); // reload
+          fetchBoardData(true); // reload quietly to preserve scroll
       } catch (err) {
           showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan.");
       }
