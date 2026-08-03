@@ -98,58 +98,73 @@ export default function StrukturOrganisasiPage() {
   const renderTree = (nodes: KaryawanNode[]) => {
     if (!nodes || nodes.length === 0) return null;
 
+    const matchSearch = (n: KaryawanNode, query: string): boolean => {
+      if (!query) return true;
+      if (n.nama_lengkap.toLowerCase().includes(query.toLowerCase())) return true;
+      if (n.nama_departemen?.toLowerCase().includes(query.toLowerCase())) return true;
+      if (n.children && n.children.some(c => matchSearch(c, query))) return true;
+      return false;
+    };
+
+    const visibleNodes = nodes.filter(n => matchSearch(n, searchQuery));
+    if (visibleNodes.length === 0) return null;
+
+    // Pisahkan node yang punya bawahan (non-leaf) dan tidak (leaf/staff)
+    const leafNodes = visibleNodes.filter(n => !n.children || n.children.length === 0);
+    const nonLeafNodes = visibleNodes.filter(n => n.children && n.children.length > 0);
+
+    const renderCard = (node: KaryawanNode) => {
+      const isDirectMatch = searchQuery && node.nama_lengkap.toLowerCase().includes(searchQuery.toLowerCase());
+      const isFaded = selectedDept !== "All" && node.nama_departemen !== selectedDept;
+
+      return (
+        <div key={node.id}
+          className={`inline-block border shadow-sm rounded-xl p-4 bg-white transition-all duration-300 w-52 h-full
+            hover:-translate-y-1 hover:shadow-md hover:border-[#0173b6] cursor-pointer
+            ${isDirectMatch ? 'ring-2 ring-amber-400 bg-amber-50' : 'border-slate-200'}
+            ${isFaded ? 'opacity-40 grayscale' : 'opacity-100'}
+          `}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0
+              ${node.nama_level?.toLowerCase().includes('direktur') ? 'bg-indigo-600' : 
+                node.nama_level?.toLowerCase().includes('koordinator') || node.nama_level?.toLowerCase().includes('spv') || node.nama_level?.toLowerCase().includes('supervisor') ? 'bg-blue-500' : 'bg-slate-400'}`}>
+              {node.jenis_kelamin === 'Perempuan' ? <User size={24} /> : <User size={24} />}
+            </div>
+            <div className="text-center w-full">
+              <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight min-h-[40px] flex items-center justify-center">{node.nama_lengkap}</h3>
+              <div className="text-[10px] font-black uppercase tracking-widest text-[#0173b6] mt-1.5 bg-blue-50 py-1 rounded-md px-2 truncate">
+                {node.nama_level || 'Staff'}
+              </div>
+              {node.nama_departemen && (
+                <p className="text-xs font-semibold text-slate-500 mt-1.5 truncate">
+                  {node.nama_departemen}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     return (
       <ul>
-        {nodes.map((node) => {
-          // Check if node or its children match search query
-          const matchSearch = (n: KaryawanNode, query: string): boolean => {
-            if (!query) return true;
-            if (n.nama_lengkap.toLowerCase().includes(query.toLowerCase())) return true;
-            if (n.nama_departemen?.toLowerCase().includes(query.toLowerCase())) return true;
-            if (n.children && n.children.some(c => matchSearch(c, query))) return true;
-            return false;
-          };
-
-          const isMatch = matchSearch(node, searchQuery);
-          if (searchQuery && !isMatch) return null;
-
-          const isDirectMatch = searchQuery && node.nama_lengkap.toLowerCase().includes(searchQuery.toLowerCase());
-          
-          // Department Filter Logic (Highlight & Fade)
-          const isFaded = selectedDept !== "All" && node.nama_departemen !== selectedDept;
-
-          return (
-            <li key={node.id}>
-              <div 
-                className={`inline-block border shadow-sm rounded-xl p-4 bg-white transition-all duration-300 w-52
-                  hover:-translate-y-1 hover:shadow-md hover:border-[#0173b6] cursor-pointer
-                  ${isDirectMatch ? 'ring-2 ring-amber-400 bg-amber-50' : 'border-slate-200'}
-                  ${isFaded ? 'opacity-40 grayscale' : 'opacity-100'}
-                `}
-              >
-                <div className="flex flex-col items-center gap-3">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0
-                    ${node.nama_level?.toLowerCase().includes('direktur') ? 'bg-indigo-600' : 
-                      node.nama_level?.toLowerCase().includes('koordinator') || node.nama_level?.toLowerCase().includes('spv') || node.nama_level?.toLowerCase().includes('supervisor') ? 'bg-blue-500' : 'bg-slate-400'}`}>
-                    {node.jenis_kelamin === 'Perempuan' ? <User size={24} /> : <User size={24} />}
-                  </div>
-                  <div className="text-center w-full">
-                    <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight min-h-[40px] flex items-center justify-center">{node.nama_lengkap}</h3>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-[#0173b6] mt-1.5 bg-blue-50 py-1 rounded-md px-2 truncate">
-                      {node.nama_level || 'Staff'}
-                    </div>
-                    {node.nama_departemen && (
-                      <p className="text-xs font-semibold text-slate-500 mt-1.5 truncate">
-                        {node.nama_departemen}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {node.children && node.children.length > 0 && renderTree(node.children)}
-            </li>
-          );
-        })}
+        {/* Render node yang memiliki anak seperti biasa */}
+        {nonLeafNodes.map((node) => (
+          <li key={node.id}>
+            {renderCard(node)}
+            {node.children && node.children.length > 0 && renderTree(node.children)}
+          </li>
+        ))}
+        
+        {/* Render node staff (tanpa anak) dalam bentuk Grid 3-kolom */}
+        {leafNodes.length > 0 && (
+          <li>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 justify-center items-start place-items-center">
+              {leafNodes.map(node => renderCard(node))}
+            </div>
+          </li>
+        )}
       </ul>
     );
   };
