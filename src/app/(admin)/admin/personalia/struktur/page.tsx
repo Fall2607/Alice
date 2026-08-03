@@ -63,8 +63,13 @@ export default function StrukturOrganisasiPage() {
         const wadirNode = resData.find((k: KaryawanNode) => k.tier === 2);
         const direkturNode = resData.find((k: KaryawanNode) => k.tier === 1);
         if (wadirNode && direkturNode) {
+          // 1. Pastikan Wadir melapor ke Direktur secara visual jika di DB kosong
+          if (!wadirNode.atasan_id) {
+            wadirNode.atasan_id = direkturNode.id;
+          }
+
+          // 2. Semua SPV yang melapor ke Direktur dipindah laporannya ke Wadir
           resData.forEach((k: KaryawanNode) => {
-            // Secara visual SPV melapor ke Wadir jika di DB melapor ke Direktur
             if (k.tier === 3 && k.atasan_id === direkturNode.id) {
               k.atasan_id = wadirNode.id;
             }
