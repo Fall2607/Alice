@@ -119,7 +119,7 @@ export default function StrukturOrganisasiPage() {
 
       return (
         <div key={node.id}
-          className={`inline-block border shadow-sm rounded-xl p-4 bg-white transition-all duration-300 w-52 h-full
+          className={`inline-block border shadow-sm rounded-xl p-4 bg-white transition-all duration-300 w-52
             hover:-translate-y-1 hover:shadow-md hover:border-[#0173b6] cursor-pointer
             ${isDirectMatch ? 'ring-2 ring-amber-400 bg-amber-50' : 'border-slate-200'}
             ${isFaded ? 'opacity-40 grayscale' : 'opacity-100'}
