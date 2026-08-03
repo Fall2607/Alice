@@ -11,7 +11,18 @@ interface KaryawanNode {
   nama_level: string | null;
   jenis_kelamin?: string;
   children?: KaryawanNode[];
+  tier?: number;
+  isDummy?: boolean;
 }
+
+const getTier = (nama_level: string | null): number => {
+  const level = (nama_level || '').toLowerCase();
+  if (level.includes('direktur') && !level.includes('wakil')) return 1;
+  if (level.includes('wakil direktur')) return 2;
+  if (level.includes('supervisor') || level.includes('spv')) return 3;
+  if (level.includes('koordinator') || level.includes('koor')) return 4;
+  return 5; // Staff, Komite, Perawat, dll
+};
 
 export default function StrukturOrganisasiPage() {
   const [data, setData] = useState<KaryawanNode[]>([]);
@@ -39,27 +50,80 @@ export default function StrukturOrganisasiPage() {
           return;
         }
 
-        // Extract unique departments for filter
+        // Ekstrak departemen unik untuk filter
         const depts = new Set<string>();
-        resData.forEach(k => {
+        resData.forEach((k: KaryawanNode) => {
           if (k.nama_departemen) depts.add(k.nama_departemen);
+          k.tier = getTier(k.nama_level);
+          k.children = [];
         });
         setDepartments(Array.from(depts).sort());
 
-        // Build Tree
-        const map = new Map<string, KaryawanNode>();
-        resData.forEach((k: KaryawanNode) => map.set(k.id, { ...k, children: [] }));
+        // Cangkok Relasi Wadir (Treatment Wadir - SPV)
+        const wadirNode = resData.find((k: KaryawanNode) => k.tier === 2);
+        const direkturNode = resData.find((k: KaryawanNode) => k.tier === 1);
+        if (wadirNode && direkturNode) {
+          resData.forEach((k: KaryawanNode) => {
+            // Secara visual SPV melapor ke Wadir jika di DB melapor ke Direktur
+            if (k.tier === 3 && k.atasan_id === direkturNode.id) {
+              k.atasan_id = wadirNode.id;
+            }
+          });
+        }
 
-        const roots: KaryawanNode[] = [];
+        // Build Tree (Initial)
+        const map = new Map<string, KaryawanNode>();
+        resData.forEach((k: KaryawanNode) => map.set(k.id, k));
+
+        const initialRoots: KaryawanNode[] = [];
         map.forEach((node) => {
           if (node.atasan_id && map.has(node.atasan_id)) {
             map.get(node.atasan_id)!.children!.push(node);
           } else {
-            roots.push(node);
+            initialRoots.push(node);
           }
         });
         
-        setData(roots);
+        // Inject Dummy Nodes untuk meluruskan garis tier yang terlewati
+        const processNodeDummies = (node: KaryawanNode) => {
+          if (!node.children || node.children.length === 0) return;
+          
+          const dummyMap = new Map<number, KaryawanNode>();
+          const newChildren: KaryawanNode[] = [];
+
+          node.children.forEach(child => {
+             const childTier = child.tier || 5;
+             const parentTier = node.tier || 1;
+             
+             if (childTier > parentTier + 1) {
+                // Butuh jembatan dummy
+                let firstDummy = dummyMap.get(parentTier + 1);
+                if (!firstDummy) {
+                   firstDummy = {
+                     id: `dummy_${node.id}_tier_${parentTier + 1}`,
+                     nama_lengkap: `Dummy ${parentTier + 1}`,
+                     atasan_id: node.id,
+                     nama_departemen: null,
+                     nama_level: null,
+                     tier: parentTier + 1,
+                     isDummy: true,
+                     children: []
+                   };
+                   dummyMap.set(parentTier + 1, firstDummy);
+                   newChildren.push(firstDummy);
+                }
+                firstDummy.children!.push(child);
+             } else {
+                newChildren.push(child);
+             }
+          });
+          
+          node.children = newChildren;
+          node.children.forEach(c => processNodeDummies(c));
+        };
+
+        initialRoots.forEach(r => processNodeDummies(r));
+        setData(initialRoots);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -114,6 +178,12 @@ export default function StrukturOrganisasiPage() {
     const nonLeafNodes = visibleNodes.filter(n => n.children && n.children.length > 0);
 
     const renderCard = (node: KaryawanNode) => {
+      if (node.isDummy) {
+        return (
+          <div className="mx-auto w-[2px] bg-[#cbd5e1] h-[100px] md:h-[120px]"></div>
+        );
+      }
+
       const isDirectMatch = searchQuery && node.nama_lengkap.toLowerCase().includes(searchQuery.toLowerCase());
       const isFaded = selectedDept !== "All" && node.nama_departemen !== selectedDept;
 
