@@ -126,6 +126,9 @@ export default function EmployeeManagementPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<Karyawan | null>(
     null,
   );
+  const [resignDate, setResignDate] = useState("");
+  const [resignReason, setResignReason] = useState("");
+  const [isResigning, setIsResigning] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -253,6 +256,8 @@ export default function EmployeeManagementPage() {
     setIsDetailModalOpen(false);
     setIsDeleteModalOpen(false);
     setSelectedEmployee(null);
+    setResignDate("");
+    setResignReason("");
   };
 
   const handleOpenDetailModal = (employee: Karyawan) => {
@@ -267,21 +272,36 @@ export default function EmployeeManagementPage() {
 
   const confirmDelete = async () => {
     if (!selectedEmployee) return;
+    if (!resignDate || !resignReason.trim()) {
+      showErrorToast("Tanggal keluar dan alasan resign wajib diisi!");
+      return;
+    }
+    
+    setIsResigning(true);
     try {
       const response = await fetch(
-        `${baseUrl}/karyawan/${selectedEmployee.id}`,
+        `${baseUrl}/karyawan/${selectedEmployee.id}/resign`,
         {
-          method: "DELETE",
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tanggal_keluar: resignDate,
+            alasan_resign: resignReason,
+          }),
         },
       );
-      if (!response.ok) throw new Error("Gagal menghapus data pegawai.");
-      showSuccessToast("Data pegawai berhasil dihapus!");
+      if (!response.ok) throw new Error("Gagal memberhentikan data pegawai.");
+      showSuccessToast("Data pegawai berhasil diberhentikan (Resign)!");
       setEmployeeList(employeeList.filter((e) => e.id !== selectedEmployee.id));
       handleCloseModals();
     } catch (err: unknown) {
       showErrorToast(
-        err instanceof Error ? err.message : "Gagal menghapus pegawai.",
+        err instanceof Error ? err.message : "Gagal memberhentikan pegawai.",
       );
+    } finally {
+      setIsResigning(false);
     }
   };
 
@@ -358,7 +378,7 @@ export default function EmployeeManagementPage() {
             <button
               onClick={() => handleOpenDeleteModal(employee)}
               className="text-red-600 hover:text-red-800"
-              title="Hapus"
+              title="Resign / Berhentikan"
             >
               <Trash2 size={18} />
             </button>
@@ -708,25 +728,57 @@ export default function EmployeeManagementPage() {
       <Modal
         isOpen={isDeleteModalOpen}
         onClose={handleCloseModals}
-        title="Konfirmasi Hapus"
+        title="Konfirmasi Resign Pegawai"
       >
         <div>
-          <p>
-            Apakah Anda yakin ingin menghapus data pegawai{" "}
-            <strong>{selectedEmployee?.nama_lengkap}</strong>?
+          <p className="mb-4 text-slate-600">
+            Anda akan memberhentikan status kepegawaian untuk{" "}
+            <strong className="text-slate-800">{selectedEmployee?.nama_lengkap}</strong>.
+            Data ini tidak akan dihapus dari sistem, namun statusnya akan menjadi nonaktif.
           </p>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Tanggal Keluar <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+                value={resignDate}
+                onChange={(e) => setResignDate(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Alasan Resign / Berhenti <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary h-24"
+                placeholder="Tuliskan alasan pengunduran diri / pemberhentian..."
+                value={resignReason}
+                onChange={(e) => setResignReason(e.target.value)}
+                required
+              ></textarea>
+            </div>
+          </div>
+
           <div className="mt-6 flex justify-end gap-4">
             <button
               onClick={handleCloseModals}
-              className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300"
+              disabled={isResigning}
+              className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-300 disabled:opacity-50"
             >
               Batal
             </button>
             <button
               onClick={confirmDelete}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              disabled={isResigning}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
             >
-              Ya, Hapus
+              {isResigning && <Loader2 className="w-4 h-4 animate-spin" />}
+              Ya, Proses Resign
             </button>
           </div>
         </div>

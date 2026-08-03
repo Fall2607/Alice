@@ -16,6 +16,7 @@ export async function GET(request: Request) {
       LEFT JOIN jabatan j ON k.jabatan_id = j.id 
       LEFT JOIN departemen d ON j.departemen_id = d.id 
       LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
+      WHERE k.is_active = true
       ORDER BY lj.nama_level ASC, k.nama_lengkap ASC
     `);
 

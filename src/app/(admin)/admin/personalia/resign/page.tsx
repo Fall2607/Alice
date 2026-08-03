@@ -1,46 +1,117 @@
 "use client";
 
-import React from "react";
-import { UserMinus, Search, Filter } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2, AlertTriangle, Info } from "lucide-react";
+
+interface KaryawanResign {
+  id: string;
+  nip: string;
+  nama_lengkap: string;
+  profesi: string;
+  nama_departemen: string;
+  tanggal_keluar: string;
+  alasan_resign: string;
+}
 
 export default function PegawaiResignPage() {
+  const [employees, setEmployees] = useState<KaryawanResign[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+  const fetchResigned = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${baseUrl}/karyawan?resign_only=true`);
+      if (!response.ok) throw new Error("Gagal memuat data pegawai resign");
+      const data = await response.json();
+      setEmployees(data);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Terjadi kesalahan saat memuat data."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchResigned();
+  }, [baseUrl]);
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Pegawai Resign / Non-Aktif</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">
-            Data alumni dan riwayat karyawan yang sudah tidak aktif bekerja.
-          </p>
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="relative w-full md:w-80">
-          <input 
-            type="text" 
-            placeholder="Cari nama atau NIP..." 
-            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2.5 pl-10 pr-4 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6] transition-all"
-          />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-        </div>
-        <button className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2.5 rounded-lg text-sm font-bold transition-all">
-          <Filter size={16} />
-          <span>Filter Tahun</span>
-        </button>
-      </div>
-
-      {/* Empty State */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 flex flex-col items-center justify-center text-center">
-        <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-4">
-          <UserMinus size={32} className="text-rose-500" />
-        </div>
-        <h2 className="text-lg font-bold text-slate-800 mb-2">Modul Sedang Dikembangkan</h2>
-        <p className="text-slate-500 text-sm max-w-md">
-          Halaman ini nantinya akan menampung seluruh daftar mantan karyawan beserta tanggal keluar dan alasan pengunduran dirinya.
+    <div className="p-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-primary-dark">
+          Data Pegawai Resign (Alumni)
+        </h1>
+        <p className="text-slate-500 mt-2">
+          Daftar pegawai yang telah berstatus non-aktif atau mengundurkan diri.
         </p>
+      </div>
+
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-slate-500">
+            <thead className="text-xs text-white uppercase bg-primary-dark">
+              <tr>
+                <th scope="col" className="px-6 py-3">Nama Pegawai</th>
+                <th scope="col" className="px-6 py-3">Departemen</th>
+                <th scope="col" className="px-6 py-3">Tanggal Keluar</th>
+                <th scope="col" className="px-6 py-3">Alasan Resign</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && (
+                <tr>
+                  <td colSpan={4} className="text-center p-8">
+                    <Loader2 className="animate-spin h-8 w-8 text-primary mx-auto" />
+                  </td>
+                </tr>
+              )}
+              {!isLoading && error && (
+                <tr>
+                  <td colSpan={4} className="text-center p-8 text-red-500">
+                    <AlertTriangle className="inline mr-2" /> {error}
+                  </td>
+                </tr>
+              )}
+              {!isLoading && !error && employees.length > 0 && (
+                employees.map((emp) => (
+                  <tr key={emp.id} className="border-b border-slate-300 last:border-b-0 hover:bg-slate-50">
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-slate-900">{emp.nama_lengkap}</p>
+                      <p className="text-xs text-slate-500">NIP: {emp.nip} | {emp.profesi}</p>
+                    </td>
+                    <td className="px-6 py-4">{emp.nama_departemen || "-"}</td>
+                    <td className="px-6 py-4 font-semibold text-red-600">
+                      {emp.tanggal_keluar
+                        ? new Date(emp.tanggal_keluar).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : "-"}
+                    </td>
+                    <td className="px-6 py-4 max-w-xs truncate" title={emp.alasan_resign}>
+                      {emp.alasan_resign || "-"}
+                    </td>
+                  </tr>
+                ))
+              )}
+              {!isLoading && !error && employees.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="text-center p-8">
+                    <Info className="mx-auto mb-2 text-slate-400" />
+                    Belum ada data pegawai yang resign.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
