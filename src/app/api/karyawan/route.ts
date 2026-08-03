@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const superiorId = searchParams.get('superior_id');
     const departemenId = searchParams.get('departemen_id');
+    const includeInactive = searchParams.get('include_inactive'); // 'true' atau 'false'
+    const resignOnly = searchParams.get('resign_only'); // 'true'
 
     let query = `
       SELECT
@@ -40,6 +42,8 @@ export async function GET(request: NextRequest) {
         k.nip,
         k.nama_lengkap,
         k.nik,
+        k.tanggal_keluar,
+        k.alasan_resign,
         k.profesi,
         k.sip,
         k.masa_berlaku_sip,
@@ -100,6 +104,21 @@ export async function GET(request: NextRequest) {
         query += ` WHERE d.id = $${values.length + 1}`;
       }
       values.push(departemenId);
+    }
+
+    // Default: hanya tampilkan yang aktif, kecuali diminta yang resign_only
+    if (resignOnly === 'true') {
+      if (values.length > 0) {
+        query += ` AND k.is_active = false`;
+      } else {
+        query += ` WHERE k.is_active = false`;
+      }
+    } else if (includeInactive !== 'true') {
+      if (values.length > 0) {
+        query += ` AND k.is_active = true`;
+      } else {
+        query += ` WHERE k.is_active = true`;
+      }
     }
 
     query += ` ORDER BY k.nama_lengkap ASC`;
