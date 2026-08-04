@@ -397,9 +397,17 @@ export default function RekapAbsensiPage() {
                       </span>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <span className={`text-sm font-black ${Number(personalAvg) >= 80 ? 'text-emerald-600' : Number(personalAvg) >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
-                        {Math.min(Number(personalAvg), 100)}%
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-full bg-slate-200 rounded-full h-2.5">
+                          <div 
+                            className={`h-2.5 rounded-full ${Number(personalAvg) >= 80 ? 'bg-emerald-500' : Number(personalAvg) >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
+                            style={{ width: `${Math.min(Number(personalAvg), 100)}%` }}
+                          ></div>
+                        </div>
+                        <span className={`text-xs font-black w-10 text-right ${Number(personalAvg) >= 80 ? 'text-emerald-600' : Number(personalAvg) >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                          {Math.min(Number(personalAvg), 100)}%
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 );
