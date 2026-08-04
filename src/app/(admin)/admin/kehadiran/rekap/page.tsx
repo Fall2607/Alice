@@ -39,8 +39,14 @@ export default function RekapAbsensiPage() {
   // Stats
   const totalKaryawan = data.length;
   const workingDays = dates.filter(d => {
-    const day = new Date(d).getDay();
-    return day !== 0 && day !== 6; // exclude weekend
+    const dateObj = new Date(d);
+    const day = dateObj.getDay();
+    
+    const today = new Date();
+    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+    const todayStr = today.toISOString().split('T')[0];
+
+    return d <= todayStr && day !== 0 && day !== 6; // exclude weekend and future dates
   }).length;
   
   const avgKehadiran = totalKaryawan > 0 && workingDays > 0
@@ -436,6 +442,7 @@ export default function RekapAbsensiPage() {
                         else if (statusObj.status === 'alpha') { bgColor = "bg-red-400"; tooltip = `${dateStr}: Alpha`; }
                         else if (statusObj.status === 'izin') { bgColor = "bg-blue-400"; tooltip = `${dateStr}: Izin / Cuti`; }
                         else if (statusObj.status === 'libur') { bgColor = "bg-slate-200"; tooltip = `${dateStr}: Libur Akhir Pekan`; }
+                        else if (statusObj.status === 'belum') { bgColor = "bg-slate-100"; tooltip = `${dateStr}: Belum Waktunya`; }
                       }
 
                       return (

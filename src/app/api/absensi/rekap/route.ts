@@ -163,6 +163,10 @@ export async function GET(request: NextRequest) {
             dates.push(new Date(d).toISOString().split('T')[0]);
         }
 
+        const todayDate = new Date();
+        todayDate.setMinutes(todayDate.getMinutes() - todayDate.getTimezoneOffset());
+        const todayStr = todayDate.toISOString().split('T')[0];
+
         // 3. Susun Response Final
         const result = karyawanList.map(kar => {
             const harian: Record<string, any> = {};
@@ -211,7 +215,9 @@ export async function GET(request: NextRequest) {
                         harian[dateStr] = { status: 'hadir', shift: adaShift, ...absenHariIni };
                     }
                 } else {
-                    if (adaShift) {
+                    if (dateStr > todayStr) {
+                        harian[dateStr] = { status: 'belum', shift: adaShift };
+                    } else if (adaShift) {
                         totalAlpha++;
                         harian[dateStr] = { status: 'alpha', shift: adaShift };
                     } else if (!isWeekend) {
