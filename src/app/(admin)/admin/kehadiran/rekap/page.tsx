@@ -354,12 +354,15 @@ export default function RekapAbsensiPage() {
                   <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Terlambat</th>
                   <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Alpha</th>
                   <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Izin / Cuti</th>
+                  <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Persentase</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredData.map((kar, idx) => (
-                  <tr key={kar.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}`}>
-                    <td className="py-4 px-6">
+                {filteredData.map((kar, idx) => {
+                  const personalAvg = workingDays > 0 ? ((kar.rekap.hadir / workingDays) * 100).toFixed(1) : "0";
+                  return (
+                    <tr key={kar.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}`}>
+                      <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-sm shrink-0">
                           {kar.nama.charAt(0)}
@@ -393,8 +396,14 @@ export default function RekapAbsensiPage() {
                         {kar.rekap.izin}
                       </span>
                     </td>
+                    <td className="py-4 px-6 text-center">
+                      <span className={`text-sm font-black ${Number(personalAvg) >= 80 ? 'text-emerald-600' : Number(personalAvg) >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                        {Math.min(Number(personalAvg), 100)}%
+                      </span>
+                    </td>
                   </tr>
-                ))}
+                );
+                })}
               </tbody>
             </table>
           </div>
