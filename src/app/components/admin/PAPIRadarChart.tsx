@@ -14,24 +14,24 @@ export default function PAPIRadarChart({ scores }: PAPIRadarChartProps) {
   } | null>(null);
 
   const traits = [
+    { key: "n", name: "N", label: "Menyelesaikan Tugas (Work Direction)" },
     { key: "g", name: "G", label: "Pekerja Keras (Work Direction)" },
+    { key: "a", name: "A", label: "Kebutuhan Berprestasi (Work Direction)" },
     { key: "l", name: "L", label: "Kepemimpinan (Leadership)" },
+    { key: "p", name: "P", label: "Kebutuhan Mengontrol (Leadership)" },
     { key: "i", name: "I", label: "Pengambilan Keputusan (Leadership)" },
     { key: "t", name: "T", label: "Kecepatan Kerja (Activity)" },
     { key: "v", name: "V", label: "Energi / Vitalitas (Activity)" },
+    { key: "x", name: "X", label: "Kebutuhan Diperhatikan (Social Nature)" },
     { key: "s", name: "S", label: "Hubungan Sosial (Social Nature)" },
+    { key: "b", name: "B", label: "Kebutuhan Kelompok (Social Nature)" },
+    { key: "o", name: "O", label: "Kebutuhan Kasih Sayang (Social Nature)" },
     { key: "r", name: "R", label: "Berpikir Teoritis (Work Style)" },
     { key: "d", name: "D", label: "Minat Detail (Work Style)" },
     { key: "c", name: "C", label: "Keteraturan (Work Style)" },
+    { key: "z", name: "Z", label: "Kebutuhan Perubahan (Temperament)" },
     { key: "e", name: "E", label: "Pengendalian Emosi (Temperament)" },
-    { key: "n", name: "N", label: "Menyelesaikan Tugas (Work Direction)" },
-    { key: "a", name: "A", label: "Kebutuhan Berprestasi (Work Direction)" },
-    { key: "p", name: "P", label: "Kebutuhan Mengontrol (Leadership)" },
-    { key: "x", name: "X", label: "Kebutuhan Diperhatikan (Social Nature)" },
-    { key: "b", name: "B", label: "Kebutuhan Kelompok (Social Nature)" },
-    { key: "o", name: "O", label: "Kebutuhan Kasih Sayang (Social Nature)" },
-    { key: "k", name: "K", label: "Kebutuhan Perubahan (Temperament)" },
-    { key: "z", name: "Z", label: "Kebutuhan Struktur (Temperament)" },
+    { key: "k", name: "K", label: "Kebutuhan Agresif / Memaksa (Temperament)" },
     { key: "f", name: "F", label: "Kebutuhan Mengikuti Atasan (Followership)" },
     { key: "w", name: "W", label: "Kebutuhan Arahan (Followership)" },
   ];
@@ -63,8 +63,9 @@ export default function PAPIRadarChart({ scores }: PAPIRadarChartProps) {
 
   const points = traits.map((t, idx) => {
     const score = Number(scores[`score_${t.key}`] || 0);
+    const plotScore = (t.key === "z" || t.key === "k") ? 9 - score : score;
     return {
-      ...getCoordinates(idx, score),
+      ...getCoordinates(idx, plotScore),
       score,
       name: t.name,
       label: t.label,

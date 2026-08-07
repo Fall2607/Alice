@@ -6,6 +6,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { getPAPIInterpretation } from "@/app/data/tests/papiInterpretations";
 import {
   ChevronLeft,
   Briefcase,
@@ -1447,9 +1448,9 @@ export default function DetailLowonganPage() {
                       color: "text-amber-600 bg-amber-50 border-amber-100",
                       barColor: "bg-amber-500",
                       traits: [
+                        { key: "z", code: "Z", label: "Kebutuhan Perubahan" },
                         { key: "e", code: "E", label: "Pengendalian Emosi" },
-                        { key: "k", code: "K", label: "Kebutuhan Perubahan" },
-                        { key: "z", code: "Z", label: "Kebutuhan Struktur" },
+                        { key: "k", code: "K", label: "Kebutuhan Agresif / Memaksa" },
                       ]
                     },
                     {
@@ -1491,7 +1492,7 @@ export default function DetailLowonganPage() {
                                 const score = Number(papi[`score_${t.key}`] || 0);
                                 const pct = (score / 9) * 100;
                                 return (
-                                  <div key={t.key}>
+                                  <div key={t.key} className="mb-1.5 border-b border-slate-50/50 pb-2 last:border-0 last:pb-0">
                                     <div className="flex justify-between items-center text-xs mb-1">
                                       <span className="text-slate-600 font-medium flex items-center gap-1.5">
                                         <span className="font-black text-[10px] bg-slate-800 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">
@@ -1501,12 +1502,15 @@ export default function DetailLowonganPage() {
                                       </span>
                                       <span className="font-bold text-slate-800">{score} / 9</span>
                                     </div>
-                                    <div className="w-full bg-slate-200/50 rounded-full h-1.5 overflow-hidden">
+                                    <div className="w-full bg-slate-200/50 rounded-full h-1.5 overflow-hidden mb-1.5">
                                       <div
                                         className={`h-full rounded-full transition-all duration-500 ${cat.barColor}`}
                                         style={{ width: `${pct}%` }}
                                       />
                                     </div>
+                                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                                      {getPAPIInterpretation(t.code, score)}
+                                    </p>
                                   </div>
                                 );
                               })}
