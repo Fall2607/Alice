@@ -88,8 +88,8 @@ export const papiTraitDescriptions: Record<PAPITrait, string> = {
   X: "Kebutuhan Diperhatikan",
   B: "Kebutuhan Kelompok",
   O: "Kebutuhan Kedekatan & Kasih Sayang",
-  K: "Kebutuhan Perubahan",
-  Z: "Kebutuhan Struktur",
+  K: "Kebutuhan Agresif / Memaksa",
+  Z: "Kebutuhan Perubahan",
   F: "Kebutuhan Mengikuti Atasan",
   W: "Kebutuhan Arahan",
 };
