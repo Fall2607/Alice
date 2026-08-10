@@ -22,17 +22,18 @@ export async function GET(request: NextRequest) {
 
         const superiorId = searchParams.get('superior_id') || searchParams.get('superiorId');
 
-        // 1. Ambil Karyawan (Filter by Unit if provided)
+        // 1. Ambil Karyawan (Filter by Unit if provided, and exclude those who resigned before startDate)
         let karQuery = `
-            SELECT k.id, k.nama_lengkap as nama, k.jadwal_kerja_id, lj.nama_level as jabatan
+            SELECT k.id, k.nama_lengkap as nama, k.jadwal_kerja_id, lj.nama_level as jabatan, k.tanggal_keluar, k.is_active
             FROM karyawan k
             LEFT JOIN jabatan j ON k.jabatan_id = j.id
             LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
+            WHERE (k.is_active = true OR k.status_kepegawaian = 'Aktif' OR (k.tanggal_keluar IS NOT NULL AND k.tanggal_keluar >= $1))
         `;
-        const queryParams: any[] = [];
+        const queryParams: any[] = [startDateParam];
         
         if (unitParam && unitParam !== 'all' && unitParam !== 'Semua Unit') {
-            karQuery += ` WHERE j.departemen_id = $1`;
+            karQuery += ` AND j.departemen_id = $${queryParams.length + 1}`;
             queryParams.push(unitParam);
         }
 
@@ -47,11 +48,7 @@ export async function GET(request: NextRequest) {
             `;
             queryParams.push(superiorId);
             
-            if (karQuery.includes('WHERE')) {
-                karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
-            } else {
-                karQuery = `${recursiveCte} ${karQuery} WHERE k.id IN (SELECT id FROM subordinates)`;
-            }
+            karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
         }
         
         karQuery += ` ORDER BY k.nama_lengkap ASC`;
