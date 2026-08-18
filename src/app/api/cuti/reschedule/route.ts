@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (today >= oldTanggalMulai) {
-      return NextResponse.json({ message: "Batas maksimal penggantian adalah H-1 sebelum tanggal cuti lama." }, { status: 400 });
+    if (today > oldTanggalMulai) {
+      return NextResponse.json({ message: "Batas maksimal penggantian adalah pada hari-H cuti lama." }, { status: 400 });
     }
 
     await pool.query('BEGIN');
