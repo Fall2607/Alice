@@ -127,17 +127,17 @@ export default function CutiTab() {
   }, [baseUrl]);
 
   
-  const checkHMin1 = (tanggal_mulai: string) => {
+  const checkHariH = (tanggal_mulai: string) => {
       const tm = new Date(tanggal_mulai);
       tm.setHours(0,0,0,0);
       const today = new Date();
       today.setHours(0,0,0,0);
-      return today < tm;
+      return today <= tm;
   };
 
   const handleCancelCuti = async (cuti: any) => {
-      if(!checkHMin1(cuti.tanggal_mulai)){
-          Swal.fire('Gagal', 'Pembatalan hanya bisa dilakukan maksimal H-1', 'error');
+      if(!checkHariH(cuti.tanggal_mulai)){
+          Swal.fire('Gagal', 'Pembatalan maksimal pada hari-H', 'error');
           return;
       }
       
@@ -171,8 +171,8 @@ export default function CutiTab() {
   }
 
   const openRescheduleModal = (cuti: any) => {
-      if(!checkHMin1(cuti.tanggal_mulai)){
-          Swal.fire('Gagal', 'Ganti tanggal hanya bisa dilakukan maksimal H-1', 'error');
+      if(!checkHariH(cuti.tanggal_mulai)){
+          Swal.fire('Gagal', 'Ganti tanggal maksimal pada hari-H', 'error');
           return;
       }
       setRescheduleData(cuti);
@@ -614,7 +614,7 @@ export default function CutiTab() {
                     "{item.alasan}"
                   </p>
                   
-                  {item.status !== 'Ditolak' && item.status !== 'Batal' && item.status !== 'Menunggu Pembatalan' && checkHMin1(item.tanggal_mulai) && (
+                  {item.status !== 'Ditolak' && item.status !== 'Batal' && item.status !== 'Menunggu Pembatalan' && checkHariH(item.tanggal_mulai) && (
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
                         <button 
                             onClick={() => openRescheduleModal(item)}

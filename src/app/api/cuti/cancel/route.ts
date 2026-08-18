@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (today >= tanggalMulai) {
-      return NextResponse.json({ message: "Batas maksimal pembatalan adalah H-1 sebelum tanggal cuti." }, { status: 400 });
+    if (today > tanggalMulai) {
+      return NextResponse.json({ message: "Batas maksimal pembatalan adalah pada hari-H cuti." }, { status: 400 });
     }
 
     // Jika cuti belum disetujui sepenuhnya, langsung batalkan tanpa persetujuan atasan
