@@ -312,6 +312,13 @@ export default function CutiTab() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Gagal mengajukan cuti.");
 
+      Swal.fire({
+          title: 'Berhasil!',
+          text: 'Pengajuan cuti Anda telah berhasil dikirim.',
+          icon: 'success',
+          confirmButtonColor: '#3b82f6'
+      });
+
       setCutiMessage({ type: 'success', text: "Pengajuan cuti berhasil dikirim." });
       setLeaveForm({ tanggal_kembali: '', alasan: '', kategori: 'Tahunan', delegasi: '' });
       setSelectedDates([]);
@@ -331,6 +338,7 @@ export default function CutiTab() {
         }));
       }
     } catch (err: any) {
+      Swal.fire('Gagal', err.message, 'error');
       setCutiMessage({ type: 'error', text: err.message });
     } finally {
       setIsSubmitting(false);
