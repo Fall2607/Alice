@@ -93,14 +93,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
           throw new Error("ID Peran tidak terdeteksi dalam sistem.");
 
         let allowedMenus = null;
-        const cachedMenus = sessionStorage.getItem("alice_auth_menus");
-        const cacheRole = sessionStorage.getItem("alice_auth_role");
+        const cachedMenus = typeof window !== "undefined" ? sessionStorage.getItem("alice_auth_menus") : null;
+        const cacheRole = typeof window !== "undefined" ? sessionStorage.getItem("alice_auth_role") : null;
 
-        if (cachedMenus && cacheRole === String(user.role_id)) {
-          allowedMenus = JSON.parse(cachedMenus);
-        } else {
-          setStatus("loading");
-          
+        const fetchFreshMenus = async () => {
           let apiUrl = "/api/auth/menu";
           if (baseUrl) {
             const cleanBase = baseUrl.replace(/\/$/, "");
@@ -108,23 +104,34 @@ export default function AuthGuard({ children }: AuthGuardProps) {
               ? `${cleanBase}/auth/menu`
               : `${cleanBase}/api/auth/menu`;
           }
-
           const res = await fetch(`${apiUrl}?roleId=${user.role_id}&karyawanId=${user.karyawan_id || ""}`);
-
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
             throw new Error(
               errorData.message || `Gangguan protokol (Status: ${res.status})`,
             );
           }
-
-          allowedMenus = await res.json();
-          sessionStorage.setItem("alice_auth_menus", JSON.stringify(allowedMenus));
+          const freshData = await res.json();
+          sessionStorage.setItem("alice_auth_menus", JSON.stringify(freshData));
           sessionStorage.setItem("alice_auth_role", String(user.role_id));
+          localStorage.removeItem(`sidebar_menu_${user.role_id}`);
+          return freshData;
+        };
+
+        if (cachedMenus && cacheRole === String(user.role_id)) {
+          allowedMenus = JSON.parse(cachedMenus);
+        } else {
+          setStatus("loading");
+          allowedMenus = await fetchFreshMenus();
         }
 
+        let isAllowed = hasPermission(allowedMenus, pathname);
 
-        const isAllowed = hasPermission(allowedMenus, pathname);
+        // Jika tidak diizinkan pada cache, coba re-fetch dari server untuk memastikan tidak ada rute baru
+        if (!isAllowed && cachedMenus) {
+          allowedMenus = await fetchFreshMenus();
+          isAllowed = hasPermission(allowedMenus, pathname);
+        }
 
         if (isAllowed) {
           setStatus("authorized");

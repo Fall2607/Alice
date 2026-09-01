@@ -1,35 +1,65 @@
-import { discQuestions } from "@/app/data/tests/discData";
+import { discAnswerKey } from "@/app/data/tests/discData";
 
 export type DISCAnswer = {
-  most: string | null;
-  least: string | null;
+  most: string | null;  // Opsi "1", "2", "3", atau "4"
+  least: string | null; // Opsi "1", "2", "3", atau "4"
 };
 
 export function calculateDISCResult(answers: Record<number, DISCAnswer>) {
-  const summary = {
-    most: { D: 0, I: 0, S: 0, C: 0 },
-    least: { D: 0, I: 0, S: 0, C: 0 },
-    diff: { D: 0, I: 0, S: 0, C: 0 },
-  };
+  const mostCount = { D: 0, I: 0, S: 0, C: 0, X: 0 };
+  const leastCount = { D: 0, I: 0, S: 0, C: 0, X: 0 };
 
-  Object.entries(answers).forEach(([questionId, ans]) => {
-    const q = discQuestions.find((dq) => dq.id === Number(questionId));
-    if (!q) return;
+  // 1. Pemetaan Jawaban & Perhitungan Most / Least (24 Pertanyaan)
+  discAnswerKey.forEach((keyItem) => {
+    const qNum = keyItem.question_number;
+    const userAns = answers[qNum];
 
-    // Hitung Most (Paling)
-    const mostOpt = q.options.find((opt) => opt.id === ans.most);
-    if (mostOpt) summary.most[mostOpt.type]++;
-
-    // Hitung Least (Bukan)
-    const leastOpt = q.options.find((opt) => opt.id === ans.least);
-    if (leastOpt) summary.least[leastOpt.type]++;
+    if (userAns) {
+      // Pemetaan Most
+      if (userAns.most && (keyItem.most as any)[userAns.most]) {
+        const dimMost = (keyItem.most as any)[userAns.most] as "D" | "I" | "S" | "C" | "X";
+        mostCount[dimMost]++;
+      }
+      // Pemetaan Least
+      if (userAns.least && (keyItem.least as any)[userAns.least]) {
+        const dimLeast = (keyItem.least as any)[userAns.least] as "D" | "I" | "S" | "C" | "X";
+        leastCount[dimLeast]++;
+      }
+    }
   });
 
-  // Hitung Selisih
-  summary.diff.D = summary.most.D - summary.least.D;
-  summary.diff.I = summary.most.I - summary.least.I;
-  summary.diff.S = summary.most.S - summary.least.S;
-  summary.diff.C = summary.most.C - summary.least.C;
+  // 2. Hitung Skor Change / Selisih (Most - Least)
+  const diff = {
+    D: mostCount.D - leastCount.D,
+    I: mostCount.I - leastCount.I,
+    S: mostCount.S - leastCount.S,
+    C: mostCount.C - leastCount.C,
+  };
 
-  return summary;
+  // 3. Pengelompokan & Pemeringkatan (Midline split at 0)
+  const dims: Array<"D" | "I" | "S" | "C"> = ["D", "I", "S", "C"];
+
+  // Kelompok Positif (Garis Tengah >= 0) diurutkan dari terbesar ke terkecil
+  const positive = dims
+    .filter((d) => diff[d] >= 0)
+    .sort((a, b) => diff[b] - diff[a]);
+
+  // Kelompok Negatif (Garis Tengah < 0) diurutkan dari terbesar ke terkecil
+  const negative = dims
+    .filter((d) => diff[d] < 0)
+    .sort((a, b) => diff[b] - diff[a]);
+
+  // Format Pola DISC (Contoh: SI/CD)
+  const posString = positive.join("");
+  const negString = negative.join("");
+  const pattern = `${posString}/${negString}`;
+
+  return {
+    most: { D: mostCount.D, I: mostCount.I, S: mostCount.S, C: mostCount.C },
+    least: { D: leastCount.D, I: leastCount.I, S: leastCount.S, C: leastCount.C },
+    diff,
+    pattern,
+    positive,
+    negative
+  };
 }

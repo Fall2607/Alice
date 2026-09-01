@@ -17,18 +17,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Ambil data sesi berdasarkan token dan kode akses
-    const result = await pool.query(
+    // 1. Ambil data sesi berdasarkan token dan kode akses (cek candidate_assessments lalu employee_assessments)
+    let result = await pool.query(
       `SELECT 
         id, 
         candidate_id, 
         status, 
         expires_at,
-        valid_from 
+        valid_from,
+        'candidate' as assessment_type
        FROM public.candidate_assessments 
        WHERE token = $1 AND access_code = $2`,
       [token, access_code]
     );
+
+    let isEmployee = false;
+    if (result.rows.length === 0) {
+      result = await pool.query(
+        `SELECT 
+          id, 
+          karyawan_id as candidate_id, 
+          status, 
+          expires_at,
+          valid_from,
+          'employee' as assessment_type
+         FROM public.employee_assessments 
+         WHERE token = $1 AND access_code = $2`,
+        [token, access_code]
+      );
+      if (result.rows.length > 0) {
+        isEmployee = true;
+      }
+    }
 
     if (result.rows.length === 0) {
       return NextResponse.json(
@@ -56,11 +76,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validasi Kedaluwarsa Sesi (Batas waktu 48 jam)
+    // Validasi Kedaluwarsa Sesi
     if (new Date(assessment.expires_at) < now) {
-      // Update status otomatis menjadi EXPIRED di database
+      const tableName = isEmployee ? 'public.employee_assessments' : 'public.candidate_assessments';
       await pool.query(
-        "UPDATE public.candidate_assessments SET status = 'EXPIRED' WHERE id = $1",
+        `UPDATE ${tableName} SET status = 'EXPIRED' WHERE id = $1`,
         [assessment.id]
       );
       return NextResponse.json(
@@ -79,8 +99,9 @@ export async function POST(request: Request) {
 
     // 4. Update status sesi menjadi ONGOING jika baru pertama kali dibuka
     if (assessment.status === 'INVITED') {
+      const tableName = isEmployee ? 'public.employee_assessments' : 'public.candidate_assessments';
       await pool.query(
-        "UPDATE public.candidate_assessments SET status = 'ONGOING' WHERE id = $1",
+        `UPDATE ${tableName} SET status = 'ONGOING' WHERE id = $1`,
         [assessment.id]
       );
     }
