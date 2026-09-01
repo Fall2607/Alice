@@ -37,43 +37,11 @@ import {
 } from "lucide-react";
 import AssessmentSelector from "@/app/components/admin/AssessmentSelector";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
+import Modal from "@/app/components/modal";
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-/** --- MODAL COMPONENT (Gaya Lancip/Sharp) --- */
-const Modal = ({ isOpen, onClose, title, children, size = "md" }: any) => {
-  if (!isOpen) return null;
-  const sizeClasses: Record<string, string> = {
-    sm: "max-w-sm",
-    md: "max-w-md",
-    lg: "max-w-lg",
-    xl: "max-w-xl",
-    "5xl": "max-w-5xl",
-  };
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-      <div
-        className={`bg-white rounded-md shadow-2xl w-full ${sizeClasses[size] || sizeClasses.md} my-8 animate-in zoom-in duration-200 border border-slate-200`}
-      >
-        <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800 leading-none">
-              {title}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <div className="p-8">{children}</div>
-      </div>
-    </div>
-  );
-};
 
 // --- INTERFACES ---
 interface JobDetail {
@@ -1368,24 +1336,77 @@ export default function DetailLowonganPage() {
                 <h4 className="font-bold text-orange-500 text-[10px] mb-4 uppercase tracking-widest flex items-center gap-2">
                   <Zap size={14} /> DISC Profile
                 </h4>
-                {candidateDetail.assessment_results.disc ? (
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    {["d", "i", "s", "c"].map((k) => (
-                      <div
-                        key={k}
-                        className="bg-slate-50 rounded-lg p-2 border border-slate-100 flex flex-col items-center justify-center shadow-inner"
-                      >
-                        <span className="text-lg font-black text-orange-500 uppercase">
-                          {k}
-                        </span>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase mt-1 w-full border-t border-slate-200 pt-1">
-                          Diff:{" "}
-                          {candidateDetail.assessment_results.disc[`diff_${k}`]}
+                {candidateDetail.assessment_results.disc ? (() => {
+                  const disc = candidateDetail.assessment_results.disc;
+                  const diffD = Number(disc.diff_d || 0);
+                  const diffI = Number(disc.diff_i || 0);
+                  const diffS = Number(disc.diff_s || 0);
+                  const diffC = Number(disc.diff_c || 0);
+
+                  const diffMap: Record<string, number> = { D: diffD, I: diffI, S: diffS, C: diffC };
+                  const dims: Array<"D" | "I" | "S" | "C"> = ["D", "I", "S", "C"];
+                  const positive = dims.filter(d => diffMap[d] >= 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
+                  const negative = dims.filter(d => diffMap[d] < 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
+                  const pattern = `${positive}/${negative}`;
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 bg-orange-50/30 p-3 rounded-lg border border-orange-100">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pola Tipe Profil DISC (Midline 0)</span>
+                          <span className="text-2xl font-black text-orange-600 font-mono tracking-widest">{pattern}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[11px] font-medium text-slate-600 bg-white px-3 py-1.5 rounded-md border border-slate-200 inline-block shadow-2xs">
+                            Positif (≥0): <strong className="text-orange-600 font-mono">{positive || "-"}</strong> | Negatif (&lt;0): <strong className="text-slate-700 font-mono">{negative || "-"}</strong>
+                          </span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                        <div className="bg-orange-50/50 p-3 rounded-lg border border-orange-100 shadow-inner">
+                          <p className="text-xs font-black text-orange-600">D (Dominance)</p>
+                          <p className="font-mono text-sm font-black text-slate-800 mt-1">
+                            Diff: {disc.diff_d}
+                          </p>
+                          <div className="text-[9px] text-slate-400 font-medium mt-1">
+                            Most: {disc.most_d} | Least: {disc.least_d}
+                          </div>
+                        </div>
+
+                        <div className="bg-[#0173b6]/5 p-3 rounded-lg border border-blue-100 shadow-inner">
+                          <p className="text-xs font-black text-[#0173b6]">I (Influence)</p>
+                          <p className="font-mono text-sm font-black text-slate-800 mt-1">
+                            Diff: {disc.diff_i}
+                          </p>
+                          <div className="text-[9px] text-slate-400 font-medium mt-1">
+                            Most: {disc.most_i} | Least: {disc.least_i}
+                          </div>
+                        </div>
+
+                        <div className="bg-emerald-50/50 p-3 rounded-lg border border-emerald-100 shadow-inner">
+                          <p className="text-xs font-black text-emerald-600">S (Steadiness)</p>
+                          <p className="font-mono text-sm font-black text-slate-800 mt-1">
+                            Diff: {disc.diff_s}
+                          </p>
+                          <div className="text-[9px] text-slate-400 font-medium mt-1">
+                            Most: {disc.most_s} | Least: {disc.least_s}
+                          </div>
+                        </div>
+
+                        <div className="bg-purple-50/50 p-3 rounded-lg border border-purple-100 shadow-inner">
+                          <p className="text-xs font-black text-purple-600">C (Compliance)</p>
+                          <p className="font-mono text-sm font-black text-slate-800 mt-1">
+                            Diff: {disc.diff_c}
+                          </p>
+                          <div className="text-[9px] text-slate-400 font-medium mt-1">
+                            Most: {disc.most_c} | Least: {disc.least_c}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })() : (
                   <p className="text-xs italic text-slate-400 mt-4">
                     Belum diselesaikan.
                   </p>
@@ -1396,8 +1417,8 @@ export default function DetailLowonganPage() {
                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
                   <ClipboardList size={100} />
                 </div>
-                <h4 className="font-bold text-emerald-600 text-[10px] mb-4 uppercase tracking-widest flex items-center gap-2">
-                  <ClipboardList size={14} /> PAPI Kostik (Roles & Needs Profile)
+                <h4 className="font-bold text-emerald-600 text-[10px] mb-4 uppercase tracking-widest flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <ClipboardList size={14} /> PAPI Kostick (Roles & Needs Profile)
                 </h4>
                 {candidateDetail.assessment_results.papi ? (() => {
                   const papi = candidateDetail.assessment_results.papi;
@@ -1407,110 +1428,104 @@ export default function DetailLowonganPage() {
                       color: "text-blue-600 bg-blue-50 border-blue-100",
                       barColor: "bg-blue-500",
                       traits: [
-                        { key: "l", code: "L", label: "Peran Kepemimpinan" },
-                        { key: "p", code: "P", label: "Kebutuhan Mengontrol Orang Lain" },
-                        { key: "i", code: "I", label: "Kemampuan Mengambil Keputusan" },
+                        { key: "score_l", code: "L", label: "Peran Kepemimpinan" },
+                        { key: "score_p", code: "P", label: "Kebutuhan Mengontrol Orang Lain" },
+                        { key: "score_i", code: "I", label: "Kemampuan Mengambil Keputusan" },
                       ]
                     },
                     {
-                      title: "Arah Kerja (Work Direction)",
+                      title: "Arah & Komitmen Kerja (Work Direction)",
                       color: "text-emerald-600 bg-emerald-50 border-emerald-100",
                       barColor: "bg-emerald-500",
                       traits: [
-                        { key: "g", code: "G", label: "Peran Pekerja Keras" },
-                        { key: "a", code: "A", label: "Kebutuhan Berprestasi" },
-                        { key: "n", code: "N", label: "Kebutuhan Menyelesaikan Tugas" },
+                        { key: "score_g", code: "G", label: "Peran Pekerja Keras" },
+                        { key: "score_a", code: "A", label: "Kebutuhan Berprestasi" },
+                        { key: "score_n", code: "N", label: "Kebutuhan Menyelesaikan Tugas" },
                       ]
                     },
                     {
-                      title: "Gaya Kerja (Work Style)",
+                      title: "Gaya & Keteraturan Kerja (Work Style)",
                       color: "text-purple-600 bg-purple-50 border-purple-100",
                       barColor: "bg-purple-500",
                       traits: [
-                        { key: "r", code: "R", label: "Tipe Berpikir Teoritis" },
-                        { key: "d", code: "D", label: "Minat pada Detail" },
-                        { key: "c", code: "C", label: "Peran Keteraturan" },
+                        { key: "score_r", code: "R", label: "Tipe Berpikir Teoritis" },
+                        { key: "score_d", code: "D", label: "Minat pada Detail" },
+                        { key: "score_c", code: "C", label: "Peran Keteraturan" },
                       ]
                     },
                     {
-                      title: "Sifat Sosial (Social Nature)",
+                      title: "Sifat Sosial & Hubungan (Social Nature)",
                       color: "text-pink-600 bg-pink-50 border-pink-100",
                       barColor: "bg-pink-500",
                       traits: [
-                        { key: "x", code: "X", label: "Kebutuhan Diperhatikan" },
-                        { key: "s", code: "S", label: "Hubungan Sosial" },
-                        { key: "b", code: "B", label: "Kebutuhan Kelompok" },
-                        { key: "o", code: "O", label: "Kebutuhan Kedekatan & Kasih Sayang" },
+                        { key: "score_x", code: "X", label: "Kebutuhan Diperhatikan" },
+                        { key: "score_s", code: "S", label: "Hubungan Sosial" },
+                        { key: "score_b", code: "B", label: "Kebutuhan Kelompok" },
+                        { key: "score_o", code: "O", label: "Kebutuhan Kedekatan" },
                       ]
                     },
                     {
-                      title: "Temperamen (Temperament)",
+                      title: "Temperamen & Emosi (Temperament)",
                       color: "text-amber-600 bg-amber-50 border-amber-100",
                       barColor: "bg-amber-500",
                       traits: [
-                        { key: "z", code: "Z", label: "Kebutuhan Perubahan" },
-                        { key: "e", code: "E", label: "Pengendalian Emosi" },
-                        { key: "k", code: "K", label: "Kebutuhan Agresif / Memaksa" },
-                      ]
-                    },
-                    {
-                      title: "Hubungan Atasan (Followership)",
-                      color: "text-indigo-600 bg-indigo-50 border-indigo-100",
-                      barColor: "bg-indigo-500",
-                      traits: [
-                        { key: "f", code: "F", label: "Kebutuhan Mengikuti Atasan" },
-                        { key: "w", code: "W", label: "Kebutuhan Arahan" },
-                      ]
-                    },
-                    {
-                      title: "Aktivitas Kerja (Activity)",
-                      color: "text-cyan-600 bg-cyan-50 border-cyan-100",
-                      barColor: "bg-cyan-500",
-                      traits: [
-                        { key: "t", code: "T", label: "Kecepatan Kerja" },
-                        { key: "v", code: "V", label: "Energi & Vitalitas" },
+                        { key: "score_z", code: "Z", label: "Kebutuhan Perubahan" },
+                        { key: "score_k", code: "K", label: "Peran Defensif / Agresif" },
+                        { key: "score_f", code: "F", label: "Kebutuhan Membantu Atasan" },
+                        { key: "score_w", code: "W", label: "Kebutuhan Pengawasan" },
+                        { key: "score_v", code: "V", label: "Tipe Energik / Vigorous" },
+                        { key: "score_e", code: "E", label: "Kontrol Emosi" },
                       ]
                     }
                   ];
 
                   return (
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                      {/* Left: Diagram */}
-                      <div className="lg:col-span-5 flex flex-col items-center justify-center">
+                      {/* Left: Diagram Radar PAPI Kostick */}
+                      <div className="lg:col-span-5 flex flex-col items-center justify-center bg-slate-50/70 p-4 rounded-xl border border-slate-100">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1 w-full text-center">
+                          Diagram Radar PAPI Kostick (20 Trait)
+                        </span>
                         <PAPIRadarChart scores={papi} />
                       </div>
 
-                      {/* Right: Detailed Breakdown */}
-                      <div className="lg:col-span-7 space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                      {/* Right: Breakdown Detail Trait & Penjelasan Interpretasi Kualitatif */}
+                      <div className="lg:col-span-7 space-y-4 max-h-[550px] overflow-y-auto pr-2 custom-scrollbar">
                         {papiCategories.map((cat, idx) => (
-                          <div key={idx} className="border border-slate-100 rounded-lg p-3 bg-slate-50/30">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 border-b border-slate-100 pb-1.5">
+                          <div key={idx} className="bg-slate-50/70 p-4 rounded-xl border border-slate-100 space-y-3">
+                            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded border inline-block ${cat.color}`}>
                               {cat.title}
                             </span>
-                            <div className="space-y-2.5">
-                              {cat.traits.map((t) => {
-                                const score = Number(papi[`score_${t.key}`] || 0);
-                                const pct = (score / 9) * 100;
+
+                            <div className="space-y-3 pt-1">
+                              {cat.traits.map((trait) => {
+                                const val = Number(papi[trait.key] || 0);
+                                const pct = Math.min(Math.round((val / 9) * 100), 100);
+                                const interpretation = getPAPIInterpretation(trait.code, val);
                                 return (
-                                  <div key={t.key} className="mb-1.5 border-b border-slate-50/50 pb-2 last:border-0 last:pb-0">
-                                    <div className="flex justify-between items-center text-xs mb-1">
-                                      <span className="text-slate-600 font-medium flex items-center gap-1.5">
-                                        <span className="font-black text-[10px] bg-slate-800 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">
-                                          {t.code}
+                                  <div key={trait.code} className="space-y-1.5 pb-2 border-b border-slate-200/50 last:border-0 last:pb-0">
+                                    <div className="flex justify-between items-center text-xs">
+                                      <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                                        <span className="w-5 h-5 rounded bg-slate-800 text-white flex items-center justify-center text-[10px] font-mono font-black shadow-sm">
+                                          {trait.code}
                                         </span>
-                                        {t.label}
+                                        {trait.label}
                                       </span>
-                                      <span className="font-bold text-slate-800">{score} / 9</span>
+                                      <span className="font-mono font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
+                                        {val} / 9
+                                      </span>
                                     </div>
-                                    <div className="w-full bg-slate-200/50 rounded-full h-1.5 overflow-hidden mb-1.5">
+                                    <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                                       <div
                                         className={`h-full rounded-full transition-all duration-500 ${cat.barColor}`}
                                         style={{ width: `${pct}%` }}
-                                      />
+                                      ></div>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                                      {getPAPIInterpretation(t.code, score)}
-                                    </p>
+                                    {interpretation && (
+                                      <p className="text-[10px] text-slate-600 leading-relaxed font-medium bg-white p-2.5 rounded-md border border-slate-100 shadow-2xs">
+                                        {interpretation}
+                                      </p>
+                                    )}
                                   </div>
                                 );
                               })}

@@ -243,3 +243,126 @@ export const discQuestions: DISCQuestion[] = [
     ],
   },
 ];
+
+export const discAnswerKey = [
+  {
+    question_number: 1,
+    most: { "1": "S", "2": "I", "3": "X", "4": "C" },
+    least: { "1": "S", "2": "I", "3": "D", "4": "C" }
+  },
+  {
+    question_number: 2,
+    most: { "1": "D", "2": "C", "3": "X", "4": "X" },
+    least: { "1": "D", "2": "C", "3": "I", "4": "S" }
+  },
+  {
+    question_number: 3,
+    most: { "1": "X", "2": "D", "3": "S", "4": "I" },
+    least: { "1": "C", "2": "D", "3": "S", "4": "X" }
+  },
+  {
+    question_number: 4,
+    most: { "1": "C", "2": "D", "3": "X", "4": "S" },
+    least: { "1": "X", "2": "D", "3": "I", "4": "S" }
+  },
+  {
+    question_number: 5,
+    most: { "1": "X", "2": "D", "3": "S", "4": "I" },
+    least: { "1": "C", "2": "D", "3": "S", "4": "X" }
+  },
+  {
+    question_number: 6,
+    most: { "1": "D", "2": "X", "3": "X", "4": "C" },
+    least: { "1": "D", "2": "I", "3": "S", "4": "X" }
+  },
+  {
+    question_number: 7,
+    most: { "1": "I", "2": "X", "3": "X", "4": "D" },
+    least: { "1": "I", "2": "C", "3": "S", "4": "X" }
+  },
+  {
+    question_number: 8,
+    most: { "1": "S", "2": "X", "3": "D", "4": "C" },
+    least: { "1": "X", "2": "I", "3": "D", "4": "C" }
+  },
+  {
+    question_number: 9,
+    most: { "1": "D", "2": "S", "3": "I", "4": "X" },
+    least: { "1": "D", "2": "X", "3": "I", "4": "C" }
+  },
+  {
+    question_number: 10,
+    most: { "1": "C", "2": "S", "3": "X", "4": "D" },
+    least: { "1": "C", "2": "S", "3": "I", "4": "D" }
+  },
+  {
+    question_number: 11,
+    most: { "1": "X", "2": "C", "3": "I", "4": "D" },
+    least: { "1": "S", "2": "X", "3": "I", "4": "D" }
+  },
+  {
+    question_number: 12,
+    most: { "1": "D", "2": "S", "3": "I", "4": "C" },
+    least: { "1": "X", "2": "S", "3": "I", "4": "X" }
+  },
+  {
+    question_number: 13,
+    most: { "1": "I", "2": "D", "3": "S", "4": "X" },
+    least: { "1": "X", "2": "D", "3": "S", "4": "C" }
+  },
+  {
+    question_number: 14,
+    most: { "1": "D", "2": "S", "3": "I", "4": "X" },
+    least: { "1": "D", "2": "X", "3": "X", "4": "C" }
+  },
+  {
+    question_number: 15,
+    most: { "1": "S", "2": "D", "3": "I", "4": "X" },
+    least: { "1": "S", "2": "D", "3": "I", "4": "C" }
+  },
+  {
+    question_number: 16,
+    most: { "1": "C", "2": "D", "3": "I", "4": "S" },
+    least: { "1": "X", "2": "D", "3": "I", "4": "S" }
+  },
+  {
+    question_number: 17,
+    most: { "1": "C", "2": "I", "3": "S", "4": "D" },
+    least: { "1": "C", "2": "I", "3": "X", "4": "D" }
+  },
+  {
+    question_number: 18,
+    most: { "1": "S", "2": "X", "3": "D", "4": "C" },
+    least: { "1": "S", "2": "I", "3": "D", "4": "C" }
+  },
+  {
+    question_number: 19,
+    most: { "1": "S", "2": "I", "3": "X", "4": "X" },
+    least: { "1": "X", "2": "I", "3": "C", "4": "S" }
+  },
+  {
+    question_number: 20,
+    most: { "1": "S", "2": "C", "3": "I", "4": "D" },
+    least: { "1": "S", "2": "X", "3": "I", "4": "D" }
+  },
+  {
+    question_number: 21,
+    most: { "1": "X", "2": "I", "3": "S", "4": "X" },
+    least: { "1": "D", "2": "X", "3": "S", "4": "C" }
+  },
+  {
+    question_number: 22,
+    most: { "1": "I", "2": "S", "3": "C", "4": "D" },
+    least: { "1": "I", "2": "S", "3": "C", "4": "D" }
+  },
+  {
+    question_number: 23,
+    most: { "1": "X", "2": "C", "3": "I", "4": "S" },
+    least: { "1": "D", "2": "X", "3": "I", "4": "S" }
+  },
+  {
+    question_number: 24,
+    most: { "1": "X", "2": "I", "3": "D", "4": "C" },
+    least: { "1": "S", "2": "I", "3": "X", "4": "X" }
+  }
+];

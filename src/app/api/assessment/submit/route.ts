@@ -75,9 +75,13 @@ export async function POST(request: Request) {
         pool.query(`SELECT 1 FROM papi_test_results WHERE assessment_id = $1`, [assessment_id]),
     ]);
 
-    if (mbtiRes.rowCount > 0 && discRes.rowCount > 0 && papiRes.rowCount > 0) {
+    if ((mbtiRes.rowCount ?? 0) > 0 && (discRes.rowCount ?? 0) > 0 && (papiRes.rowCount ?? 0) > 0) {
         await pool.query(
             "UPDATE public.candidate_assessments SET status = 'COMPLETED' WHERE id = $1",
+            [assessment_id]
+        );
+        await pool.query(
+            "UPDATE public.employee_assessments SET status = 'COMPLETED' WHERE id = $1",
             [assessment_id]
         );
     }

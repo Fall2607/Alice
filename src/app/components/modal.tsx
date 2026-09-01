@@ -52,41 +52,46 @@ export default function Modal({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 transition-opacity duration-300 ${
         isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
       aria-labelledby="modal-title"
       role="dialog"
       aria-modal="true"
     >
-      {/* Latar Belakang */}
+      {/* Latar Belakang Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       ></div>
 
-      {/* Konten Modal */}
+      {/* Konten Modal dengan Max Height 90vh & Header Sticky */}
       <div
-        className={`relative m-4 w-full transform rounded-xl bg-white p-6 shadow-2xl transition-all duration-300 ${
+        className={`relative z-10 w-full max-h-[90vh] flex flex-col transform rounded-2xl bg-white shadow-2xl transition-all duration-300 border border-slate-100 ${
           sizeClasses[size]
         } ${
-          isOpen ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0"
+          isOpen ? "translate-y-0 opacity-100 scale-100" : "-translate-y-10 opacity-0 scale-95"
         }`}
       >
-        <div className="flex items-start justify-between">
-          <h3 id="modal-title" className="text-xl font-semibold text-gray-900">
+        {/* Sticky Header Modal */}
+        <div className="flex items-center justify-between p-5 md:p-6 border-b border-slate-100 bg-slate-50/80 rounded-t-2xl shrink-0">
+          <h3 id="modal-title" className="text-lg md:text-xl font-black text-slate-800 tracking-tight leading-none">
             {title}
           </h3>
           <button
             type="button"
-            className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-full p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-all shrink-0"
             onClick={onClose}
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
-        <div className="mt-4">{children}</div>
+
+        {/* Scrollable Body Content */}
+        <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1">
+          {children}
+        </div>
       </div>
     </div>
   );
