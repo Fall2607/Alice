@@ -1,4 +1,8 @@
 import { discAnswerKey } from "@/app/data/tests/discData";
+import { getDISCProfileDetail, DISCProfileDetail, discProfileList } from "@/app/data/tests/discProfiles";
+
+export type { DISCProfileDetail };
+export { getDISCProfileDetail, discProfileList };
 
 export type DISCAnswer = {
   most: string | null;  // Opsi "1", "2", "3", atau "4"
@@ -53,6 +57,7 @@ export function calculateDISCResult(answers: Record<number, DISCAnswer>) {
   const posString = positive.join("");
   const negString = negative.join("");
   const pattern = `${posString}/${negString}`;
+  const profile = getDISCProfileDetail({ positive: posString, negative: negString, pattern });
 
   return {
     most: { D: mostCount.D, I: mostCount.I, S: mostCount.S, C: mostCount.C },
@@ -60,6 +65,7 @@ export function calculateDISCResult(answers: Record<number, DISCAnswer>) {
     diff,
     pattern,
     positive,
-    negative
+    negative,
+    profile
   };
 }

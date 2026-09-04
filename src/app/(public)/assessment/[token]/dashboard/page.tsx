@@ -108,7 +108,7 @@ export default function AssessmentDashboard() {
         const statusRes = await fetch(`/api/assessment/status?token=${token}`);
         const statusData = await statusRes.json();
         if (statusData.success && statusData.assessment_id) {
-          assessmentId = statusData.assessment_id;
+          assessmentId = String(statusData.assessment_id);
           sessionStorage.setItem("assessment_id", assessmentId);
         }
       } catch (e) {
@@ -229,7 +229,14 @@ export default function AssessmentDashboard() {
                   </span>
                 </div>
                 <h3 className="text-base font-black uppercase tracking-tight">
-                  {isAllTestsDone ? "🎉 Seluruh Sub-Tes Telah Selesai!" : "Modul Ujian Psikometri Terdaftar"}
+                  {isAllTestsDone ? (
+                    <span className="flex items-center gap-2 justify-center sm:justify-start">
+                      <Sparkles size={18} className="text-amber-300 shrink-0" />
+                      Seluruh Sub-Tes Telah Selesai!
+                    </span>
+                  ) : (
+                    "Modul Ujian Psikometri Terdaftar"
+                  )}
                 </h3>
                 <p className={`text-xs ${isAllTestsDone ? "text-emerald-100" : "text-slate-500"}`}>
                   {isAllTestsDone 
@@ -298,7 +305,13 @@ export default function AssessmentDashboard() {
                     completedTests.mbti ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-[#0173b6] text-white hover:bg-[#015a8f]'
                   }`}
                 >
-                  {completedTests.mbti ? 'Selesai ✓' : 'Mulai Ujian'}
+                  {completedTests.mbti ? (
+                    <span className="flex items-center gap-1.5 justify-center">
+                      Selesai <Check size={14} />
+                    </span>
+                  ) : (
+                    'Mulai Ujian'
+                  )}
                 </button>
               </div>
 
@@ -331,7 +344,13 @@ export default function AssessmentDashboard() {
                     completedTests.disc ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-orange-500 text-white hover:bg-orange-600'
                   }`}
                 >
-                  {completedTests.disc ? 'Selesai ✓' : 'Mulai Ujian'}
+                  {completedTests.disc ? (
+                    <span className="flex items-center gap-1.5 justify-center">
+                      Selesai <Check size={14} />
+                    </span>
+                  ) : (
+                    'Mulai Ujian'
+                  )}
                 </button>
               </div>
 
@@ -364,7 +383,13 @@ export default function AssessmentDashboard() {
                     completedTests.papi ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'
                   }`}
                 >
-                  {completedTests.papi ? 'Selesai ✓' : 'Mulai Ujian'}
+                  {completedTests.papi ? (
+                    <span className="flex items-center gap-1.5 justify-center">
+                      Selesai <Check size={14} />
+                    </span>
+                  ) : (
+                    'Mulai Ujian'
+                  )}
                 </button>
               </div>
 

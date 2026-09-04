@@ -1,4 +1,8 @@
 import { mbtiPairs } from "@/app/data/tests/mbtiData";
+import { getMBTIProfileDetail, MBTIProfileDetail, mbtiProfileList, mbtiProfileMap } from "@/app/data/tests/mbtiProfiles";
+
+export type { MBTIProfileDetail };
+export { getMBTIProfileDetail, mbtiProfileList, mbtiProfileMap };
 
 export function getMbtiResult(answers: Record<number, 'A' | 'B'>) {
   const score = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
@@ -25,5 +29,7 @@ export function getMbtiResult(answers: Record<number, 'A' | 'B'>) {
     (score.T >= score.F ? 'T' : 'F') +
     (score.J >= score.P ? 'J' : 'P');
 
-  return { type, score };
-}
+  const profile = getMBTIProfileDetail(type);
+
+  return { type, score, profile };
+}

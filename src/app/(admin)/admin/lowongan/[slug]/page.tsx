@@ -7,6 +7,8 @@
 
 import React, { useState, useEffect } from "react";
 import { getPAPIInterpretation } from "@/app/data/tests/papiInterpretations";
+import { getDISCProfileDetail } from "@/app/utils/discUtils";
+import { getMBTIProfileDetail } from "@/app/utils/mbtiUtils";
 import {
   ChevronLeft,
   Briefcase,
@@ -33,7 +35,9 @@ import {
   Info,
   FileSpreadsheet,
   LayoutGrid,
-  Zap
+  Zap,
+  Sparkles,
+  Building2
 } from "lucide-react";
 import AssessmentSelector from "@/app/components/admin/AssessmentSelector";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
@@ -1242,15 +1246,24 @@ export default function DetailLowonganPage() {
                   const jPct = Math.round((scoreJ / totalJP) * 100);
                   const pPct = 100 - jPct;
 
+                  const mbtiProfile = getMBTIProfileDetail(mbti.final_result);
+
                   return (
                     <>
-                      <div className="flex items-baseline gap-3 mb-5 border-b border-slate-100 pb-3">
-                        <h2 className="text-5xl font-black text-slate-800 tracking-tight leading-none">
-                          {mbti.final_result}
-                        </h2>
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                          Tipe Kepribadian
-                        </span>
+                      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-5 border-b border-slate-100 pb-3">
+                        <div className="flex items-baseline gap-3">
+                          <h2 className="text-5xl font-black text-slate-800 tracking-tight leading-none">
+                            {mbti.final_result}
+                          </h2>
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            Tipe Kepribadian
+                          </span>
+                        </div>
+                        {mbtiProfile?.julukan && (
+                          <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-md self-start sm:self-auto">
+                            {mbtiProfile.julukan}
+                          </span>
+                        )}
                       </div>
                       
                       {/* Comparison lists */}
@@ -1319,6 +1332,42 @@ export default function DetailLowonganPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Profil Detail Penjelasan MBTI */}
+                      {mbtiProfile && (
+                        <div className="bg-slate-50/80 p-4 rounded-lg border border-slate-200 text-xs space-y-2.5 mt-4">
+                          {mbtiProfile.ciri_ciri_umum && (
+                            <div className="bg-indigo-50/60 border border-indigo-100 p-2.5 rounded-md">
+                              <span className="font-bold text-indigo-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                <Sparkles size={13} className="text-indigo-600 shrink-0" /> Ciri-ciri Umum
+                              </span>
+                              <p className="text-slate-700 text-[11px] leading-relaxed">
+                                {mbtiProfile.ciri_ciri_umum}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                            <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-md">
+                              <span className="font-bold text-emerald-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                <Building2 size={13} className="text-emerald-600 shrink-0" /> Kontribusi pada Organisasi
+                              </span>
+                              <p className="text-slate-700 text-[11px] leading-relaxed">
+                                {mbtiProfile.kontribusi_pada_organisasi}
+                              </p>
+                            </div>
+
+                            <div className="bg-amber-50/60 border border-amber-100 p-2.5 rounded-md">
+                              <span className="font-bold text-amber-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                <AlertTriangle size={13} className="text-amber-600 shrink-0" /> Kelemahan / Area Pengembangan
+                              </span>
+                              <p className="text-slate-700 text-[11px] leading-relaxed">
+                                {mbtiProfile.kelemahan}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </>
                   );
                 })() : (
@@ -1348,13 +1397,21 @@ export default function DetailLowonganPage() {
                   const positive = dims.filter(d => diffMap[d] >= 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
                   const negative = dims.filter(d => diffMap[d] < 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
                   const pattern = `${positive}/${negative}`;
+                  const profileDetail = getDISCProfileDetail({ positive, negative, pattern });
 
                   return (
                     <div className="space-y-4">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 bg-orange-50/30 p-3 rounded-lg border border-orange-100">
                         <div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pola Tipe Profil DISC (Midline 0)</span>
-                          <span className="text-2xl font-black text-orange-600 font-mono tracking-widest">{pattern}</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-2xl font-black text-orange-600 font-mono tracking-widest">{pattern}</span>
+                            {profileDetail?.karakter_utama && (
+                              <span className="bg-orange-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md shadow-2xs">
+                                {profileDetail.karakter_utama}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="text-right">
                           <span className="text-[11px] font-medium text-slate-600 bg-white px-3 py-1.5 rounded-md border border-slate-200 inline-block shadow-2xs">
@@ -1404,6 +1461,57 @@ export default function DetailLowonganPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Profil Detail Penjelasan */}
+                      {profileDetail && (
+                        <div className="bg-slate-50/80 p-4 rounded-lg border border-slate-200 text-xs space-y-2.5 mt-3">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                              Klasifikasi Profil: <strong className="text-orange-600">{profileDetail.tipe}</strong>
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              Karakter: <strong className="text-slate-700">{profileDetail.karakter_utama}</strong>
+                            </span>
+                          </div>
+
+                          {profileDetail.deskripsi && (
+                            <p className="text-slate-600 leading-relaxed">
+                              {profileDetail.deskripsi}
+                            </p>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                            <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-md">
+                              <span className="font-bold text-emerald-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                <CheckCircle size={13} className="text-emerald-600 shrink-0" /> Kelebihan / Potensi
+                              </span>
+                              <p className="text-slate-700 text-[11px] leading-relaxed">
+                                {profileDetail.kelebihan}
+                              </p>
+                            </div>
+
+                            <div className="bg-amber-50/60 border border-amber-100 p-2.5 rounded-md">
+                              <span className="font-bold text-amber-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                <AlertTriangle size={13} className="text-amber-600 shrink-0" /> Area Pengembangan / Kekurangan
+                              </span>
+                              <p className="text-slate-700 text-[11px] leading-relaxed">
+                                {profileDetail.kekurangan}
+                              </p>
+                            </div>
+                          </div>
+
+                          {profileDetail.posisi_yang_sesuai && (
+                            <div className="bg-blue-50/60 border border-blue-100 p-2.5 rounded-md">
+                              <span className="font-bold text-[#0173b6] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                <Target size={13} className="text-[#0173b6] shrink-0" /> Rekomendasi Bidang / Posisi
+                              </span>
+                              <p className="text-slate-700 text-[11px] leading-relaxed">
+                                {profileDetail.posisi_yang_sesuai}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })() : (
