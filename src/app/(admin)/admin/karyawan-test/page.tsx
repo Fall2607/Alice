@@ -23,6 +23,7 @@ import {
 import Modal from "@/app/components/modal";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
+import PAPIResultView from "@/app/components/admin/PAPIResultView";
 import { getPAPIInterpretation } from "@/app/data/tests/papiInterpretations";
 import { getDISCProfileDetail } from "@/app/utils/discUtils";
 import { getMBTIProfileDetail } from "@/app/utils/mbtiUtils";
@@ -1071,122 +1072,9 @@ export default function KaryawanTestPage() {
                 </h5>
               </div>
 
-              {selectedResultData.results.papi ? (() => {
-                const papi = selectedResultData.results.papi;
-                const papiCategories = [
-                  {
-                    title: "Kepemimpinan & Pengaruh (Leadership)",
-                    color: "text-blue-600 bg-blue-50 border-blue-100",
-                    barColor: "bg-blue-500",
-                    traits: [
-                      { key: "score_l", code: "L", label: "Peran Kepemimpinan" },
-                      { key: "score_p", code: "P", label: "Kebutuhan Mengontrol Orang Lain" },
-                      { key: "score_i", code: "I", label: "Kemampuan Mengambil Keputusan" },
-                    ]
-                  },
-                  {
-                    title: "Arah & Komitmen Kerja (Work Direction)",
-                    color: "text-emerald-600 bg-emerald-50 border-emerald-100",
-                    barColor: "bg-emerald-500",
-                    traits: [
-                      { key: "score_g", code: "G", label: "Peran Pekerja Keras" },
-                      { key: "score_a", code: "A", label: "Kebutuhan Berprestasi" },
-                      { key: "score_n", code: "N", label: "Kebutuhan Menyelesaikan Tugas" },
-                    ]
-                  },
-                  {
-                    title: "Gaya & Keteraturan Kerja (Work Style)",
-                    color: "text-purple-600 bg-purple-50 border-purple-100",
-                    barColor: "bg-purple-500",
-                    traits: [
-                      { key: "score_r", code: "R", label: "Tipe Berpikir Teoritis" },
-                      { key: "score_d", code: "D", label: "Minat pada Detail" },
-                      { key: "score_c", code: "C", label: "Peran Keteraturan" },
-                    ]
-                  },
-                  {
-                    title: "Sifat Sosial & Hubungan (Social Nature)",
-                    color: "text-pink-600 bg-pink-50 border-pink-100",
-                    barColor: "bg-pink-500",
-                    traits: [
-                      { key: "score_x", code: "X", label: "Kebutuhan Diperhatikan" },
-                      { key: "score_s", code: "S", label: "Hubungan Sosial" },
-                      { key: "score_b", code: "B", label: "Kebutuhan Kelompok" },
-                      { key: "score_o", code: "O", label: "Kebutuhan Kedekatan" },
-                    ]
-                  },
-                  {
-                    title: "Temperamen & Emosi (Temperament)",
-                    color: "text-amber-600 bg-amber-50 border-amber-100",
-                    barColor: "bg-amber-500",
-                    traits: [
-                      { key: "score_z", code: "Z", label: "Kebutuhan Perubahan" },
-                      { key: "score_k", code: "K", label: "Peran Defensif / Agresif" },
-                      { key: "score_f", code: "F", label: "Kebutuhan Membantu Atasan" },
-                      { key: "score_w", code: "W", label: "Kebutuhan Pengawasan" },
-                      { key: "score_v", code: "V", label: "Tipe Energik / Vigorous" },
-                      { key: "score_e", code: "E", label: "Kontrol Emosi" },
-                    ]
-                  }
-                ];
-
-                return (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    {/* Left: Diagram Radar PAPI Kostick */}
-                    <div className="lg:col-span-5 flex flex-col items-center justify-center bg-slate-50/70 p-4 rounded-xl border border-slate-100">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1 w-full text-center">
-                        Diagram Radar PAPI Kostick (20 Trait)
-                      </span>
-                      <PAPIRadarChart scores={papi} />
-                    </div>
-
-                    {/* Right: Breakdown Detail Trait & Penjelasan Interpretasi Kualitatif */}
-                    <div className="lg:col-span-7 space-y-4 max-h-[550px] overflow-y-auto pr-2 custom-scrollbar">
-                      {papiCategories.map((cat, idx) => (
-                        <div key={idx} className="bg-slate-50/70 p-4 rounded-xl border border-slate-100 space-y-3">
-                          <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded border inline-block ${cat.color}`}>
-                            {cat.title}
-                          </span>
-
-                          <div className="space-y-3 pt-1">
-                            {cat.traits.map((trait) => {
-                              const val = Number(papi[trait.key] || 0);
-                              const pct = Math.min(Math.round((val / 9) * 100), 100);
-                              const interpretation = getPAPIInterpretation(trait.code, val);
-                              return (
-                                <div key={trait.code} className="space-y-1.5 pb-2 border-b border-slate-200/50 last:border-0 last:pb-0">
-                                  <div className="flex justify-between items-center text-xs">
-                                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                                      <span className="w-5 h-5 rounded bg-slate-800 text-white flex items-center justify-center text-[10px] font-mono font-black shadow-sm">
-                                        {trait.code}
-                                      </span>
-                                      {trait.label}
-                                    </span>
-                                    <span className="font-mono font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
-                                      {val} / 9
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full transition-all duration-500 ${cat.barColor}`}
-                                      style={{ width: `${pct}%` }}
-                                    ></div>
-                                  </div>
-                                  {interpretation && (
-                                    <p className="text-[10px] text-slate-600 leading-relaxed font-medium bg-white p-2.5 rounded-md border border-slate-100 shadow-2xs">
-                                      {interpretation}
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })() : (
+              {selectedResultData.results.papi ? (
+                <PAPIResultView scores={selectedResultData.results.papi} />
+              ) : (
                 <p className="text-xs text-slate-400 italic">Belum dikerjakan</p>
               )}
             </div>

@@ -1,39 +1,45 @@
 "use client";
 
 import React, { useState } from "react";
+import { getPAPIData } from "@/app/data/tests/papiInterpretations";
+import { Info } from "lucide-react";
 
 interface PAPIRadarChartProps {
   scores: Record<string, number>;
+  onSelectTrait?: (traitCode: string) => void;
+  selectedTrait?: string | null;
 }
 
-export default function PAPIRadarChart({ scores }: PAPIRadarChartProps) {
+export default function PAPIRadarChart({ scores, onSelectTrait, selectedTrait }: PAPIRadarChartProps) {
   const [hoveredTrait, setHoveredTrait] = useState<{
-    name: string;
-    label: string;
+    code: string;
     score: number;
+    category: string;
+    description: string;
+    text: string;
   } | null>(null);
 
   const traits = [
-    { key: "n", name: "N", label: "Menyelesaikan Tugas (Work Direction)" },
-    { key: "g", name: "G", label: "Pekerja Keras (Work Direction)" },
-    { key: "a", name: "A", label: "Kebutuhan Berprestasi (Work Direction)" },
-    { key: "l", name: "L", label: "Kepemimpinan (Leadership)" },
-    { key: "p", name: "P", label: "Kebutuhan Mengontrol (Leadership)" },
-    { key: "i", name: "I", label: "Pengambilan Keputusan (Leadership)" },
-    { key: "t", name: "T", label: "Kecepatan Kerja (Activity)" },
-    { key: "v", name: "V", label: "Energi / Vitalitas (Activity)" },
-    { key: "x", name: "X", label: "Kebutuhan Diperhatikan (Social Nature)" },
-    { key: "s", name: "S", label: "Hubungan Sosial (Social Nature)" },
-    { key: "b", name: "B", label: "Kebutuhan Kelompok (Social Nature)" },
-    { key: "o", name: "O", label: "Kebutuhan Kasih Sayang (Social Nature)" },
-    { key: "r", name: "R", label: "Berpikir Teoritis (Work Style)" },
-    { key: "d", name: "D", label: "Minat Detail (Work Style)" },
-    { key: "c", name: "C", label: "Keteraturan (Work Style)" },
-    { key: "z", name: "Z", label: "Kebutuhan Perubahan (Temperament)" },
-    { key: "e", name: "E", label: "Pengendalian Emosi (Temperament)" },
-    { key: "k", name: "K", label: "Kebutuhan Agresif / Memaksa (Temperament)" },
-    { key: "f", name: "F", label: "Kebutuhan Mengikuti Atasan (Followership)" },
-    { key: "w", name: "W", label: "Kebutuhan Arahan (Followership)" },
+    { key: "n", name: "N", label: "Menyelesaikan Tugas" },
+    { key: "g", name: "G", label: "Pekerja Keras" },
+    { key: "a", name: "A", label: "Kebutuhan Berprestasi" },
+    { key: "l", name: "L", label: "Peran Kepemimpinan" },
+    { key: "p", name: "P", label: "Kebutuhan Mengontrol" },
+    { key: "i", name: "I", label: "Pengambilan Keputusan" },
+    { key: "t", name: "T", label: "Kecepatan Bertindak" },
+    { key: "v", name: "V", label: "Energi & Vitalitas" },
+    { key: "x", name: "X", label: "Kebutuhan Diperhatikan" },
+    { key: "s", name: "S", label: "Interaksi Sosial" },
+    { key: "b", name: "B", label: "Kebutuhan Kelompok" },
+    { key: "o", name: "O", label: "Kebutuhan Kasih Sayang" },
+    { key: "r", name: "R", label: "Berpikir Teoritis" },
+    { key: "d", name: "D", label: "Minat Detail" },
+    { key: "c", name: "C", label: "Keteraturan / Struktur" },
+    { key: "z", name: "Z", label: "Kebutuhan Perubahan" },
+    { key: "e", name: "E", label: "Pengendalian Emosi" },
+    { key: "k", name: "K", label: "Kebutuhan Sikap Tegas" },
+    { key: "f", name: "F", label: "Mendukung Otoritas" },
+    { key: "w", name: "W", label: "Kebutuhan Aturan" },
   ];
 
   const center = 220;
@@ -62,7 +68,7 @@ export default function PAPIRadarChart({ scores }: PAPIRadarChartProps) {
   };
 
   const points = traits.map((t, idx) => {
-    const score = Number(scores[`score_${t.key}`] || 0);
+    const score = Number(scores[`score_${t.key}`] ?? scores[t.name] ?? scores[t.key] ?? 0);
     const plotScore = (t.key === "z" || t.key === "k") ? 9 - score : score;
     return {
       ...getCoordinates(idx, plotScore),
@@ -74,35 +80,80 @@ export default function PAPIRadarChart({ scores }: PAPIRadarChartProps) {
 
   const polygonPath = points.map((p) => `${p.x},${p.y}`).join(" ");
 
+  const handleHover = (traitCode: string, score: number) => {
+    const data = getPAPIData(traitCode, score);
+    setHoveredTrait({
+      code: traitCode,
+      score,
+      category: data.category,
+      description: data.description,
+      text: data.text,
+    });
+  };
+
+  // Active trait to show: either currently hovered or selected
+  const activeTraitCode = hoveredTrait?.code || selectedTrait;
+  const activeData = activeTraitCode
+    ? getPAPIData(
+        activeTraitCode,
+        Number(
+          scores[`score_${activeTraitCode.toLowerCase()}`] ??
+            scores[activeTraitCode] ??
+            0
+        )
+      )
+    : null;
+  const activeScore = activeTraitCode
+    ? Number(
+        scores[`score_${activeTraitCode.toLowerCase()}`] ??
+          scores[activeTraitCode] ??
+          0
+      )
+    : 0;
+
   return (
-    <div className="flex flex-col items-center justify-center p-4 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-inner relative w-full max-w-[460px] mx-auto">
-      {/* Tooltip Overlay */}
-      <div className="absolute top-4 left-4 right-4 h-12 flex items-center justify-center pointer-events-none">
-        {hoveredTrait ? (
-          <div className="bg-slate-800 text-white text-[11px] px-3 py-1.5 rounded-lg shadow-md border border-slate-700 animate-in fade-in zoom-in-95 duration-150 flex items-center gap-2">
-            <span className="font-black bg-emerald-500 text-slate-900 px-1.5 py-0.5 rounded text-[10px]">
-              {hoveredTrait.name}
-            </span>
-            <span className="font-medium text-slate-200">{hoveredTrait.label}:</span>
-            <span className="font-bold text-emerald-400 text-xs">{hoveredTrait.score} / 9</span>
+    <div className="flex flex-col items-center justify-center p-4 bg-gradient-to-b from-slate-50/90 to-white rounded-2xl border border-slate-200 shadow-inner relative w-full max-w-[480px] mx-auto select-none">
+      {/* Fixed Height Tooltip Header Card (prevents any layout shift / jitter) */}
+      <div className="w-full h-[76px] mb-2 flex items-center justify-center overflow-hidden">
+        {activeTraitCode && activeData ? (
+          <div className="bg-slate-900 text-white text-[11px] p-2.5 rounded-xl shadow-md border border-slate-700 w-full h-full flex flex-col justify-between transition-all">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-5 h-5 rounded bg-emerald-400 text-slate-950 font-black text-[10px] flex items-center justify-center shadow-xs shrink-0">
+                  {activeTraitCode}
+                </span>
+                <span className="font-bold text-slate-100 text-xs truncate">
+                  {activeData.description}
+                </span>
+              </div>
+              <span className="font-mono font-black text-emerald-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-[11px] shrink-0">
+                {activeScore} / 9
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-300 line-clamp-2 leading-tight italic">
+              &ldquo;{activeData.text}&rdquo;
+            </p>
           </div>
         ) : (
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Arahkan kursor pada titik atau huruf untuk detail skor
-          </span>
+          <div className="bg-slate-100/80 border border-slate-200/80 rounded-xl p-2.5 w-full h-full flex items-center justify-center gap-2 text-center text-slate-400">
+            <Info size={14} className="shrink-0 text-slate-400" />
+            <span className="text-[11px] font-semibold tracking-wide">
+              Arahkan kursor / klik titik trait untuk detail interpretasi
+            </span>
+          </div>
         )}
       </div>
 
       <svg
         viewBox="0 0 440 440"
-        className="w-full h-auto mt-6"
+        className="w-full h-auto"
         style={{ transform: "rotate(0deg)" }}
       >
         <defs>
           <radialGradient id="radarAreaGradient" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.1" />
-            <stop offset="70%" stopColor="#059669" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#047857" stopOpacity="0.45" />
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
+            <stop offset="70%" stopColor="#059669" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#047857" stopOpacity="0.5" />
           </radialGradient>
         </defs>
 
@@ -122,57 +173,29 @@ export default function PAPIRadarChart({ scores }: PAPIRadarChartProps) {
               stroke="#e2e8f0"
               strokeWidth="1"
               strokeDasharray={level === 9 ? "0" : "3 3"}
+              pointerEvents="none"
             />
           );
         })}
 
-        {/* Axis Lines and Labels */}
+        {/* Axis Lines */}
         {traits.map((t, idx) => {
           const maxCoord = getCoordinates(idx, 9);
-          const labelCoord = getLabelCoordinates(idx);
-          const score = Number(scores[`score_${t.key}`] || 0);
+          const isSelected = selectedTrait === t.name;
+          const isHovered = hoveredTrait?.code === t.name;
 
           return (
-            <g key={t.key} className="group">
-              {/* Radial Line */}
-              <line
-                x1={center}
-                y1={center}
-                x2={maxCoord.x}
-                y2={maxCoord.y}
-                stroke="#e2e8f0"
-                strokeWidth="1.2"
-                className="transition-all duration-200 group-hover:stroke-emerald-400 group-hover:stroke-[1.8]"
-              />
-
-              {/* Text label button area */}
-              <circle
-                cx={labelCoord.x}
-                cy={labelCoord.y}
-                r="16"
-                fill="transparent"
-                className="cursor-pointer"
-                onMouseEnter={() =>
-                  setHoveredTrait({ name: t.name, label: t.label, score })
-                }
-                onMouseLeave={() => setHoveredTrait(null)}
-              />
-
-              {/* Text Label */}
-              <text
-                x={labelCoord.x}
-                y={labelCoord.y}
-                textAnchor="middle"
-                dominantBaseline="central"
-                className="text-[10px] font-bold fill-slate-500 cursor-pointer select-none transition-all duration-200 group-hover:fill-emerald-600 group-hover:font-black"
-                onMouseEnter={() =>
-                  setHoveredTrait({ name: t.name, label: t.label, score })
-                }
-                onMouseLeave={() => setHoveredTrait(null)}
-              >
-                {t.name}
-              </text>
-            </g>
+            <line
+              key={`axis-${t.key}`}
+              x1={center}
+              y1={center}
+              x2={maxCoord.x}
+              y2={maxCoord.y}
+              stroke={isSelected || isHovered ? "#10b981" : "#e2e8f0"}
+              strokeWidth={isSelected || isHovered ? "2" : "1.2"}
+              pointerEvents="none"
+              className="transition-colors duration-150"
+            />
           );
         })}
 
@@ -182,33 +205,75 @@ export default function PAPIRadarChart({ scores }: PAPIRadarChartProps) {
           fill="url(#radarAreaGradient)"
           stroke="#059669"
           strokeWidth="2.5"
-          className="transition-all duration-500 ease-out"
+          pointerEvents="none"
+          className="transition-all duration-300 ease-out"
         />
 
         {/* Score Dots */}
         {points.map((p, idx) => {
-          const isHovered = hoveredTrait?.name === p.name;
+          const isHovered = hoveredTrait?.code === p.name;
+          const isSelected = selectedTrait === p.name;
           return (
-            <g key={idx}>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={isHovered ? 6 : 4.5}
-                fill={isHovered ? "#10b981" : "#ffffff"}
-                stroke="#059669"
-                strokeWidth={isHovered ? 2.5 : 2}
-                className="cursor-pointer transition-all duration-200"
-                onMouseEnter={() =>
-                  setHoveredTrait({ name: p.name, label: p.label, score: p.score })
-                }
-                onMouseLeave={() => setHoveredTrait(null)}
-              />
-            </g>
+            <circle
+              key={`dot-${idx}`}
+              cx={p.x}
+              cy={p.y}
+              r={isSelected ? 6.5 : isHovered ? 6 : 4.5}
+              fill={isSelected ? "#047857" : isHovered ? "#10b981" : "#ffffff"}
+              stroke="#059669"
+              strokeWidth={isSelected || isHovered ? 2.5 : 2}
+              pointerEvents="none"
+              className="transition-all duration-150"
+            />
           );
         })}
 
         {/* Center Point */}
-        <circle cx={center} cy={center} r="3" fill="#64748b" />
+        <circle cx={center} cy={center} r="3.5" fill="#64748b" pointerEvents="none" />
+
+        {/* Interactive Hit Area & Labels Group (rendered on top with pointer-events) */}
+        {traits.map((t, idx) => {
+          const labelCoord = getLabelCoordinates(idx);
+          const score = Number(scores[`score_${t.key}`] ?? scores[t.name] ?? scores[t.key] ?? 0);
+          const isSelected = selectedTrait === t.name;
+          const isHovered = hoveredTrait?.code === t.name;
+
+          return (
+            <g
+              key={`interactive-${t.key}`}
+              className="cursor-pointer"
+              onMouseEnter={() => handleHover(t.name, score)}
+              onMouseLeave={() => setHoveredTrait(null)}
+              onClick={() => onSelectTrait && onSelectTrait(t.name)}
+            >
+              {/* Invisible generous hit target circle */}
+              <circle
+                cx={labelCoord.x}
+                cy={labelCoord.y}
+                r="18"
+                fill="transparent"
+              />
+
+              {/* Text Label */}
+              <text
+                x={labelCoord.x}
+                y={labelCoord.y}
+                textAnchor="middle"
+                dominantBaseline="central"
+                pointerEvents="none"
+                className={`text-[10px] font-mono select-none transition-all duration-150 ${
+                  isSelected
+                    ? "fill-emerald-600 font-black text-[13px]"
+                    : isHovered
+                    ? "fill-emerald-600 font-black text-[11px]"
+                    : "fill-slate-600 font-bold"
+                }`}
+              >
+                {t.name}
+              </text>
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
