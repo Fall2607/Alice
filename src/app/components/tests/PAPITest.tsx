@@ -128,16 +128,19 @@ export default function PAPITestContent({
         </button>
       </div>
 
-      <div className="mt-12 flex justify-between items-center px-1">
+      {/* TOMBOL NAVIGASI MOBILE-FRIENDLY */}
+      <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-between gap-4">
         <button
           onClick={onBack}
           disabled={questionIdx === 0}
-          className="flex items-center gap-2 px-8 py-4 bg-white border border-slate-200 text-slate-400 font-black rounded-md text-[10px] uppercase tracking-widest disabled:opacity-20 hover:bg-slate-50 transition-all shadow-sm"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 sm:py-3.5 bg-white border-2 border-slate-200 text-slate-700 font-black rounded-xl text-xs uppercase tracking-wider disabled:opacity-30 disabled:border-slate-200 disabled:text-slate-300 disabled:cursor-not-allowed hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
         >
-          <ChevronLeft size={16} /> Sebelumnya
+          <ChevronLeft size={18} />
+          <span>Sebelumnya</span>
         </button>
-        <div className="flex items-center gap-2 text-slate-300 font-bold text-[9px] uppercase tracking-widest font-sans">
-          <Info size={14} /> Pilih satu opsi untuk lanjut otomatis
+        <div className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase tracking-wider font-sans">
+          <Info size={14} className="text-slate-400" />
+          <span>Pilih salah satu kartu untuk lanjut otomatis</span>
         </div>
       </div>
     </div>

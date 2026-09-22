@@ -51,7 +51,7 @@ export default function DISCTestContent({
             </h2>
           </div>
           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
-            Pilih deskripsi yang Paling (P) & Bukan (B)
+            Pilih 1 di kolom M (Paling) & 1 di kolom L (Paling Tidak)
           </p>
         </div>
         <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-100">
@@ -70,118 +70,86 @@ export default function DISCTestContent({
         </div>
       </div>
 
-      {/* DESKTOP VIEW: TABLE */}
-      <div className="hidden md:block bg-white border border-slate-100 rounded-md shadow-sm overflow-hidden">
-        <table className="w-full text-left border-collapse table-fixed">
-          <thead>
-            <tr className="bg-slate-50/50 border-b border-slate-100">
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-r border-slate-100">
-                Pernyataan Karakteristik
-              </th>
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-r border-slate-100 w-24 text-center">
-                Paling (P)
-              </th>
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest w-24 text-center">
-                Bukan (B)
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {currentSet.options.map((opt) => (
-              <tr
-                key={opt.id}
-                className="hover:bg-slate-50/30 transition-colors"
-              >
-                <td className="p-5 border-r border-slate-100">
-                  <span
-                    className={`text-sm font-medium transition-colors ${currentAnswer.most === opt.id ? "text-blue-600" : currentAnswer.least === opt.id ? "text-red-500" : "text-slate-600"}`}
-                  >
-                    {opt.text}
-                  </span>
-                </td>
-                <td
-                  onClick={() => handleToggle(opt.id, "most")}
-                  className={`p-3 md:p-4 border-r border-slate-100 cursor-pointer text-center transition-all ${currentAnswer.most === opt.id ? "bg-blue-50/30" : ""}`}
-                >
-                  <div
-                    className={`mx-auto h-8 w-8 rounded-full border flex items-center justify-center transition-all ${currentAnswer.most === opt.id ? "border-blue-600 bg-blue-600 text-white shadow-md" : "border-slate-200 text-slate-200"}`}
-                  >
-                    <span className="text-xs font-black">P</span>
-                  </div>
-                </td>
-                <td
-                  onClick={() => handleToggle(opt.id, "least")}
-                  className={`p-3 md:p-4 cursor-pointer text-center transition-all ${currentAnswer.least === opt.id ? "bg-red-50/30" : ""}`}
-                >
-                  <div
-                    className={`mx-auto h-8 w-8 rounded-full border flex items-center justify-center transition-all ${currentAnswer.least === opt.id ? "border-red-500 bg-red-500 text-white shadow-md" : "border-slate-200 text-slate-200"}`}
-                  >
-                    <span className="text-xs font-black">B</span>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* RESPONSIVE DISC SET CONTAINER (M DI KIRI, PERNYATAAN DI TENGAH, L DI KANAN) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3 md:p-5 shadow-sm space-y-2.5 md:space-y-3">
+        {currentSet.options.map((opt) => {
+          const isMost = currentAnswer.most === opt.id;
+          const isLeast = currentAnswer.least === opt.id;
 
-      {/* MOBILE VIEW: CARDS */}
-      <div className="md:hidden space-y-4">
-        {currentSet.options.map((opt) => (
-          <div
-            key={opt.id}
-            className={`bg-white border rounded-md p-5 transition-all shadow-sm ${currentAnswer.most === opt.id ? "border-blue-200 ring-1 ring-blue-50" : currentAnswer.least === opt.id ? "border-red-200 ring-1 ring-red-50" : "border-slate-100"}`}
-          >
-            <p
-              className={`text-sm font-bold leading-snug mb-5 ${currentAnswer.most === opt.id ? "text-blue-600" : currentAnswer.least === opt.id ? "text-red-500" : "text-slate-700"}`}
+          return (
+            <div
+              key={opt.id}
+              className={`p-2.5 sm:p-3.5 md:p-4 rounded-xl border-2 transition-all flex items-center gap-3 sm:gap-4 ${
+                isMost
+                  ? "border-blue-500 bg-blue-50/40 shadow-sm"
+                  : isLeast
+                  ? "border-red-500 bg-red-50/40 shadow-sm"
+                  : "border-slate-100 bg-white hover:border-slate-200"
+              }`}
             >
-              {opt.text}
-            </p>
-            <div className="flex gap-3">
+              {/* TOMBOL M (KIRI) */}
               <button
+                type="button"
                 onClick={() => handleToggle(opt.id, "most")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-md border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 ${currentAnswer.most === opt.id ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100" : "bg-white border-slate-200 text-slate-400"}`}
+                className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all active:scale-90 select-none ${
+                  isMost
+                    ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/30 font-black text-sm sm:text-base"
+                    : "bg-slate-50 border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 font-bold text-sm"
+                }`}
               >
-                {currentAnswer.most === opt.id && <Check size={14} />} Paling
-                (P)
+                M
               </button>
+
+              {/* TEKS PERNYATAAN (TENGAH) */}
+              <div className="flex-1 min-w-0 text-left px-1">
+                <p
+                  className={`text-xs sm:text-sm leading-snug transition-colors ${
+                    isMost
+                      ? "text-blue-900 font-bold"
+                      : isLeast
+                      ? "text-red-900 font-bold"
+                      : "text-slate-700 font-medium"
+                  }`}
+                >
+                  {opt.text}
+                </p>
+              </div>
+
+              {/* TOMBOL L (KANAN) */}
               <button
+                type="button"
                 onClick={() => handleToggle(opt.id, "least")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-md border font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 ${currentAnswer.least === opt.id ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-100" : "bg-white border-slate-200 text-slate-400"}`}
+                className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all active:scale-90 select-none ${
+                  isLeast
+                    ? "bg-red-600 border-red-600 text-white shadow-md shadow-red-500/30 font-black text-sm sm:text-base"
+                    : "bg-slate-50 border-slate-200 text-slate-400 hover:border-red-400 hover:text-red-600 font-bold text-sm"
+                }`}
               >
-                {currentAnswer.least === opt.id && <Check size={14} />} Bukan
-                (B)
+                L
               </button>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="mt-10 flex justify-between items-center px-1">
+      {/* TOMBOL NAVIGASI MOBILE-FRIENDLY */}
+      <div className="mt-6 sm:mt-8 grid grid-cols-2 gap-3 sm:flex sm:justify-between sm:items-center">
         <button
           onClick={onBack}
           disabled={questionIdx === 0}
-          className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-400 font-bold rounded-md text-[10px] uppercase tracking-widest disabled:opacity-20 hover:bg-slate-50 transition-all"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3.5 sm:py-3.5 bg-white border-2 border-slate-200 text-slate-700 font-black rounded-xl text-xs uppercase tracking-wider disabled:opacity-30 disabled:border-slate-200 disabled:text-slate-300 disabled:cursor-not-allowed hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
         >
-          <ChevronLeft size={16} /> Sebelumnya
+          <ChevronLeft size={18} />
+          <span>Sebelumnya</span>
         </button>
         <button
           onClick={onNext}
           disabled={!isReady}
-          className="flex items-center gap-2 px-10 py-3 bg-slate-900 text-white font-bold rounded-md text-[10px] uppercase tracking-widest shadow-lg active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 transition-all"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-3.5 bg-slate-900 text-white font-black rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-slate-900/10 active:scale-95 disabled:bg-slate-100 disabled:border-2 disabled:border-slate-200 disabled:text-slate-300 disabled:shadow-none disabled:cursor-not-allowed transition-all"
         >
-          {questionIdx === 23 ? "Selesaikan DISC" : "Selanjutnya"}{" "}
-          <ChevronRight size={16} />
+          <span>{questionIdx === 23 ? "Selesai" : "Selanjutnya"}</span>
+          <ChevronRight size={18} />
         </button>
-      </div>
-
-      <div className="mt-12 bg-blue-50 border border-blue-100 rounded-md p-4 flex items-start gap-4">
-        <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
-        <p className="text-[10px] text-blue-700 font-medium leading-relaxed italic uppercase tracking-wider">
-          Kandidat wajib memilih satu karakteristik yang paling menggambarkan
-          dirinya (P) dan satu yang paling tidak menggambarkan dirinya (B) pada
-          setiap set pertanyaan.
-        </p>
       </div>
     </div>
   );

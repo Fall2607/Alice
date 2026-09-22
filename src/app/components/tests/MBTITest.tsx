@@ -155,21 +155,23 @@ export default function MBTITestContent({
         ))}
       </div>
 
-      <div className="mt-10 flex justify-between items-center px-1">
+      {/* TOMBOL NAVIGASI MOBILE-FRIENDLY */}
+      <div className="mt-8 sm:mt-10 grid grid-cols-2 gap-3 sm:flex sm:justify-between sm:items-center">
         <button
           onClick={onBack}
           disabled={stage === 1}
-          className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-400 font-bold rounded-md text-[10px] uppercase tracking-widest disabled:opacity-20 hover:bg-slate-50 transition-all"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3.5 sm:py-3.5 bg-white border-2 border-slate-200 text-slate-700 font-black rounded-xl text-xs uppercase tracking-wider disabled:opacity-30 disabled:border-slate-200 disabled:text-slate-300 disabled:cursor-not-allowed hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
         >
-          <ChevronLeft size={16} /> Sebelumnya
+          <ChevronLeft size={18} />
+          <span>Sebelumnya</span>
         </button>
         <button
           onClick={onNext}
           disabled={!isComplete}
-          className="flex items-center gap-2 px-10 py-3 bg-[#0173b6] text-white font-bold rounded-md text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 disabled:bg-slate-100 disabled:text-slate-300"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-3.5 bg-[#0173b6] text-white font-black rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-blue-900/10 active:scale-95 disabled:bg-slate-100 disabled:border-2 disabled:border-slate-200 disabled:text-slate-300 disabled:shadow-none disabled:cursor-not-allowed transition-all"
         >
-          {stage === 4 ? "Simpan" : "Tahap Berikutnya"}{" "}
-          <ChevronRight size={16} />
+          <span>{stage === 4 ? "Simpan Jawaban" : "Tahap Selanjutnya"}</span>
+          <ChevronRight size={18} />
         </button>
       </div>
     </div>

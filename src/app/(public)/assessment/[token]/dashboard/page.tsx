@@ -28,15 +28,17 @@ import { calculatePAPIResult } from "@/app/utils/papiUtils";
 import MBTITestContent from "@/app/components/tests/MBTITest";
 import DISCTestContent from "@/app/components/tests/DISCTest";
 import PAPITestContent from "@/app/components/tests/PAPITest";
+import TestIntroductionView, { TestType } from "@/app/components/tests/TestIntroductionView";
 
 export default function AssessmentDashboard() {
   const params = useParams() as any;
   const router = useRouter();
   const token = params?.token || "ALICE-PREVIEW";
   const [currentTest, setCurrentTest] = useState<"mbti" | "disc" | "papi" | null>(null);
+  const [introTest, setIntroTest] = useState<TestType | null>(null);
 
   const [view, setView] = useState<
-    "dashboard" | "mbti" | "disc" | "papi" | "result"
+    "dashboard" | "intro" | "mbti" | "disc" | "papi" | "result"
   >("dashboard");
   const [activeStage, setActiveStage] = useState(0);
   const [answers, setAnswers] = useState<any>({});
@@ -85,6 +87,12 @@ export default function AssessmentDashboard() {
     }
     return () => clearInterval(timer);
   }, [isTimerRunning, globalTimeLeft]);
+
+  const handleOpenIntro = (type: TestType) => {
+    setIntroTest(type);
+    setView("intro");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleStartTest = (type: "mbti" | "disc" | "papi") => {
     setView(type);
@@ -299,7 +307,7 @@ export default function AssessmentDashboard() {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleStartTest("mbti")}
+                  onClick={() => handleOpenIntro("mbti")}
                   disabled={completedTests.mbti}
                   className={`w-full sm:w-auto px-8 py-3.5 font-black rounded-lg uppercase text-[10px] tracking-widest transition-all shadow-blue-900/10 active:scale-95 ${
                     completedTests.mbti ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-[#0173b6] text-white hover:bg-[#015a8f]'
@@ -338,7 +346,7 @@ export default function AssessmentDashboard() {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleStartTest("disc")}
+                  onClick={() => handleOpenIntro("disc")}
                   disabled={completedTests.disc}
                   className={`w-full sm:w-auto px-8 py-3.5 font-black rounded-lg uppercase text-[10px] tracking-widest transition-all shadow-orange-900/10 active:scale-95 ${
                     completedTests.disc ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-orange-500 text-white hover:bg-orange-600'
@@ -377,7 +385,7 @@ export default function AssessmentDashboard() {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleStartTest("papi")}
+                  onClick={() => handleOpenIntro("papi")}
                   disabled={completedTests.papi}
                   className={`w-full sm:w-auto px-8 py-3.5 font-black rounded-lg uppercase text-[10px] tracking-widest transition-all shadow-emerald-900/10 active:scale-95 ${
                     completedTests.papi ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'
@@ -412,6 +420,19 @@ export default function AssessmentDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* VIEW: TEST INTRODUCTION & INSTRUCTIONS */}
+        {view === "intro" && introTest && (
+          <TestIntroductionView
+            testType={introTest}
+            onStart={() => handleStartTest(introTest)}
+            onBack={() => {
+              setView("dashboard");
+              setIntroTest(null);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
         )}
 
         {/* VIEW: TEST EXECUTION (MBTI, DISC, PAPI) */}
