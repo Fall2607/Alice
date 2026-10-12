@@ -19,7 +19,8 @@ import {
   Loader2,
   Sparkles,
   AlertCircle,
-  Lock
+  Lock,
+  Brain
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { getMbtiResult } from "@/app/utils/mbtiUtils";
@@ -28,17 +29,18 @@ import { calculatePAPIResult } from "@/app/utils/papiUtils";
 import MBTITestContent from "@/app/components/tests/MBTITest";
 import DISCTestContent from "@/app/components/tests/DISCTest";
 import PAPITestContent from "@/app/components/tests/PAPITest";
+import CFITTestContent from "@/app/components/tests/CFITTest";
 import TestIntroductionView, { TestType } from "@/app/components/tests/TestIntroductionView";
 
 export default function AssessmentDashboard() {
   const params = useParams() as any;
   const router = useRouter();
   const token = params?.token || "ALICE-PREVIEW";
-  const [currentTest, setCurrentTest] = useState<"mbti" | "disc" | "papi" | null>(null);
+  const [currentTest, setCurrentTest] = useState<"mbti" | "disc" | "papi" | "cfit" | null>(null);
   const [introTest, setIntroTest] = useState<TestType | null>(null);
 
   const [view, setView] = useState<
-    "dashboard" | "intro" | "mbti" | "disc" | "papi" | "result"
+    "dashboard" | "intro" | "mbti" | "disc" | "papi" | "cfit" | "result"
   >("dashboard");
   const [activeStage, setActiveStage] = useState(0);
   const [answers, setAnswers] = useState<any>({});
@@ -46,7 +48,12 @@ export default function AssessmentDashboard() {
   const [globalTimeLeft, setGlobalTimeLeft] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [completedTests, setCompletedTests] = useState({ mbti: false, disc: false, papi: false });
+  const [completedTests, setCompletedTests] = useState<{ mbti: boolean; disc: boolean; papi: boolean; cfit: boolean }>({
+    mbti: false,
+    disc: false,
+    papi: false,
+    cfit: false,
+  });
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const checkStatus = async () => {
@@ -94,12 +101,12 @@ export default function AssessmentDashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleStartTest = (type: "mbti" | "disc" | "papi") => {
+  const handleStartTest = (type: "mbti" | "disc" | "papi" | "cfit") => {
     setView(type);
     setCurrentTest(type);
     setActiveStage(type === "mbti" ? 1 : 0);
     setAnswers({});
-    const durations = { mbti: 15, disc: 20, papi: 30 };
+    const durations = { mbti: 15, disc: 20, papi: 30, cfit: 15 };
     setGlobalTimeLeft((durations as any)[type] * 60);
     setIsTimerRunning(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -124,7 +131,9 @@ export default function AssessmentDashboard() {
       }
     }
 
-    if (currentTest && assessmentId) {
+    if (currentTest === 'cfit') {
+      setCompletedTests(prev => ({ ...prev, cfit: true }));
+    } else if (currentTest && assessmentId) {
       let result;
       if (currentTest === 'mbti') result = getMbtiResult(answers);
       else if (currentTest === 'disc') result = calculateDISCResult(answers);
@@ -401,22 +410,49 @@ export default function AssessmentDashboard() {
                 </button>
               </div>
 
-              {/* CFIT / Vision Test (Locked) Card */}
-              <div className="bg-slate-50/50 p-6 rounded-xl border border-slate-100 flex items-center justify-between opacity-40 grayscale pointer-events-none">
-                <div className="flex items-center gap-6">
-                  <div className="h-12 w-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 font-bold">
-                    CFIT
+              {/* CFIT Card */}
+              <div className="bg-white p-5 md:p-6 rounded-xl border border-slate-100 hover:border-purple-500 transition-all flex flex-col sm:flex-row items-center justify-between gap-6 group shadow-sm hover:shadow-xl shadow-purple-900/5">
+                <div className="flex items-center gap-6 w-full sm:flex-1">
+                  <div
+                    className={`h-16 w-16 rounded-xl flex items-center justify-center border transition-all duration-500 ${
+                      completedTests.cfit
+                        ? "bg-purple-50 text-purple-600 border-purple-100"
+                        : "bg-purple-50 text-purple-500 border-purple-100 group-hover:bg-purple-600 group-hover:text-white"
+                    }`}
+                  >
+                    {completedTests.cfit ? <CheckCircle2 size={32} /> : <Brain size={32} />}
                   </div>
                   <div>
-                    <h4 className="font-black uppercase text-xs text-slate-600 mb-0.5">
-                      Tes Kemampuan Kognitif (CFIT)
-                    </h4>
-                    <p className="text-[10px] text-slate-400">Modul Ujian Tahap Pengembangan</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-black uppercase text-sm text-slate-800 group-hover:text-purple-600 transition-colors">
+                        Kemampuan Kognitif (CFIT)
+                      </h4>
+                      <span className="bg-purple-100 text-purple-700 text-[9px] font-black uppercase px-2 py-0.5 rounded">
+                        {completedTests.cfit ? "Selesai" : "Subtes 1 Contoh"}
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-[10px] font-medium max-w-sm uppercase tracking-tight italic leading-relaxed">
+                      Culture Fair Intelligence Test — Subtes 1: Pola Seri Gambar (A - F). Durasi: ±15 Menit.
+                    </p>
                   </div>
                 </div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200 px-3 py-1.5 rounded-full bg-white">
-                  Tahap Pengembangan
-                </span>
+                <button
+                  onClick={() => handleOpenIntro("cfit")}
+                  disabled={completedTests.cfit}
+                  className={`w-full sm:w-auto px-8 py-3.5 font-black rounded-lg uppercase text-[10px] tracking-widest transition-all shadow-purple-900/10 active:scale-95 ${
+                    completedTests.cfit
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                      : "bg-purple-600 text-white hover:bg-purple-700 cursor-pointer"
+                  }`}
+                >
+                  {completedTests.cfit ? (
+                    <span className="flex items-center gap-1.5 justify-center">
+                      Selesai <Check size={14} />
+                    </span>
+                  ) : (
+                    "Mulai Ujian"
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -435,14 +471,14 @@ export default function AssessmentDashboard() {
           />
         )}
 
-        {/* VIEW: TEST EXECUTION (MBTI, DISC, PAPI) */}
-        {(view === "mbti" || view === "disc" || view === "papi") && (
+        {/* VIEW: TEST EXECUTION (MBTI, DISC, PAPI, CFIT) */}
+        {(view === "mbti" || view === "disc" || view === "papi" || view === "cfit") && (
           <div className="flex flex-col animate-in fade-in duration-500">
             <div className="mb-10 flex items-center justify-between border-b border-slate-100 pb-6 sticky top-0 bg-[#fcfcfd]/95 backdrop-blur-md z-50 py-2 px-1">
               <div className="flex items-center gap-4 min-w-0">
                 <button
                   onClick={() => setView("dashboard")}
-                  className="p-2.5 text-slate-400 hover:text-red-500 bg-white border border-slate-200 rounded-md shadow-sm shrink-0 transition-colors"
+                  className="p-2.5 text-slate-400 hover:text-red-500 bg-white border border-slate-200 rounded-md shadow-sm shrink-0 transition-colors cursor-pointer"
                 >
                   <ChevronLeft size={20} />
                 </button>
@@ -450,13 +486,13 @@ export default function AssessmentDashboard() {
                   <h1 className="text-sm md:text-lg font-black text-slate-800 uppercase tracking-tight truncate leading-none mb-1">
                     {view.toUpperCase()} Exam
                   </h1>
-                  <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">
+                  <p className="text-[8px] font-black text-purple-600 uppercase tracking-widest">
                     Digital Assessment Unit
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md shadow-xl border border-slate-800">
-                <TimerIcon size={14} className="text-blue-400" />
+                <TimerIcon size={14} className="text-purple-400" />
                 <span className="font-mono text-sm font-black tracking-widest">
                   {formatTime(globalTimeLeft)}
                 </span>
@@ -495,7 +531,7 @@ export default function AssessmentDashboard() {
                   } else handleFinishTest();
                 }}
               />
-            ) : (
+            ) : view === "papi" ? (
               <PAPITestContent
                 questionIdx={activeStage}
                 answers={answers}
@@ -510,6 +546,13 @@ export default function AssessmentDashboard() {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   } else handleFinishTest();
                 }}
+              />
+            ) : (
+              <CFITTestContent
+                answers={answers}
+                setAnswers={setAnswers}
+                onBack={() => setView("dashboard")}
+                onNext={handleFinishTest}
               />
             )}
           </div>

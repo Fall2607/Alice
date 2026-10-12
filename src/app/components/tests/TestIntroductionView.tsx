@@ -15,10 +15,11 @@ import {
   Info,
   Check,
   RotateCcw,
-  ShieldAlert
+  ShieldAlert,
+  Brain
 } from "lucide-react";
 
-export type TestType = "mbti" | "disc" | "papi";
+export type TestType = "mbti" | "disc" | "papi" | "cfit";
 
 interface TestIntroductionViewProps {
   testType: TestType;
@@ -41,6 +42,7 @@ export default function TestIntroductionView({
     least: string | null;
   }>({ most: null, least: null });
   const [papiDemoAnswer, setPapiDemoAnswer] = useState<"A" | "B" | null>(null);
+  const [cfitDemoAnswer, setCfitDemoAnswer] = useState<string | null>(null);
 
   // Konfigurasi data setiap tes
   const testConfigs = {
@@ -102,6 +104,26 @@ export default function TestIntroductionView({
         "Sistem dilengkapi navigasi responsif, cukup klik salah satu kartu pernyataan (A atau B) untuk memilih.",
         "Jika kedua pernyataan terasa sama-sama mewakili Anda (atau keduanya tidak mewakili), pilihlah yang persentasenya paling mendekati diri Anda.",
         "Total 90 nomor dengan alokasi waktu 30 menit."
+      ]
+    },
+    cfit: {
+      title: "Kemampuan Kognitif (CFIT)",
+      subtitle: "Culture Fair Intelligence Test — Skala 3",
+      badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+      themeColor: "#7c3aed",
+      accentBg: "bg-purple-600",
+      accentHover: "hover:bg-purple-700",
+      icon: Brain,
+      duration: "15 Menit",
+      questionCount: "4 Subtes Gambar (Seri, Klasifikasi, Matriks, Titik)",
+      format: "Pilihan Ganda Pola Gambar (Opsi A - F)",
+      instruction:
+        "Pada tes CFIT Subtes 1 (Seri), Anda akan melihat deretan pola gambar di dalam kotak. Tiga kotak pertama memiliki urutan perubahan pola tertentu, sedangkan kotak keempat bergaris putus-putus masih kosong. Tugas Anda adalah memilih salah satu dari 6 pilihan gambar (A, B, C, D, E, F) yang paling tepat untuk melengkapi kotak keempat tersebut sesuai kelanjutan pola yang logis.",
+      tips: [
+        "Perhatikan arah rotasi putaran jarum jam, sudut kemiringan, atau posisi elemen dari kotak ke kotak.",
+        "Pilih 1 dari 6 opsi gambar (A - F) yang melanjutkan pola secara runtut dan logis.",
+        "Coba gunakan contoh simulasi interaktif di bawah ini untuk berlatih cara memilih jawaban.",
+        "Setiap subtes memiliki alokasi waktu yang ketat, kerjakan secara fokus dan teliti."
       ]
     }
   };
@@ -256,12 +278,13 @@ export default function TestIntroductionView({
             </h3>
           </div>
 
-          {(mbtiDemoAnswer || isDiscDemoComplete || papiDemoAnswer) && (
+          {(mbtiDemoAnswer || isDiscDemoComplete || papiDemoAnswer || cfitDemoAnswer) && (
             <button
               onClick={() => {
                 setMbtiDemoAnswer(null);
                 setDiscDemoAnswer({ most: null, least: null });
                 setPapiDemoAnswer(null);
+                setCfitDemoAnswer(null);
               }}
               className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 font-bold transition-colors"
             >
@@ -518,6 +541,106 @@ export default function TestIntroductionView({
                 <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
                 <span>
                   <strong>Opsi {papiDemoAnswer} Terpilih!</strong> Pada tes sebenarnya, sistem akan secara otomatis menyimpan pilihan Anda dan melanjutkan ke nomor berikutnya.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SIMULASI CFIT (SUBTES 1: SERI CONTOH 1) */}
+        {testType === "cfit" && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 p-4 md:p-5 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">
+                Simulasi Contoh Soal 1 (Lengkapi Kotak ke-4):
+              </span>
+
+              {/* Gambar Soal */}
+              <div className="bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mb-4">
+                <img
+                  src="/img/cfit/contoh_1/Contoh-Soal.png"
+                  alt="CFIT Contoh Soal 1"
+                  className="max-h-24 md:max-h-32 w-auto object-contain select-none"
+                />
+              </div>
+
+              {/* Pilihan Opsi A-F */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+                {[
+                  { label: "A", src: "/img/cfit/contoh_1/A.png" },
+                  { label: "B", src: "/img/cfit/contoh_1/B.png" },
+                  { label: "C", src: "/img/cfit/contoh_1/C.png" },
+                  { label: "D", src: "/img/cfit/contoh_1/D.png" },
+                  { label: "E", src: "/img/cfit/contoh_1/E.png" },
+                  { label: "F", src: "/img/cfit/contoh_1/F.png" },
+                ].map((item) => {
+                  const isSelected = cfitDemoAnswer === item.label;
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => setCfitDemoAnswer(item.label)}
+                      className={`p-2.5 rounded-xl border-2 flex flex-col items-center justify-between transition-all active:scale-95 text-center bg-white ${
+                        isSelected
+                          ? "border-purple-600 bg-purple-50/60 shadow-md ring-2 ring-purple-600/20"
+                          : "border-slate-200 hover:border-purple-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black mb-1.5 ${
+                          isSelected
+                            ? "bg-purple-600 text-white"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                      <div className="w-full aspect-square flex items-center justify-center p-1">
+                        <img
+                          src={item.src}
+                          alt={`Opsi ${item.label}`}
+                          className="max-h-12 w-auto object-contain"
+                        />
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold mt-1 uppercase ${
+                          isSelected ? "text-purple-700" : "text-slate-400"
+                        }`}
+                      >
+                        {isSelected ? "Dipilih" : `Opsi ${item.label}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {cfitDemoAnswer && (
+              <div
+                className={`p-3.5 rounded-xl border flex items-center gap-3 text-xs font-medium animate-in fade-in ${
+                  cfitDemoAnswer === "C"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                    : "bg-purple-50 border-purple-200 text-purple-900"
+                }`}
+              >
+                <CheckCircle2
+                  size={18}
+                  className={
+                    cfitDemoAnswer === "C"
+                      ? "text-emerald-600 shrink-0"
+                      : "text-purple-600 shrink-0"
+                  }
+                />
+                <span>
+                  {cfitDemoAnswer === "C" ? (
+                    <>
+                      <strong>Hebat! Opsi C adalah jawaban yang benar!</strong> Pola ranting berputar searah jarum jam secara konsisten dari kotak 1 ke kotak 3 sehingga pada kotak 4 rebah miring ke arah kanan bawah.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Opsi {cfitDemoAnswer} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi C</strong> (ranting berputar bertahap searah jarum jam). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
+                    </>
+                  )}
                 </span>
               </div>
             )}
