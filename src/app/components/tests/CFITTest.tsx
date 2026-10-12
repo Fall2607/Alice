@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   ChevronLeft,
+  ChevronRight,
   Check,
   HelpCircle,
   Sparkles,
@@ -13,7 +14,8 @@ import {
   Lightbulb,
   ArrowRight,
   Brain,
-  Layers
+  Layers,
+  CheckSquare
 } from "lucide-react";
 import { cfitQuestions, CFITOptionLetter } from "@/app/data/tests/cfitData";
 
@@ -32,8 +34,14 @@ export default function CFITTestContent({
   onNext,
   onBack,
 }: CFITProps) {
+  const [activeIdx, setActiveIdx] = useState(questionIdx);
   const [showExplanation, setShowExplanation] = useState(false);
-  const currentQuestion = cfitQuestions[questionIdx] || cfitQuestions[0];
+
+  useEffect(() => {
+    setActiveIdx(questionIdx);
+  }, [questionIdx]);
+
+  const currentQuestion = cfitQuestions[activeIdx] || cfitQuestions[0];
   const selectedOption = answers[currentQuestion.id] || null;
 
   const handleSelectOption = (label: CFITOptionLetter) => {
@@ -50,22 +58,48 @@ export default function CFITTestContent({
     setShowExplanation(false);
   };
 
+  const handleGoToQuestion = (idx: number) => {
+    setActiveIdx(idx);
+    setShowExplanation(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleNextStep = () => {
+    if (activeIdx < cfitQuestions.length - 1) {
+      handleGoToQuestion(activeIdx + 1);
+    } else if (onNext) {
+      onNext();
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (activeIdx > 0) {
+      handleGoToQuestion(activeIdx - 1);
+    } else if (onBack) {
+      onBack();
+    }
+  };
+
   const isCorrect = selectedOption === currentQuestion.correctAnswer;
+  const isLastQuestion = activeIdx === cfitQuestions.length - 1;
 
   return (
     <div className="animate-in fade-in duration-500 w-full max-w-4xl mx-auto pb-24 px-4 md:px-0 font-sans">
       {/* Top Navigation & Info Header */}
-      <div className="mb-8 px-1 flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-slate-100 pb-6">
+      <div className="mb-6 px-1 flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-slate-100 pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="bg-purple-100 text-purple-700 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border border-purple-200 flex items-center gap-1.5">
               <Brain size={12} /> CFIT Subtes 1
             </span>
             {currentQuestion.isExample && (
               <span className="bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border border-amber-200">
-                Latihan / Contoh Soal
+                Latihan: {currentQuestion.title}
               </span>
             )}
+            <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              Soal {activeIdx + 1} dari {cfitQuestions.length}
+            </span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">
             {currentQuestion.title} — Pola Seri Gambar
@@ -75,13 +109,37 @@ export default function CFITTestContent({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Stepper / Question Switcher */}
+        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+          {cfitQuestions.map((q, idx) => {
+            const isAnswered = !!answers[q.id];
+            const isActive = activeIdx === idx;
+            return (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => handleGoToQuestion(idx)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : isAnswered
+                    ? "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                }`}
+              >
+                <span>{q.title}</span>
+                {isAnswered && !isActive && <Check size={12} strokeWidth={3} className="text-purple-600" />}
+              </button>
+            );
+          })}
+
           {selectedOption && (
             <button
               onClick={handleReset}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 font-bold transition-colors px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 shadow-sm"
+              className="ml-2 flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 font-bold transition-colors px-2 py-1.5 rounded-lg hover:bg-white"
+              title="Reset Pilihan"
             >
-              <RotateCcw size={13} /> Reset Pilihan
+              <RotateCcw size={12} /> Reset
             </button>
           )}
         </div>
@@ -123,12 +181,12 @@ export default function CFITTestContent({
           <div className="relative max-w-full overflow-hidden rounded-lg bg-white p-3 md:p-5 shadow-sm border border-slate-200">
             <img
               src={currentQuestion.questionImage}
-              alt="CFIT Soal Deret Pola"
+              alt={`CFIT ${currentQuestion.title}`}
               className="max-h-36 md:max-h-48 w-auto object-contain mx-auto select-none pointer-events-none"
             />
           </div>
           <p className="text-[11px] text-slate-400 font-semibold mt-3 text-center">
-            Amati perubahan orientasi atau bentuk dari kotak 1 ke kotak 3 untuk menentukan kotak ke-4.
+            Amati perubahan pola secara konsisten dari kotak 1 ke kotak 3 untuk menentukan kelanjutan di kotak ke-4.
           </p>
         </div>
       </div>
@@ -220,7 +278,7 @@ export default function CFITTestContent({
                 </h4>
                 <p className="text-xs text-slate-500 font-medium">
                   {isCorrect
-                    ? "Jawaban Anda cocok dengan kunci jawaban resmi CFIT Subtes 1 Contoh 1."
+                    ? `Jawaban Anda cocok dengan kunci jawaban resmi CFIT Subtes 1 (${currentQuestion.title}).`
                     : `Kunci jawaban yang tepat untuk soal ini adalah Opsi ${currentQuestion.correctAnswer}.`}
                 </p>
               </div>
@@ -249,22 +307,31 @@ export default function CFITTestContent({
       {/* FOOTER ACTION BUTTONS */}
       <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-200">
         <button
-          onClick={onBack}
+          onClick={handlePrevStep}
           className="inline-flex items-center gap-2 px-5 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95"
         >
-          <ChevronLeft size={16} /> Kembali ke Dashboard
+          <ChevronLeft size={16} />
+          {activeIdx > 0 ? "Soal Sebelumnya" : "Kembali ke Dashboard"}
         </button>
 
         <button
-          onClick={onNext}
+          onClick={handleNextStep}
           disabled={!selectedOption}
           className={`inline-flex items-center gap-2 px-8 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 ${
             selectedOption
-              ? "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/20"
+              ? "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/20 cursor-pointer"
               : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
           }`}
         >
-          Selesai Latihan <ArrowRight size={16} />
+          {isLastQuestion ? (
+            <>
+              Selesai Latihan <ArrowRight size={16} />
+            </>
+          ) : (
+            <>
+              Lanjut ke Contoh {activeIdx + 2} <ArrowRight size={16} />
+            </>
+          )}
         </button>
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   ArrowRight,
   ChevronLeft,
+  ChevronRight,
   Sparkles,
   Info,
   Check,
@@ -42,7 +43,12 @@ export default function TestIntroductionView({
     least: string | null;
   }>({ most: null, least: null });
   const [papiDemoAnswer, setPapiDemoAnswer] = useState<"A" | "B" | null>(null);
-  const [cfitDemoAnswer, setCfitDemoAnswer] = useState<string | null>(null);
+  const [cfitActiveExample, setCfitActiveExample] = useState<1 | 2 | 3>(1);
+  const [cfitDemoAnswers, setCfitDemoAnswers] = useState<Record<number, string | null>>({
+    1: null,
+    2: null,
+    3: null,
+  });
 
   // Konfigurasi data setiap tes
   const testConfigs = {
@@ -278,13 +284,13 @@ export default function TestIntroductionView({
             </h3>
           </div>
 
-          {(mbtiDemoAnswer || isDiscDemoComplete || papiDemoAnswer || cfitDemoAnswer) && (
+          {(mbtiDemoAnswer || isDiscDemoComplete || papiDemoAnswer || cfitDemoAnswers[1] || cfitDemoAnswers[2] || cfitDemoAnswers[3]) && (
             <button
               onClick={() => {
                 setMbtiDemoAnswer(null);
                 setDiscDemoAnswer({ most: null, least: null });
                 setPapiDemoAnswer(null);
-                setCfitDemoAnswer(null);
+                setCfitDemoAnswers({ 1: null, 2: null, 3: null });
               }}
               className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 font-bold transition-colors"
             >
@@ -547,19 +553,76 @@ export default function TestIntroductionView({
           </div>
         )}
 
-        {/* SIMULASI CFIT (SUBTES 1: SERI CONTOH 1) */}
+        {/* SIMULASI CFIT (SUBTES 1: CONTOH 1, 2, & 3) */}
         {testType === "cfit" && (
           <div className="space-y-4">
+            {/* Header Tab Simulasi Contoh 1, 2, & 3 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-purple-50/70 p-3 rounded-xl border border-purple-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-purple-900">
+                  Latihan Subtes 1:
+                </span>
+                <span className="text-[10px] bg-purple-200/80 text-purple-800 font-bold px-2 py-0.5 rounded-full">
+                  Pola Seri Gambar
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setCfitActiveExample(1)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                    cfitActiveExample === 1
+                      ? "bg-purple-600 text-white shadow-sm"
+                      : "bg-white text-slate-600 hover:bg-purple-100/50 border border-purple-200"
+                  }`}
+                >
+                  Contoh 1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCfitActiveExample(2)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                    cfitActiveExample === 2
+                      ? "bg-purple-600 text-white shadow-sm"
+                      : "bg-white text-slate-600 hover:bg-purple-100/50 border border-purple-200"
+                  }`}
+                >
+                  Contoh 2
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCfitActiveExample(3)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                    cfitActiveExample === 3
+                      ? "bg-purple-600 text-white shadow-sm"
+                      : "bg-white text-slate-600 hover:bg-purple-100/50 border border-purple-200"
+                  }`}
+                >
+                  Contoh 3
+                </button>
+              </div>
+            </div>
+
+            {/* Kontainer Simulasi Contoh Aktif */}
             <div className="bg-slate-50 p-4 md:p-5 rounded-xl border border-slate-200">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Simulasi Contoh Soal 1 (Lengkapi Kotak ke-4):
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                  {cfitActiveExample === 1
+                    ? "Simulasi Contoh 1 (Rotasi Pola Ranting):"
+                    : cfitActiveExample === 2
+                    ? "Simulasi Contoh 2 (Perluasan Bidang Hitam):"
+                    : "Simulasi Contoh 3 (Pertambahan Butir Melingkar):"}
+                </span>
+                <span className="text-[10px] font-bold text-slate-400">
+                  Contoh {cfitActiveExample} dari 3 (Lengkap)
+                </span>
+              </div>
 
               {/* Gambar Soal */}
               <div className="bg-white p-3 md:p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center mb-4">
                 <img
-                  src="/img/cfit/contoh_1/Contoh-Soal.png"
-                  alt="CFIT Contoh Soal 1"
+                  src={`/img/cfit/subtest_1/contoh_${cfitActiveExample}/Contoh-Soal.png`}
+                  alt={`CFIT Contoh Soal ${cfitActiveExample}`}
                   className="max-h-24 md:max-h-32 w-auto object-contain select-none"
                 />
               </div>
@@ -567,19 +630,24 @@ export default function TestIntroductionView({
               {/* Pilihan Opsi A-F */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
                 {[
-                  { label: "A", src: "/img/cfit/contoh_1/A.png" },
-                  { label: "B", src: "/img/cfit/contoh_1/B.png" },
-                  { label: "C", src: "/img/cfit/contoh_1/C.png" },
-                  { label: "D", src: "/img/cfit/contoh_1/D.png" },
-                  { label: "E", src: "/img/cfit/contoh_1/E.png" },
-                  { label: "F", src: "/img/cfit/contoh_1/F.png" },
+                  { label: "A", src: `/img/cfit/subtest_1/contoh_${cfitActiveExample}/A.png` },
+                  { label: "B", src: `/img/cfit/subtest_1/contoh_${cfitActiveExample}/B.png` },
+                  { label: "C", src: `/img/cfit/subtest_1/contoh_${cfitActiveExample}/C.png` },
+                  { label: "D", src: `/img/cfit/subtest_1/contoh_${cfitActiveExample}/D.png` },
+                  { label: "E", src: `/img/cfit/subtest_1/contoh_${cfitActiveExample}/E.png` },
+                  { label: "F", src: `/img/cfit/subtest_1/contoh_${cfitActiveExample}/F.png` },
                 ].map((item) => {
-                  const isSelected = cfitDemoAnswer === item.label;
+                  const isSelected = cfitDemoAnswers[cfitActiveExample] === item.label;
                   return (
                     <button
                       key={item.label}
                       type="button"
-                      onClick={() => setCfitDemoAnswer(item.label)}
+                      onClick={() =>
+                        setCfitDemoAnswers((prev) => ({
+                          ...prev,
+                          [cfitActiveExample]: item.label,
+                        }))
+                      }
                       className={`p-2.5 rounded-xl border-2 flex flex-col items-center justify-between transition-all active:scale-95 text-center bg-white ${
                         isSelected
                           ? "border-purple-600 bg-purple-50/60 shadow-md ring-2 ring-purple-600/20"
@@ -615,10 +683,13 @@ export default function TestIntroductionView({
               </div>
             </div>
 
-            {cfitDemoAnswer && (
+            {/* Feedback Hasil Contoh 1, 2, atau 3 */}
+            {cfitDemoAnswers[cfitActiveExample] && (
               <div
                 className={`p-3.5 rounded-xl border flex items-center gap-3 text-xs font-medium animate-in fade-in ${
-                  cfitDemoAnswer === "C"
+                  (cfitActiveExample === 1 && cfitDemoAnswers[1] === "C") ||
+                  (cfitActiveExample === 2 && cfitDemoAnswers[2] === "E") ||
+                  (cfitActiveExample === 3 && cfitDemoAnswers[3] === "E")
                     ? "bg-emerald-50 border-emerald-200 text-emerald-900"
                     : "bg-purple-50 border-purple-200 text-purple-900"
                 }`}
@@ -626,24 +697,76 @@ export default function TestIntroductionView({
                 <CheckCircle2
                   size={18}
                   className={
-                    cfitDemoAnswer === "C"
+                    (cfitActiveExample === 1 && cfitDemoAnswers[1] === "C") ||
+                    (cfitActiveExample === 2 && cfitDemoAnswers[2] === "E") ||
+                    (cfitActiveExample === 3 && cfitDemoAnswers[3] === "E")
                       ? "text-emerald-600 shrink-0"
                       : "text-purple-600 shrink-0"
                   }
                 />
-                <span>
-                  {cfitDemoAnswer === "C" ? (
-                    <>
-                      <strong>Hebat! Opsi C adalah jawaban yang benar!</strong> Pola ranting berputar searah jarum jam secara konsisten dari kotak 1 ke kotak 3 sehingga pada kotak 4 rebah miring ke arah kanan bawah.
-                    </>
+                <div className="flex-1">
+                  {cfitActiveExample === 1 ? (
+                    cfitDemoAnswers[1] === "C" ? (
+                      <span>
+                        <strong>Hebat! Opsi C adalah jawaban yang benar!</strong> Pola ranting berputar searah jarum jam secara konsisten dari kotak 1 ke kotak 3 sehingga pada kotak 4 rebah miring ke arah kanan bawah.
+                      </span>
+                    ) : (
+                      <span>
+                        <strong>Opsi {cfitDemoAnswers[1]} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi C</strong> (ranting berputar bertahap searah jarum jam). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
+                      </span>
+                    )
+                  ) : cfitActiveExample === 2 ? (
+                    cfitDemoAnswers[2] === "E" ? (
+                      <span>
+                        <strong>Hebat! Opsi E adalah jawaban yang benar!</strong> Bidang hitam di bagian atas bertambah tebal ke bawah secara bertahap (sekitar 1/4 kotak di kotak 1, bertambah tebal di kotak 2, hingga separuh kotak di kotak 3). Maka pada kotak ke-4, tebal bidang hitam berlanjut hingga mencakup sekitar 3/4 kotak.
+                      </span>
+                    ) : (
+                      <span>
+                        <strong>Opsi {cfitDemoAnswers[2]} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi E</strong> (bidang hitam bertambah tebal secara bertahap dari atas ke bawah). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
+                      </span>
+                    )
+                  ) : cfitDemoAnswers[3] === "E" ? (
+                    <span>
+                      <strong>Hebat! Opsi E adalah jawaban yang benar!</strong> Butiran bertambah 1 per kotak mengikuti putaran searah jarum jam (1 butir di atas, 2 butir, 3 butir melengkung ke kanan, hingga 4 butir melengkapi lengkungan ke kanan bawah pada kotak ke-4).
+                    </span>
                   ) : (
-                    <>
-                      <strong>Opsi {cfitDemoAnswer} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi C</strong> (ranting berputar bertahap searah jarum jam). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
-                    </>
+                    <span>
+                      <strong>Opsi {cfitDemoAnswers[3]} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi E</strong> (jumlah butir bertambah satu per satu mengikuti arah putaran jarum jam). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
+                    </span>
                   )}
-                </span>
+                </div>
               </div>
             )}
+
+            {/* Tombol Navigasi Antar Contoh */}
+            <div className="flex items-center justify-between pt-1">
+              <div>
+                {cfitActiveExample > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setCfitActiveExample((prev) => ((prev - 1) as 1 | 2 | 3))}
+                    className="text-xs font-black text-slate-600 bg-white hover:bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 transition-all flex items-center gap-1.5"
+                  >
+                    <ChevronLeft size={14} /> Contoh Sebelumnya
+                  </button>
+                )}
+              </div>
+              <div>
+                {cfitActiveExample < 3 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCfitActiveExample((prev) => ((prev + 1) as 1 | 2 | 3))}
+                    className="text-xs font-black text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-2 rounded-lg border border-purple-200 transition-all flex items-center gap-1.5"
+                  >
+                    Lanjut ke Contoh {cfitActiveExample + 1} <ChevronRight size={14} />
+                  </button>
+                ) : (
+                  <span className="text-[11px] font-bold text-slate-400 italic">
+                    Semua contoh latihan (1-3) telah selesai ditinjau
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

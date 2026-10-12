@@ -428,11 +428,11 @@ export default function AssessmentDashboard() {
                         Kemampuan Kognitif (CFIT)
                       </h4>
                       <span className="bg-purple-100 text-purple-700 text-[9px] font-black uppercase px-2 py-0.5 rounded">
-                        {completedTests.cfit ? "Selesai" : "Subtes 1 Contoh"}
+                        {completedTests.cfit ? "Selesai" : "Subtes 1: Contoh 1, 2, & 3"}
                       </span>
                     </div>
                     <p className="text-slate-400 text-[10px] font-medium max-w-sm uppercase tracking-tight italic leading-relaxed">
-                      Culture Fair Intelligence Test — Subtes 1: Pola Seri Gambar (A - F). Durasi: ±15 Menit.
+                      Culture Fair Intelligence Test — Subtes 1: Pola Seri Gambar (A - F). Latihan Simulasi Contoh 1, 2, & 3.
                     </p>
                   </div>
                 </div>
