@@ -19,7 +19,14 @@ import {
   Users,
   AlertTriangle,
   Target,
+  Pencil,
+  Trash2,
+  UserPlus,
+  UserMinus,
+  X,
+  Filter,
 } from "lucide-react";
+import Swal from "sweetalert2";
 import Modal from "@/app/components/modal";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
@@ -40,6 +47,7 @@ interface Karyawan {
 
 interface AssessmentItem {
   id: string;
+  batch_id?: string;
   karyawan_id: string;
   nip: string;
   nama_lengkap: string;
@@ -52,6 +60,8 @@ interface AssessmentItem {
   access_code: string;
   status: string;
   scheduled_date: string;
+  valid_from?: string;
+  expires_at?: string;
   created_at: string;
   has_mbti: boolean;
   has_disc: boolean;
@@ -59,9 +69,14 @@ interface AssessmentItem {
 }
 
 interface BatchSummary {
+  id: string;
   batch_name: string;
+  description?: string;
   created_at: string;
+  updated_at?: string;
   scheduled_date: string;
+  valid_from?: string;
+  expires_at?: string;
   total_karyawan: number;
   total_completed: number;
   total_ongoing: number;
@@ -93,6 +108,18 @@ export default function KaryawanTestPage() {
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // Modal State: Edit Batch
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<BatchSummary | null>(null);
+  const [editBatchName, setEditBatchName] = useState("");
+  const [editScheduledDate, setEditScheduledDate] = useState("");
+  const [karyawanToRemove, setKaryawanToRemove] = useState<string[]>([]);
+  const [karyawanToAdd, setKaryawanToAdd] = useState<string[]>([]);
+  const [editEmployeeSearch, setEditEmployeeSearch] = useState("");
+  const [editStatusFilter, setEditStatusFilter] = useState("all");
+  const [editSubTab, setEditSubTab] = useState<"info" | "participants" | "add">("info");
+  const [participantSearch, setParticipantSearch] = useState("");
+
   // Modal State: Detail Result
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [loadingResult, setLoadingResult] = useState(false);
@@ -103,8 +130,14 @@ export default function KaryawanTestPage() {
     setLoading(true);
     try {
       const [batchRes, empRes] = await Promise.all([
-        fetch("/api/karyawan-test/batch"),
-        fetch("/api/karyawan")
+        fetch("/api/karyawan-test/batch?t=" + Date.now(), {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        }),
+        fetch("/api/karyawan?t=" + Date.now(), {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        }),
       ]);
 
       if (batchRes.ok) {
@@ -212,6 +245,189 @@ export default function KaryawanTestPage() {
     }
   };
 
+  // Open Edit Batch Modal
+  const handleOpenEditModal = (batch: BatchSummary) => {
+    setEditingBatch(batch);
+    setEditBatchName(batch.batch_name);
+    try {
+      const d = new Date(batch.scheduled_date);
+      setEditScheduledDate(d.toISOString().split("T")[0]);
+    } catch {
+      setEditScheduledDate("");
+    }
+    setKaryawanToRemove([]);
+    setKaryawanToAdd([]);
+    setEditEmployeeSearch("");
+    setEditStatusFilter("all");
+    setParticipantSearch("");
+    setEditSubTab("info");
+    setIsEditModalOpen(true);
+  };
+
+  // Submit Update Batch
+  const handleUpdateBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBatch) return;
+
+    if (!editBatchName.trim()) {
+      showErrorToast("Nama Batch Ujian wajib diisi.");
+      return;
+    }
+    if (!editScheduledDate) {
+      showErrorToast("Tanggal pelaksanaan tes wajib diisi.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/karyawan-test/batch", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batch_id: editingBatch.id,
+          batch_name: editBatchName.trim(),
+          scheduled_date: editScheduledDate,
+          remove_karyawan_ids: karyawanToRemove,
+          add_karyawan_ids: karyawanToAdd,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showSuccessToast(data.message || "Batch berhasil diperbarui!");
+        setIsEditModalOpen(false);
+        setEditingBatch(null);
+        fetchData();
+      } else {
+        showErrorToast(data.message || "Gagal memperbarui batch.");
+      }
+    } catch (err: any) {
+      console.error("Update Batch Error:", err);
+      showErrorToast("Terjadi kesalahan koneksi server.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Delete Entire Batch
+  const handleDeleteBatch = async (batch: BatchSummary) => {
+    const res = await Swal.fire({
+      title: "Hapus Batch?",
+      html: `Apakah Anda yakin ingin menghapus batch <b>"${batch.batch_name}"</b>?<br/><br/><span style="color: #ef4444; font-size: 12px;">Seluruh jadwal tes dan hasil psikometri (${batch.total_karyawan} karyawan) dalam batch ini akan ikut dihapus permanen.</span>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "Ya, Hapus Batch",
+      cancelButtonText: "Batal",
+    });
+
+    if (res.isConfirmed) {
+      try {
+        const delRes = await fetch(`/api/karyawan-test/batch?batch_id=${batch.id}`, {
+          method: "DELETE",
+        });
+        const data = await delRes.json();
+        if (delRes.ok && data.success) {
+          showSuccessToast(data.message || "Batch berhasil dihapus!");
+          if (selectedBatchFilter === batch.id) {
+            setSelectedBatchFilter("all");
+          }
+          fetchData();
+        } else {
+          showErrorToast(data.message || "Gagal menghapus batch.");
+        }
+      } catch (err: any) {
+        console.error("Delete Batch Error:", err);
+        showErrorToast("Terjadi kesalahan koneksi server.");
+      }
+    }
+  };
+
+  // Delete Individual Participant from Batch
+  const handleDeleteParticipant = async (item: AssessmentItem) => {
+    const res = await Swal.fire({
+      title: "Keluarkan Peserta?",
+      html: `Keluarkan <b>${item.nama_lengkap}</b> (${item.nip}) dari batch <b>"${item.batch_name}"</b>?<br/><br/><span style="color: #ef4444; font-size: 12px;">Data penugasan dan hasil tes peserta ini akan dihapus.</span>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "Ya, Keluarkan",
+      cancelButtonText: "Batal",
+    });
+
+    if (res.isConfirmed) {
+      try {
+        const delRes = await fetch(`/api/karyawan-test/batch?assessment_id=${item.id}`, {
+          method: "DELETE",
+        });
+        const data = await delRes.json();
+        if (delRes.ok && data.success) {
+          showSuccessToast(data.message || "Peserta berhasil dikeluarkan!");
+          fetchData();
+        } else {
+          showErrorToast(data.message || "Gagal mengeluarkan peserta.");
+        }
+      } catch (err: any) {
+        console.error("Delete Participant Error:", err);
+        showErrorToast("Terjadi kesalahan koneksi server.");
+      }
+    }
+  };
+
+  // Toggle remove participant in edit modal
+  const handleToggleRemoveKaryawan = (karyawanId: string) => {
+    setKaryawanToRemove((prev) =>
+      prev.includes(karyawanId)
+        ? prev.filter((id) => id !== karyawanId)
+        : [...prev, karyawanId]
+    );
+  };
+
+  // Toggle add new participant in edit modal
+  const handleToggleAddKaryawan = (id: string) => {
+    setKaryawanToAdd((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Current batch participant IDs
+  const currentBatchEmployeeIds = useMemo(() => {
+    if (!editingBatch) return new Set<string>();
+    return new Set(editingBatch.karyawan_list.map((k) => k.karyawan_id));
+  }, [editingBatch]);
+
+  // Available employees to add to the edited batch
+  const availableEmployeesForEdit = useMemo(() => {
+    return employees.filter((emp) => {
+      const isInBatch = currentBatchEmployeeIds.has(emp.id) && !karyawanToRemove.includes(emp.id);
+      if (isInBatch) return false;
+
+      const matchesSearch =
+        emp.nama_lengkap.toLowerCase().includes(editEmployeeSearch.toLowerCase()) ||
+        emp.nip.toLowerCase().includes(editEmployeeSearch.toLowerCase()) ||
+        (emp.email && emp.email.toLowerCase().includes(editEmployeeSearch.toLowerCase()));
+
+      const matchesStatus =
+        editStatusFilter === "all" ||
+        (emp.status_kepegawaian &&
+          emp.status_kepegawaian.toLowerCase().includes(editStatusFilter.toLowerCase()));
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [employees, currentBatchEmployeeIds, karyawanToRemove, editEmployeeSearch, editStatusFilter]);
+
+  const handleSelectAllAvailableForEdit = () => {
+    const availableIds = availableEmployeesForEdit.map((e) => e.id);
+    const allSelected = availableIds.every((id) => karyawanToAdd.includes(id));
+    if (allSelected) {
+      setKaryawanToAdd((prev) => prev.filter((id) => !availableIds.includes(id)));
+    } else {
+      setKaryawanToAdd((prev) => Array.from(new Set([...prev, ...availableIds])));
+    }
+  };
+
   // View Result Detail
   const handleViewResult = async (assessmentId: string) => {
     setIsResultModalOpen(true);
@@ -243,7 +459,9 @@ export default function KaryawanTestPage() {
         item.batch_name.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesBatch =
-        selectedBatchFilter === "all" || item.batch_name === selectedBatchFilter;
+        selectedBatchFilter === "all" ||
+        item.batch_id === selectedBatchFilter ||
+        item.batch_name === selectedBatchFilter;
 
       return matchesSearch && matchesBatch;
     });
@@ -356,21 +574,19 @@ export default function KaryawanTestPage() {
           <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-md w-full sm:w-auto">
             <button
               onClick={() => setActiveTab("batches")}
-              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all ${
-                activeTab === "batches"
+              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all ${activeTab === "batches"
                   ? "bg-white text-[#0173b6] shadow-sm"
                   : "text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               Ringkasan Batch ({batches.length})
             </button>
             <button
               onClick={() => setActiveTab("assessments")}
-              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all ${
-                activeTab === "assessments"
+              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all ${activeTab === "assessments"
                   ? "bg-white text-[#0173b6] shadow-sm"
                   : "text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               Daftar Karyawan ({assessmentData.length})
             </button>
@@ -390,18 +606,29 @@ export default function KaryawanTestPage() {
             </div>
 
             {batches.length > 0 && (
-              <select
-                value={selectedBatchFilter}
-                onChange={(e) => setSelectedBatchFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-md px-3 py-2 font-medium focus:outline-none focus:border-[#0173b6]"
-              >
-                <option value="all">Semua Batch</option>
-                {batches.map((b) => (
-                  <option key={b.batch_name} value={b.batch_name}>
-                    {b.batch_name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedBatchFilter}
+                  onChange={(e) => setSelectedBatchFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-md px-3 py-2 font-medium focus:outline-none focus:border-[#0173b6]"
+                >
+                  <option value="all">Semua Batch ({batches.length})</option>
+                  {batches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.batch_name} ({new Date(b.scheduled_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })})
+                    </option>
+                  ))}
+                </select>
+                {selectedBatchFilter !== "all" && (
+                  <button
+                    onClick={() => setSelectedBatchFilter("all")}
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-md transition-colors"
+                    title="Reset Filter Batch"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -427,28 +654,57 @@ export default function KaryawanTestPage() {
                   const percent = batch.total_karyawan > 0 ? Math.round((batch.total_completed / batch.total_karyawan) * 100) : 0;
                   return (
                     <div
-                      key={batch.batch_name}
-                      className="bg-white border border-slate-100 rounded-lg p-5 hover:border-[#0173b6] transition-all shadow-sm space-y-4 group"
+                      key={batch.id}
+                      className="bg-white border border-slate-200/90 rounded-xl p-5 hover:border-[#0173b6] hover:shadow-md transition-all shadow-sm space-y-4 group relative"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-[#0173b6] bg-blue-50 px-2.5 py-1 rounded border border-blue-100">
-                            Batch Evaluasi
-                          </span>
-                          <h3 className="text-base font-black text-slate-800 mt-2 group-hover:text-[#0173b6] transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-[#0173b6] bg-blue-50 px-2.5 py-0.5 rounded border border-blue-100">
+                              Batch Evaluasi
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {batch.total_karyawan} Karyawan
+                            </span>
+                          </div>
+                          <h3 className="text-base font-black text-slate-800 mt-2 truncate group-hover:text-[#0173b6] transition-colors" title={batch.batch_name}>
                             {batch.batch_name}
                           </h3>
                         </div>
-                        <div className="text-right">
-                          <span className="text-xs font-mono font-bold text-slate-500 block">
+
+                        {/* Action buttons header: Edit & Delete */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleOpenEditModal(batch)}
+                            title="Edit Batch & Kelola Karyawan"
+                            className="p-1.5 text-slate-400 hover:text-[#0173b6] hover:bg-blue-50 rounded-md transition-colors"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBatch(batch)}
+                            title="Hapus Seluruh Batch"
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Scheduled Date Card */}
+                      <div className="flex items-center justify-between text-xs font-medium text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={14} className="text-[#0173b6]" />
+                          <span className="font-bold">
                             {new Date(batch.scheduled_date).toLocaleDateString("id-ID", {
+                              weekday: "long",
                               day: "numeric",
-                              month: "short",
+                              month: "long",
                               year: "numeric"
                             })}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">Jadwal Ujian</span>
                         </div>
+                        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Jadwal Ujian</span>
                       </div>
 
                       {/* Progress Bar */}
@@ -465,23 +721,27 @@ export default function KaryawanTestPage() {
                         </div>
                       </div>
 
-                      {/* Details Footer */}
-                      <div className="pt-3 border-t border-slate-50 flex items-center justify-between text-xs font-medium text-slate-500">
-                        <div className="flex items-center gap-3">
+                      {/* Details Footer with Prominent Actions */}
+                      <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2 font-medium text-slate-500">
                           <span className="text-emerald-600 font-bold">{batch.total_completed} Selesai</span>
                           <span>•</span>
                           <span className="text-amber-600 font-bold">{batch.total_invited + batch.total_ongoing} Menunggu</span>
                         </div>
-                        <button
-                          onClick={() => {
-                            setSelectedBatchFilter(batch.batch_name);
-                            setActiveTab("assessments");
-                          }}
-                          className="text-[#0173b6] font-bold hover:underline flex items-center gap-1"
-                        >
-                          Lihat Peserta
-                          <ChevronRight size={14} />
-                        </button>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => {
+                              setSelectedBatchFilter(batch.id);
+                              setActiveTab("assessments");
+                            }}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 active:scale-95"
+                          >
+                            <Users size={13} />
+                            Peserta ({batch.total_karyawan})
+                            <ChevronRight size={13} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -513,6 +773,7 @@ export default function KaryawanTestPage() {
                       <th className="py-3 px-4">Nama Batch</th>
                       <th className="py-3 px-4">Status Tes</th>
                       <th className="py-3 px-4 text-center">Hasil Psikometri</th>
+                      <th className="py-3 px-4 text-center">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -531,7 +792,7 @@ export default function KaryawanTestPage() {
                             {item.status_kepegawaian || "Kontrak"}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 font-medium text-slate-600 truncate max-w-[180px]">
+                        <td className="py-3.5 px-4 font-medium text-slate-600 truncate max-w-[180px]" title={item.batch_name}>
                           {item.batch_name}
                         </td>
                         <td className="py-3.5 px-4">
@@ -560,6 +821,15 @@ export default function KaryawanTestPage() {
                           ) : (
                             <span className="text-[10px] text-slate-400 italic">Belum Selesai</span>
                           )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => handleDeleteParticipant(item)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Keluarkan dari Batch"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -662,15 +932,14 @@ export default function KaryawanTestPage() {
                     <div
                       key={emp.id}
                       onClick={() => handleToggleSelectEmployee(emp.id)}
-                      className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
-                        isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-slate-50"
-                      }`}
+                      className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-slate-50"
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}}
+                          onChange={() => { }}
                           className="rounded text-[#0173b6] focus:ring-[#0173b6] h-4 w-4"
                         />
                         <div>
@@ -718,6 +987,361 @@ export default function KaryawanTestPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* MODAL: EDIT BATCH & KELOLA PESERTA */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          if (!submitting) {
+            setIsEditModalOpen(false);
+            setEditingBatch(null);
+          }
+        }}
+        title={`Kelola & Edit Batch: ${editingBatch?.batch_name || ""}`}
+        size="3xl"
+      >
+        {editingBatch && (
+          <form onSubmit={handleUpdateBatch} className="space-y-5">
+            {/* Sub-tab navigation */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setEditSubTab("info")}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 ${editSubTab === "info"
+                    ? "bg-white text-[#0173b6] shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                  }`}
+              >
+                <Calendar size={13} />
+                Informasi Batch
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditSubTab("participants")}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 ${editSubTab === "participants"
+                    ? "bg-white text-[#0173b6] shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                  }`}
+              >
+                <Users size={13} />
+                Daftar Peserta ({editingBatch.karyawan_list.length})
+                {karyawanToRemove.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-[10px]">
+                    -{karyawanToRemove.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditSubTab("add")}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 ${editSubTab === "add"
+                    ? "bg-white text-[#0173b6] shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                  }`}
+              >
+                <UserPlus size={13} />
+                Tambah Karyawan
+                {karyawanToAdd.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px]">
+                    +{karyawanToAdd.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* TAB 1: INFORMASI BATCH */}
+            {editSubTab === "info" && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Nama Batch Ujian / Evaluasi <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editBatchName}
+                    onChange={(e) => setEditBatchName(e.target.value)}
+                    placeholder="Contoh: Evaluasi Karyawan Tetap Gelombang 2"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6] transition-all"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Nama batch ini berdiri sendiri dan dapat diubah tanpa mempengaruhi batch lainnya.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Tanggal Pelaksanaan Tes <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editScheduledDate}
+                    onChange={(e) => setEditScheduledDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6] transition-all"
+                  />
+                  <div className="mt-2.5 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2.5 text-xs text-blue-900">
+                    <Sparkles size={16} className="text-[#0173b6] shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Otomatis Memperbarui Validitas Magic Link:</p>
+                      <p className="text-[11px] text-blue-700 mt-0.5 leading-relaxed">
+                        Mengubah tanggal tes di sini otomatis memperbarui masa berlaku (valid dari pukul 00:00 s/d 23:59 pada tanggal yang dipilih) untuk magic link & kode akses seluruh karyawan yang terdaftar di batch ini. Karyawan dapat langsung mengakses ujian pada tanggal baru tersebut.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg text-center">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Total Terdaftar</p>
+                    <p className="text-lg font-black text-slate-800 mt-0.5">{editingBatch.total_karyawan}</p>
+                  </div>
+                  <div className="bg-emerald-50/70 border border-emerald-100 p-3 rounded-lg text-center">
+                    <p className="text-[10px] uppercase font-bold text-emerald-700">Selesai Dikerjakan</p>
+                    <p className="text-lg font-black text-emerald-700 mt-0.5">{editingBatch.total_completed}</p>
+                  </div>
+                  <div className="bg-amber-50/70 border border-amber-100 p-3 rounded-lg text-center">
+                    <p className="text-[10px] uppercase font-bold text-amber-700">Menunggu / Berlangsung</p>
+                    <p className="text-lg font-black text-amber-700 mt-0.5">
+                      {editingBatch.total_invited + editingBatch.total_ongoing}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: DAFTAR PESERTA SAAT INI */}
+            {editSubTab === "participants" && (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Peserta Dalam Batch ({editingBatch.karyawan_list.length} Orang)
+                  </p>
+                  <span className="text-[11px] text-slate-400">
+                    Klik tombol "Keluarkan" untuk menghapus peserta dari batch ini
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari nama atau NIP peserta..."
+                    value={participantSearch}
+                    onChange={(e) => setParticipantSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6]"
+                  />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                </div>
+
+                <div className="border border-slate-200 rounded-lg max-h-72 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
+                  {editingBatch.karyawan_list
+                    .filter(
+                      (p) =>
+                        p.nama_lengkap.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                        p.nip.toLowerCase().includes(participantSearch.toLowerCase())
+                    )
+                    .map((item) => {
+                      const isMarkedForRemoval = karyawanToRemove.includes(item.karyawan_id);
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-3 flex items-center justify-between gap-3 transition-colors ${isMarkedForRemoval
+                              ? "bg-red-50/80 border-l-4 border-l-red-500"
+                              : "hover:bg-slate-50"
+                            }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p
+                                className={`text-xs font-bold ${isMarkedForRemoval ? "line-through text-red-600" : "text-slate-800"
+                                  }`}
+                              >
+                                {item.nama_lengkap}
+                              </p>
+                              {item.status === "COMPLETED" ? (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">
+                                  Selesai
+                                </span>
+                              ) : item.status === "ONGOING" ? (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold uppercase">
+                                  Sedang Tes
+                                </span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold uppercase">
+                                  Diundang
+                                </span>
+                              )}
+                              {isMarkedForRemoval && (
+                                <span className="text-[9px] font-black uppercase text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+                                  Akan Dikeluarkan
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              NIP: {item.nip} | {item.nama_departemen || "-"} | {item.email || "No Email"}
+                            </p>
+                          </div>
+
+                          <div>
+                            {isMarkedForRemoval ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleRemoveKaryawan(item.karyawan_id)}
+                                className="px-2.5 py-1 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors"
+                              >
+                                Batal Hapus
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleRemoveKaryawan(item.karyawan_id)}
+                                className="px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded transition-colors flex items-center gap-1"
+                              >
+                                <UserMinus size={13} />
+                                Keluarkan
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: TAMBAH KARYAWAN BARU */}
+            {editSubTab === "add" && (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Pilih Karyawan Tambahan ({karyawanToAdd.length} Dipilih)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllAvailableForEdit}
+                    className="text-xs font-bold text-[#0173b6] hover:underline"
+                  >
+                    Pilih Semua ({availableEmployeesForEdit.length})
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Cari nama, NIP, email..."
+                      value={editEmployeeSearch}
+                      onChange={(e) => setEditEmployeeSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6]"
+                    />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                  </div>
+
+                  <select
+                    value={editStatusFilter}
+                    onChange={(e) => setEditStatusFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-md px-3 py-2 font-medium focus:outline-none focus:border-[#0173b6]"
+                  >
+                    <option value="all">Semua Status Kepegawaian</option>
+                    <option value="Kontrak">Karyawan Kontrak</option>
+                    <option value="Tetap">Karyawan Tetap</option>
+                    <option value="Dokter">Dokter Tetap</option>
+                  </select>
+                </div>
+
+                <div className="border border-slate-200 rounded-md max-h-60 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
+                  {availableEmployeesForEdit.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs italic">
+                      Tidak ada karyawan yang tersedia untuk ditambahkan.
+                    </div>
+                  ) : (
+                    availableEmployeesForEdit.map((emp) => {
+                      const isSelected = karyawanToAdd.includes(emp.id);
+                      return (
+                        <div
+                          key={emp.id}
+                          onClick={() => handleToggleAddKaryawan(emp.id)}
+                          className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-slate-50"
+                            }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => { }}
+                              className="rounded text-[#0173b6] focus:ring-[#0173b6] h-4 w-4"
+                            />
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">{emp.nama_lengkap}</p>
+                              <p className="text-[10px] text-slate-400">
+                                NIP: {emp.nip} | {emp.nama_departemen || "Departemen -"} | {emp.email || "No Email"}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                            {emp.status_kepegawaian || "Kontrak"}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-500 italic">
+                  * Karyawan yang baru ditambahkan akan otomatis dikirimkan undangan & token akses melalui email.
+                </p>
+              </div>
+            )}
+
+            {/* Actions Footer */}
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+              <div className="text-xs text-slate-500 flex items-center gap-2">
+                {karyawanToRemove.length > 0 && (
+                  <span className="text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                    -{karyawanToRemove.length} Dikeluarkan
+                  </span>
+                )}
+                {karyawanToAdd.length > 0 && (
+                  <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    +{karyawanToAdd.length} Ditambahkan
+                  </span>
+                )}
+                {karyawanToRemove.length === 0 && karyawanToAdd.length === 0 && (
+                  <span className="text-slate-400 italic">Tidak ada perubahan peserta</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2.5 bg-[#0173b6] hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-md transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={14} />
+                      Simpan Perubahan Batch
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* MODAL 2: DETAIL HASIL PSIKOMETRI */}

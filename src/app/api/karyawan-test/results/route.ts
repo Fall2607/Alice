@@ -17,9 +17,10 @@ export async function GET(request: Request) {
     const empRes = await pool.query(
       `SELECT 
         ea.id,
-        ea.batch_name,
+        COALESCE(b.batch_name, ea.batch_name) as batch_name,
+        ea.batch_id,
         ea.status,
-        ea.scheduled_date,
+        COALESCE(b.scheduled_date, ea.scheduled_date) as scheduled_date,
         k.id as karyawan_id,
         k.nip,
         k.nama_lengkap,
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
         d.nama_departemen,
         k.profesi as nama_jabatan
        FROM public.employee_assessments ea
+       LEFT JOIN public.employee_assessment_batches b ON ea.batch_id = b.id
        JOIN public.karyawan k ON ea.karyawan_id = k.id
        LEFT JOIN public.jabatan j ON k.jabatan_id = j.id
        LEFT JOIN public.departemen d ON j.departemen_id = d.id
