@@ -43,6 +43,7 @@ export default function AssessmentDashboard() {
     "dashboard" | "intro" | "mbti" | "disc" | "papi" | "cfit" | "result"
   >("dashboard");
   const [activeStage, setActiveStage] = useState(0);
+  const [cfitInitialSubtest, setCfitInitialSubtest] = useState<number>(1);
   const [answers, setAnswers] = useState<any>({});
 
   const [globalTimeLeft, setGlobalTimeLeft] = useState(0);
@@ -101,14 +102,21 @@ export default function AssessmentDashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleStartTest = (type: "mbti" | "disc" | "papi" | "cfit") => {
+  const handleStartTest = (type: "mbti" | "disc" | "papi" | "cfit", subtest?: number) => {
     setView(type);
     setCurrentTest(type);
     setActiveStage(type === "mbti" ? 1 : 0);
+    if (type === "cfit") {
+      setCfitInitialSubtest(subtest || 1);
+    }
     setAnswers({});
-    const durations = { mbti: 15, disc: 20, papi: 30, cfit: 15 };
-    setGlobalTimeLeft((durations as any)[type] * 60);
-    setIsTimerRunning(true);
+    if (type !== "cfit") {
+      const durations = { mbti: 15, disc: 20, papi: 30 };
+      setGlobalTimeLeft((durations as any)[type] * 60);
+      setIsTimerRunning(true);
+    } else {
+      setIsTimerRunning(false);
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -242,14 +250,14 @@ export default function AssessmentDashboard() {
                     Progress Pengerjaan
                   </span>
                   <span className="text-xs font-bold font-mono">
-                    {completedCount} / 3 Sub-Tes Selesai
+                    {completedCount} / 3 Modul Selesai
                   </span>
                 </div>
                 <h3 className="text-base font-black uppercase tracking-tight">
                   {isAllTestsDone ? (
                     <span className="flex items-center gap-2 justify-center sm:justify-start">
                       <Sparkles size={18} className="text-amber-300 shrink-0" />
-                      Seluruh Sub-Tes Telah Selesai!
+                      Seluruh Modul Telah Selesai!
                     </span>
                   ) : (
                     "Modul Ujian Psikometri Terdaftar"
@@ -258,7 +266,7 @@ export default function AssessmentDashboard() {
                 <p className={`text-xs ${isAllTestsDone ? "text-emerald-100" : "text-slate-500"}`}>
                   {isAllTestsDone 
                     ? "Semua jawaban telah tersimpan. Klik tombol di samping untuk memfinalisasi & menyelesaikan ujian."
-                    : "Selesaikan semua sub-tes yang tersedia untuk menutup rangkaian ujian ini."}
+                    : "Selesaikan semua modul ujian yang tersedia untuk menutup rangkaian ujian ini."}
                 </p>
               </div>
 
@@ -327,7 +335,7 @@ export default function AssessmentDashboard() {
                       Selesai <Check size={14} />
                     </span>
                   ) : (
-                    'Mulai Ujian'
+                    'Mulai'
                   )}
                 </button>
               </div>
@@ -366,7 +374,7 @@ export default function AssessmentDashboard() {
                       Selesai <Check size={14} />
                     </span>
                   ) : (
-                    'Mulai Ujian'
+                    'Mulai'
                   )}
                 </button>
               </div>
@@ -405,7 +413,7 @@ export default function AssessmentDashboard() {
                       Selesai <Check size={14} />
                     </span>
                   ) : (
-                    'Mulai Ujian'
+                    'Mulai'
                   )}
                 </button>
               </div>
@@ -428,11 +436,11 @@ export default function AssessmentDashboard() {
                         Kemampuan Kognitif (CFIT)
                       </h4>
                       <span className="bg-purple-100 text-purple-700 text-[9px] font-black uppercase px-2 py-0.5 rounded">
-                        {completedTests.cfit ? "Selesai" : "Subtes 1: Contoh 1, 2, & 3"}
+                        {completedTests.cfit ? "Selesai" : "40 Soal"}
                       </span>
                     </div>
                     <p className="text-slate-400 text-[10px] font-medium max-w-sm uppercase tracking-tight italic leading-relaxed">
-                      Culture Fair Intelligence Test — Subtes 1: Pola Seri Gambar (A - F). Latihan Simulasi Contoh 1, 2, & 3.
+                      Culture Fair Intelligence Test — Modul evaluasi kemampuan kognitif dan pola gambar.
                     </p>
                   </div>
                 </div>
@@ -450,7 +458,7 @@ export default function AssessmentDashboard() {
                       Selesai <Check size={14} />
                     </span>
                   ) : (
-                    "Mulai Ujian"
+                    "Mulai"
                   )}
                 </button>
               </div>
@@ -462,7 +470,7 @@ export default function AssessmentDashboard() {
         {view === "intro" && introTest && (
           <TestIntroductionView
             testType={introTest}
-            onStart={() => handleStartTest(introTest)}
+            onStart={(subtest) => handleStartTest(introTest, subtest)}
             onBack={() => {
               setView("dashboard");
               setIntroTest(null);
@@ -491,12 +499,14 @@ export default function AssessmentDashboard() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md shadow-xl border border-slate-800">
-                <TimerIcon size={14} className="text-purple-400" />
-                <span className="font-mono text-sm font-black tracking-widest">
-                  {formatTime(globalTimeLeft)}
-                </span>
-              </div>
+              {view !== "cfit" && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md shadow-xl border border-slate-800">
+                  <TimerIcon size={14} className="text-purple-400" />
+                  <span className="font-mono text-sm font-black tracking-widest">
+                    {formatTime(globalTimeLeft)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {view === "mbti" ? (
@@ -549,6 +559,7 @@ export default function AssessmentDashboard() {
               />
             ) : (
               <CFITTestContent
+                initialSubtest={cfitInitialSubtest}
                 answers={answers}
                 setAnswers={setAnswers}
                 onBack={() => setView("dashboard")}

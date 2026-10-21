@@ -8,7 +8,6 @@ import {
   Clock,
   HelpCircle,
   CheckCircle2,
-  AlertTriangle,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -16,16 +15,31 @@ import {
   Info,
   Check,
   RotateCcw,
-  ShieldAlert,
   Brain
 } from "lucide-react";
+import { CFIT_SUBTEST_1_INSTRUCTION } from "@/app/data/tests/cfitData";
 
 export type TestType = "mbti" | "disc" | "papi" | "cfit";
 
 interface TestIntroductionViewProps {
   testType: TestType;
-  onStart: () => void;
+  onStart: (subtest?: number) => void;
   onBack: () => void;
+}
+
+interface TestConfigItem {
+  title: string;
+  subtitle: string;
+  badgeColor: string;
+  themeColor: string;
+  accentBg: string;
+  accentHover: string;
+  icon: any;
+  duration?: string;
+  questionCount: string;
+  format: string;
+  instruction: string;
+  tips: string[];
 }
 
 export default function TestIntroductionView({
@@ -43,6 +57,8 @@ export default function TestIntroductionView({
     least: string | null;
   }>({ most: null, least: null });
   const [papiDemoAnswer, setPapiDemoAnswer] = useState<"A" | "B" | null>(null);
+
+  // CFIT Subtes 1 Demo (Hanya Subtes 1 yang ditampilkan di awal agar peserta tidak bias)
   const [cfitActiveExample, setCfitActiveExample] = useState<1 | 2 | 3>(1);
   const [cfitDemoAnswers, setCfitDemoAnswers] = useState<Record<number, string | null>>({
     1: null,
@@ -51,7 +67,7 @@ export default function TestIntroductionView({
   });
 
   // Konfigurasi data setiap tes
-  const testConfigs = {
+  const testConfigs: Record<TestType, TestConfigItem> = {
     mbti: {
       title: "Kepribadian (MBTI)",
       subtitle: "Myers-Briggs Type Indicator",
@@ -120,16 +136,14 @@ export default function TestIntroductionView({
       accentBg: "bg-purple-600",
       accentHover: "hover:bg-purple-700",
       icon: Brain,
-      duration: "15 Menit",
-      questionCount: "4 Subtes Gambar (Seri, Klasifikasi, Matriks, Titik)",
-      format: "Pilihan Ganda Pola Gambar (Opsi A - F)",
-      instruction:
-        "Pada tes CFIT Subtes 1 (Seri), Anda akan melihat deretan pola gambar di dalam kotak. Tiga kotak pertama memiliki urutan perubahan pola tertentu, sedangkan kotak keempat bergaris putus-putus masih kosong. Tugas Anda adalah memilih salah satu dari 6 pilihan gambar (A, B, C, D, E, F) yang paling tepat untuk melengkapi kotak keempat tersebut sesuai kelanjutan pola yang logis.",
+      questionCount: "40 Soal",
+      format: "Pola Gambar (Pilihan Ganda)",
+      instruction: CFIT_SUBTEST_1_INSTRUCTION,
       tips: [
-        "Perhatikan arah rotasi putaran jarum jam, sudut kemiringan, atau posisi elemen dari kotak ke kotak.",
-        "Pilih 1 dari 6 opsi gambar (A - F) yang melanjutkan pola secara runtut dan logis.",
-        "Coba gunakan contoh simulasi interaktif di bawah ini untuk berlatih cara memilih jawaban.",
-        "Setiap subtes memiliki alokasi waktu yang ketat, kerjakan secara fokus dan teliti."
+        "Perhatikan pola urutan, arah putaran, rotasi, atau pertambahan elemen dari kiri ke kanan.",
+        "Pilih 1 opsi dari 6 gambar (A - F) yang paling tepat melengkapi kotak terakhir yang kosong.",
+        "Tersedia 3 contoh soal simulasi interaktif di bawah ini untuk memahami logikanya sebelum memulai ujian.",
+        "Pastikan menjawab dengan teliti dan fokus pada setiap nomor soal."
       ]
     }
   };
@@ -152,7 +166,6 @@ export default function TestIntroductionView({
     });
   };
 
-  // Contoh data simulasi
   const discDemoOptions = [
     { id: "1", text: "Mudah bergaul, ramah, dan optimis" },
     { id: "2", text: "Dapat dipercaya dan setia kawan" },
@@ -168,7 +181,7 @@ export default function TestIntroductionView({
       <div className="mb-6">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 rounded-lg text-xs font-bold transition-all shadow-sm hover:bg-slate-50 active:scale-95"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 rounded-lg text-xs font-bold transition-all shadow-sm hover:bg-slate-50 active:scale-95 cursor-pointer"
         >
           <ChevronLeft size={16} /> Kembali ke Dashboard
         </button>
@@ -210,22 +223,26 @@ export default function TestIntroductionView({
             </div>
           </div>
 
-          <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-slate-100">
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-700">
-              <Clock size={15} className="text-slate-400" />
-              <span>Durasi: <strong className="text-slate-900">{current.duration}</strong></span>
+          {current.duration && (
+            <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-slate-100">
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-700">
+                <Clock size={15} className="text-slate-400" />
+                <span>Durasi: <strong className="text-slate-900">{current.duration}</strong></span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Ringkasan Meta Info */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-slate-100">
-          <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
-              Alokasi Waktu
-            </span>
-            <p className="text-sm font-black text-slate-800">{current.duration}</p>
-          </div>
+        <div className={`grid grid-cols-1 ${current.duration ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3 mt-6 pt-6 border-t border-slate-100`}>
+          {current.duration && (
+            <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
+                Alokasi Waktu
+              </span>
+              <p className="text-sm font-black text-slate-800">{current.duration}</p>
+            </div>
+          )}
           <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
               Jumlah Soal
@@ -284,7 +301,12 @@ export default function TestIntroductionView({
             </h3>
           </div>
 
-          {(mbtiDemoAnswer || isDiscDemoComplete || papiDemoAnswer || cfitDemoAnswers[1] || cfitDemoAnswers[2] || cfitDemoAnswers[3]) && (
+          {(mbtiDemoAnswer ||
+            isDiscDemoComplete ||
+            papiDemoAnswer ||
+            cfitDemoAnswers[1] ||
+            cfitDemoAnswers[2] ||
+            cfitDemoAnswers[3]) && (
             <button
               onClick={() => {
                 setMbtiDemoAnswer(null);
@@ -292,7 +314,7 @@ export default function TestIntroductionView({
                 setPapiDemoAnswer(null);
                 setCfitDemoAnswers({ 1: null, 2: null, 3: null });
               }}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 font-bold transition-colors"
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-700 font-bold transition-colors cursor-pointer"
             >
               <RotateCcw size={14} /> Reset Latihan
             </button>
@@ -313,7 +335,7 @@ export default function TestIntroductionView({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <button
                   onClick={() => setMbtiDemoAnswer("A")}
-                  className={`p-4 rounded-xl border-2 text-left transition-all relative ${
+                  className={`p-4 rounded-xl border-2 text-left transition-all relative cursor-pointer ${
                     mbtiDemoAnswer === "A"
                       ? "border-[#0173b6] bg-blue-50/50 shadow-md text-slate-900"
                       : "border-slate-200 bg-white hover:border-slate-300 text-slate-600"
@@ -342,7 +364,7 @@ export default function TestIntroductionView({
 
                 <button
                   onClick={() => setMbtiDemoAnswer("B")}
-                  className={`p-4 rounded-xl border-2 text-left transition-all relative ${
+                  className={`p-4 rounded-xl border-2 text-left transition-all relative cursor-pointer ${
                     mbtiDemoAnswer === "B"
                       ? "border-[#0173b6] bg-blue-50/50 shadow-md text-slate-900"
                       : "border-slate-200 bg-white hover:border-slate-300 text-slate-600"
@@ -375,7 +397,7 @@ export default function TestIntroductionView({
               <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3 text-xs text-blue-900 font-medium animate-in fade-in">
                 <CheckCircle2 size={18} className="text-[#0173b6] shrink-0" />
                 <span>
-                  <strong>Opsi {mbtiDemoAnswer} Terpilih!</strong> Pada tes sebenarnya, sistem akan merekam pilihan Anda dan setelah seluruh 7 butir per tahap selesai, Anda dapat menekan tombol <em>Tahap Berikutnya</em>.
+                  <strong>Opsi {mbtiDemoAnswer} Terpilih!</strong> Pada tes sebenarnya, sistem akan merekam pilihan Anda dan setelah seluruh butir selesai, Anda dapat menekan tombol <em>Tahap Berikutnya</em>.
                 </span>
               </div>
             )}
@@ -390,7 +412,6 @@ export default function TestIntroductionView({
                 Simulasi 1 Set Soal DISC (Pilih 1 M di Kiri & 1 L di Kanan):
               </span>
 
-              {/* 4 OPSI BARIS */}
               <div className="space-y-2.5">
                 {discDemoOptions.map((opt) => {
                   const isMost = discDemoAnswer.most === opt.id;
@@ -407,11 +428,10 @@ export default function TestIntroductionView({
                           : "border-slate-200 bg-white hover:border-slate-300"
                       }`}
                     >
-                      {/* TOMBOL M (KIRI) */}
                       <button
                         type="button"
                         onClick={() => handleDiscDemoToggle(opt.id, "most")}
-                        className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all active:scale-90 select-none ${
+                        className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all active:scale-90 select-none cursor-pointer ${
                           isMost
                             ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/30 font-black text-sm sm:text-base"
                             : "bg-slate-50 border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 font-bold text-sm"
@@ -420,7 +440,6 @@ export default function TestIntroductionView({
                         M
                       </button>
 
-                      {/* TEKS PERNYATAAN (TENGAH) */}
                       <div className="flex-1 min-w-0 text-left px-1">
                         <p
                           className={`text-xs sm:text-sm leading-snug transition-colors ${
@@ -435,11 +454,10 @@ export default function TestIntroductionView({
                         </p>
                       </div>
 
-                      {/* TOMBOL L (KANAN) */}
                       <button
                         type="button"
                         onClick={() => handleDiscDemoToggle(opt.id, "least")}
-                        className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all active:scale-90 select-none ${
+                        className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all active:scale-90 select-none cursor-pointer ${
                           isLeast
                             ? "bg-red-600 border-red-600 text-white shadow-md shadow-red-500/30 font-black text-sm sm:text-base"
                             : "bg-slate-50 border-slate-200 text-slate-400 hover:border-red-400 hover:text-red-600 font-bold text-sm"
@@ -484,7 +502,7 @@ export default function TestIntroductionView({
               <div className="space-y-3">
                 <button
                   onClick={() => setPapiDemoAnswer("A")}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative ${
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative cursor-pointer ${
                     papiDemoAnswer === "A"
                       ? "border-emerald-600 bg-emerald-50/60 shadow-md text-emerald-950 font-bold"
                       : "border-slate-200 bg-white hover:border-slate-300 text-slate-700"
@@ -513,7 +531,7 @@ export default function TestIntroductionView({
 
                 <button
                   onClick={() => setPapiDemoAnswer("B")}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative ${
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all relative cursor-pointer ${
                     papiDemoAnswer === "B"
                       ? "border-emerald-600 bg-emerald-50/60 shadow-md text-emerald-950 font-bold"
                       : "border-slate-200 bg-white hover:border-slate-300 text-slate-700"
@@ -553,53 +571,34 @@ export default function TestIntroductionView({
           </div>
         )}
 
-        {/* SIMULASI CFIT (SUBTES 1: CONTOH 1, 2, & 3) */}
+        {/* SIMULASI CFIT: HANYA CONTOH POLA GAMBAR AWAL (Tanpa Bocoran Subtes 2 Agar Tidak Bias) */}
         {testType === "cfit" && (
           <div className="space-y-4">
             {/* Header Tab Simulasi Contoh 1, 2, & 3 */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-purple-50/70 p-3 rounded-xl border border-purple-100">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-purple-900">
-                  Latihan Subtes 1:
+                  Latihan Contoh Soal:
                 </span>
                 <span className="text-[10px] bg-purple-200/80 text-purple-800 font-bold px-2 py-0.5 rounded-full">
                   Pola Seri Gambar
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setCfitActiveExample(1)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                    cfitActiveExample === 1
-                      ? "bg-purple-600 text-white shadow-sm"
-                      : "bg-white text-slate-600 hover:bg-purple-100/50 border border-purple-200"
-                  }`}
-                >
-                  Contoh 1
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCfitActiveExample(2)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                    cfitActiveExample === 2
-                      ? "bg-purple-600 text-white shadow-sm"
-                      : "bg-white text-slate-600 hover:bg-purple-100/50 border border-purple-200"
-                  }`}
-                >
-                  Contoh 2
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCfitActiveExample(3)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                    cfitActiveExample === 3
-                      ? "bg-purple-600 text-white shadow-sm"
-                      : "bg-white text-slate-600 hover:bg-purple-100/50 border border-purple-200"
-                  }`}
-                >
-                  Contoh 3
-                </button>
+                {[1, 2, 3].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setCfitActiveExample(num as 1 | 2 | 3)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      cfitActiveExample === num
+                        ? "bg-purple-600 text-white shadow-sm"
+                        : "bg-white text-slate-600 hover:bg-purple-100/50 border border-purple-200"
+                    }`}
+                  >
+                    Contoh {num}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -614,7 +613,7 @@ export default function TestIntroductionView({
                     : "Simulasi Contoh 3 (Pertambahan Butir Melingkar):"}
                 </span>
                 <span className="text-[10px] font-bold text-slate-400">
-                  Contoh {cfitActiveExample} dari 3 (Lengkap)
+                  Contoh {cfitActiveExample} dari 3
                 </span>
               </div>
 
@@ -648,7 +647,7 @@ export default function TestIntroductionView({
                           [cfitActiveExample]: item.label,
                         }))
                       }
-                      className={`p-2.5 rounded-xl border-2 flex flex-col items-center justify-between transition-all active:scale-95 text-center bg-white ${
+                      className={`p-2.5 rounded-xl border-2 flex flex-col items-center justify-between transition-all active:scale-95 text-center bg-white cursor-pointer ${
                         isSelected
                           ? "border-purple-600 bg-purple-50/60 shadow-md ring-2 ring-purple-600/20"
                           : "border-slate-200 hover:border-purple-300 hover:bg-slate-50"
@@ -712,26 +711,26 @@ export default function TestIntroductionView({
                       </span>
                     ) : (
                       <span>
-                        <strong>Opsi {cfitDemoAnswers[1]} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi C</strong> (ranting berputar bertahap searah jarum jam). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
+                        <strong>Opsi {cfitDemoAnswers[1]} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi C</strong> (ranting berputar bertahap searah jarum jam).
                       </span>
                     )
                   ) : cfitActiveExample === 2 ? (
                     cfitDemoAnswers[2] === "E" ? (
                       <span>
-                        <strong>Hebat! Opsi E adalah jawaban yang benar!</strong> Bidang hitam di bagian atas bertambah tebal ke bawah secara bertahap (sekitar 1/4 kotak di kotak 1, bertambah tebal di kotak 2, hingga separuh kotak di kotak 3). Maka pada kotak ke-4, tebal bidang hitam berlanjut hingga mencakup sekitar 3/4 kotak.
+                        <strong>Hebat! Opsi E adalah jawaban yang benar!</strong> Bidang hitam di bagian atas bertambah tebal ke bawah secara bertahap hingga pada kotak 4 menutupi sekitar 3/4 kotak.
                       </span>
                     ) : (
                       <span>
-                        <strong>Opsi {cfitDemoAnswers[2]} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi E</strong> (bidang hitam bertambah tebal secara bertahap dari atas ke bawah). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
+                        <strong>Opsi {cfitDemoAnswers[2]} Terpilih!</strong> Kunci jawaban resmi adalah <strong>Opsi E</strong> (perluasan bidang hitam ke bawah).
                       </span>
                     )
                   ) : cfitDemoAnswers[3] === "E" ? (
                     <span>
-                      <strong>Hebat! Opsi E adalah jawaban yang benar!</strong> Butiran bertambah 1 per kotak mengikuti putaran searah jarum jam (1 butir di atas, 2 butir, 3 butir melengkung ke kanan, hingga 4 butir melengkapi lengkungan ke kanan bawah pada kotak ke-4).
+                      <strong>Hebat! Opsi E adalah jawaban yang benar!</strong> Butiran bertambah 1 per kotak mengikuti putaran searah jarum jam hingga menjadi 4 butir melingkar ke kanan bawah.
                     </span>
                   ) : (
                     <span>
-                      <strong>Opsi {cfitDemoAnswers[3]} Terpilih!</strong> Pada latihan ini kunci jawaban resminya adalah <strong>Opsi E</strong> (jumlah butir bertambah satu per satu mengikuti arah putaran jarum jam). Di tes sebenarnya, klik opsi akan langsung memilih jawaban Anda.
+                      <strong>Opsi {cfitDemoAnswers[3]} Terpilih!</strong> Kunci jawaban resmi adalah <strong>Opsi E</strong> (pertambahan butir searah jarum jam).
                     </span>
                   )}
                 </div>
@@ -740,32 +739,28 @@ export default function TestIntroductionView({
 
             {/* Tombol Navigasi Antar Contoh */}
             <div className="flex items-center justify-between pt-1">
-              <div>
-                {cfitActiveExample > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setCfitActiveExample((prev) => ((prev - 1) as 1 | 2 | 3))}
-                    className="text-xs font-black text-slate-600 bg-white hover:bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 transition-all flex items-center gap-1.5"
-                  >
-                    <ChevronLeft size={14} /> Contoh Sebelumnya
-                  </button>
-                )}
-              </div>
-              <div>
-                {cfitActiveExample < 3 ? (
-                  <button
-                    type="button"
-                    onClick={() => setCfitActiveExample((prev) => ((prev + 1) as 1 | 2 | 3))}
-                    className="text-xs font-black text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-2 rounded-lg border border-purple-200 transition-all flex items-center gap-1.5"
-                  >
-                    Lanjut ke Contoh {cfitActiveExample + 1} <ChevronRight size={14} />
-                  </button>
-                ) : (
-                  <span className="text-[11px] font-bold text-slate-400 italic">
-                    Semua contoh latihan (1-3) telah selesai ditinjau
-                  </span>
-                )}
-              </div>
+              {cfitActiveExample > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setCfitActiveExample((prev) => ((prev - 1) as 1 | 2 | 3))}
+                  className="text-xs font-black text-slate-600 bg-white hover:bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ChevronLeft size={14} /> Contoh Sebelumnya
+                </button>
+              ) : <div />}
+              {cfitActiveExample < 3 ? (
+                <button
+                  type="button"
+                  onClick={() => setCfitActiveExample((prev) => ((prev + 1) as 1 | 2 | 3))}
+                  className="text-xs font-black text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-2 rounded-lg border border-purple-200 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  Lanjut ke Contoh {cfitActiveExample + 1} <ChevronRight size={14} />
+                </button>
+              ) : (
+                <span className="text-[11px] font-bold text-slate-400 italic">
+                  Semua contoh latihan selesai ditinjau
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -810,20 +805,20 @@ export default function TestIntroductionView({
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button
             onClick={onBack}
-            className="w-1/2 md:w-auto px-6 py-4 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-black text-xs uppercase tracking-wider transition-all"
+            className="w-1/2 md:w-auto px-6 py-4 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
           >
             Batal
           </button>
           <button
-            onClick={onStart}
+            onClick={() => onStart(1)}
             disabled={!understood}
-            className={`w-1/2 md:w-auto px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 shadow-xl ${
+            className={`w-1/2 md:w-auto px-10 py-4 rounded-xl font-black text-xs uppercase tracking-widest text-white transition-all flex items-center justify-center gap-2 shadow-xl ${
               understood
                 ? `${current.accentBg} ${current.accentHover} shadow-blue-900/20 active:scale-95 cursor-pointer`
                 : "bg-slate-300 text-slate-500 cursor-not-allowed shadow-none"
             }`}
           >
-            <span>Mulai Tes Sekarang</span>
+            <span>Mulai</span>
             <ArrowRight size={16} />
           </button>
         </div>
