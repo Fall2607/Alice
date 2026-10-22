@@ -24,19 +24,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Assessment ID atau Token diperlukan." }, { status: 400 });
     }
 
-    const [mbtiRes, discRes, papiRes] = await Promise.all([
+    const [mbtiRes, discRes, papiRes, cfitRes] = await Promise.all([
       pool.query(`SELECT 1 FROM mbti_test_results WHERE assessment_id = $1`, [assessment_id]),
       pool.query(`SELECT 1 FROM disc_test_results WHERE assessment_id = $1`, [assessment_id]),
       pool.query(`SELECT 1 FROM papi_test_results WHERE assessment_id = $1`, [assessment_id]),
+      pool.query(`SELECT 1 FROM cfit_test_results WHERE assessment_id = $1`, [assessment_id]),
     ]);
 
     const completed = {
       mbti: (mbtiRes.rowCount ?? 0) > 0,
       disc: (discRes.rowCount ?? 0) > 0,
       papi: (papiRes.rowCount ?? 0) > 0,
+      cfit: (cfitRes.rowCount ?? 0) > 0,
     };
 
-    const isAllCompleted = completed.mbti && completed.disc && completed.papi;
+    const isAllCompleted = completed.mbti && completed.disc && completed.papi && completed.cfit;
 
     // Jika ketiga tes sudah selesai, otomatis update status di database ke COMPLETED
     if (isAllCompleted) {

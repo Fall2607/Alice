@@ -37,11 +37,13 @@ import {
   LayoutGrid,
   Zap,
   Sparkles,
-  Building2
+  Building2,
+  Brain,
 } from "lucide-react";
 import AssessmentSelector from "@/app/components/admin/AssessmentSelector";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
 import PAPIResultView from "@/app/components/admin/PAPIResultView";
+import CFITResultView from "@/app/components/admin/CFITResultView";
 import Modal from "@/app/components/modal";
 
 import { useParams } from 'next/navigation';
@@ -1527,7 +1529,7 @@ export default function DetailLowonganPage() {
                   <ClipboardList size={100} />
                 </div>
                 <h4 className="font-bold text-emerald-600 text-[10px] mb-4 uppercase tracking-widest flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <ClipboardList size={14} /> PAPI Kostick (Roles & Needs Profile)
+                  <ClipboardList size={14} /> PAPI Kostick (Roles &amp; Needs Profile)
                 </h4>
                 {candidateDetail.assessment_results.papi ? (
                   <PAPIResultView scores={candidateDetail.assessment_results.papi} />
@@ -1536,7 +1538,32 @@ export default function DetailLowonganPage() {
                     Belum diselesaikan.
                   </p>
                 )}
-              </div></div>
+              </div>
+
+              {/* CFIT Card (Culture Fair Intelligence Test) */}
+              <div className="col-span-1 md:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
+                  <Brain size={100} />
+                </div>
+                <h4 className="font-bold text-purple-700 text-[10px] mb-4 uppercase tracking-widest flex items-center justify-between border-b border-slate-100 pb-3">
+                  <span className="flex items-center gap-2">
+                    <Brain size={14} /> 4. Culture Fair Intelligence Test (CFIT Skala 3 Form A)
+                  </span>
+                  {candidateDetail.assessment_results.cfit && (
+                    <span className="px-2.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-black uppercase">
+                      IQ {candidateDetail.assessment_results.cfit.iq_score} — {candidateDetail.assessment_results.cfit.category}
+                    </span>
+                  )}
+                </h4>
+                {candidateDetail.assessment_results.cfit ? (
+                  <CFITResultView result={candidateDetail.assessment_results.cfit} />
+                ) : (
+                  <p className="text-xs italic text-slate-400 mt-4">
+                    Belum diselesaikan.
+                  </p>
+                )}
+              </div>
+            </div>
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setSelectedAssessmentId(null)}

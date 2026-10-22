@@ -30,6 +30,7 @@ import MBTITestContent from "@/app/components/tests/MBTITest";
 import DISCTestContent from "@/app/components/tests/DISCTest";
 import PAPITestContent from "@/app/components/tests/PAPITest";
 import CFITTestContent from "@/app/components/tests/CFITTest";
+import { calculateCFITResult } from "@/app/data/tests/cfitData";
 import TestIntroductionView, { TestType } from "@/app/components/tests/TestIntroductionView";
 
 export default function AssessmentDashboard() {
@@ -139,13 +140,12 @@ export default function AssessmentDashboard() {
       }
     }
 
-    if (currentTest === 'cfit') {
-      setCompletedTests(prev => ({ ...prev, cfit: true }));
-    } else if (currentTest && assessmentId) {
+    if (currentTest && assessmentId) {
       let result;
       if (currentTest === 'mbti') result = getMbtiResult(answers);
       else if (currentTest === 'disc') result = calculateDISCResult(answers);
       else if (currentTest === 'papi') result = calculatePAPIResult(answers);
+      else if (currentTest === 'cfit') result = calculateCFITResult(answers);
       
       try {
         const submitRes = await fetch('/api/assessment/submit', {
@@ -203,8 +203,8 @@ export default function AssessmentDashboard() {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  const completedCount = (completedTests.mbti ? 1 : 0) + (completedTests.disc ? 1 : 0) + (completedTests.papi ? 1 : 0);
-  const isAllTestsDone = completedCount === 3;
+  const completedCount = (completedTests.mbti ? 1 : 0) + (completedTests.disc ? 1 : 0) + (completedTests.papi ? 1 : 0) + (completedTests.cfit ? 1 : 0);
+  const isAllTestsDone = completedCount === 4;
 
   if (!mounted) return null;
 
@@ -231,7 +231,7 @@ export default function AssessmentDashboard() {
                   Portal Ujian Psikometri Digital
                 </h2>
                 <p className="text-xs text-slate-400 font-medium mt-1">
-                  Silakan selesaikan 3 modul tes kepribadian di bawah ini secara mandiri dan jujur.
+                  Silakan selesaikan 4 modul tes asesmen di bawah ini secara mandiri dan jujur.
                 </p>
               </div>
             </div>
@@ -250,7 +250,7 @@ export default function AssessmentDashboard() {
                     Progress Pengerjaan
                   </span>
                   <span className="text-xs font-bold font-mono">
-                    {completedCount} / 3 Modul Selesai
+                    {completedCount} / 4 Modul Selesai
                   </span>
                 </div>
                 <h3 className="text-base font-black uppercase tracking-tight">
@@ -293,7 +293,7 @@ export default function AssessmentDashboard() {
                 ) : (
                   <>
                     <Lock size={16} />
-                    Selesaikan 3/3 Tes Untuk Keluar ({completedCount}/3)
+                    Selesaikan 4/4 Tes Untuk Keluar ({completedCount}/4)
                   </>
                 )}
               </button>
@@ -436,7 +436,7 @@ export default function AssessmentDashboard() {
                         Kemampuan Kognitif (CFIT)
                       </h4>
                       <span className="bg-purple-100 text-purple-700 text-[9px] font-black uppercase px-2 py-0.5 rounded">
-                        {completedTests.cfit ? "Selesai" : "40 Soal"}
+                        {completedTests.cfit ? "Selesai" : "50 Soal"}
                       </span>
                     </div>
                     <p className="text-slate-400 text-[10px] font-medium max-w-sm uppercase tracking-tight italic leading-relaxed">
@@ -585,7 +585,7 @@ export default function AssessmentDashboard() {
                 </h2>
               </div>
               <p className="text-xs font-medium text-slate-500 leading-relaxed">
-                Seluruh jawaban tes psikometri Anda (MBTI, DISC, PAPI Kostick) telah berhasil dienkripsi dan disimpan dengan aman ke dalam sistem HRIS RSU Avisena.
+                Seluruh jawaban tes asesmen Anda (MBTI, DISC, PAPI Kostick, CFIT) telah berhasil dienkripsi dan disimpan dengan aman ke dalam sistem HRIS RSU Avisena.
               </p>
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-left text-xs font-medium text-slate-600 space-y-2">
                 <p className="font-bold text-slate-800">Langkah Selanjutnya:</p>

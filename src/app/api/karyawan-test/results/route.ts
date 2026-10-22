@@ -46,11 +46,12 @@ export async function GET(request: Request) {
 
     const assessment = empRes.rows[0];
 
-    // Query hasil MBTI, DISC, PAPI
-    const [mbtiRes, discRes, papiRes] = await Promise.all([
+    // Query hasil MBTI, DISC, PAPI, CFIT
+    const [mbtiRes, discRes, papiRes, cfitRes] = await Promise.all([
       pool.query(`SELECT * FROM public.mbti_test_results WHERE assessment_id = $1`, [assessmentId]),
       pool.query(`SELECT * FROM public.disc_test_results WHERE assessment_id = $1`, [assessmentId]),
       pool.query(`SELECT * FROM public.papi_test_results WHERE assessment_id = $1`, [assessmentId]),
+      pool.query(`SELECT * FROM public.cfit_test_results WHERE assessment_id = $1`, [assessmentId]),
     ]);
 
     return NextResponse.json({
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
         mbti: mbtiRes.rows[0] || null,
         disc: discRes.rows[0] || null,
         papi: papiRes.rows[0] || null,
+        cfit: cfitRes.rows[0] || null,
       }
     });
 

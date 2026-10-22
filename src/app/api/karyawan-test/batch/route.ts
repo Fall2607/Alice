@@ -121,7 +121,8 @@ export async function GET(request: Request) {
         ea.created_at,
         (SELECT 1 FROM mbti_test_results m WHERE m.assessment_id = ea.id LIMIT 1) IS NOT NULL as has_mbti,
         (SELECT 1 FROM disc_test_results d WHERE d.assessment_id = ea.id LIMIT 1) IS NOT NULL as has_disc,
-        (SELECT 1 FROM papi_test_results p WHERE p.assessment_id = ea.id LIMIT 1) IS NOT NULL as has_papi
+        (SELECT 1 FROM papi_test_results p WHERE p.assessment_id = ea.id LIMIT 1) IS NOT NULL as has_papi,
+        (SELECT 1 FROM cfit_test_results c WHERE c.assessment_id = ea.id LIMIT 1) IS NOT NULL as has_cfit
       FROM public.employee_assessment_batches b
       LEFT JOIN public.employee_assessments ea ON b.id = ea.batch_id
       LEFT JOIN public.karyawan k ON ea.karyawan_id = k.id
@@ -431,6 +432,7 @@ export async function PUT(request: Request) {
         await client.query(`DELETE FROM public.mbti_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIdsToRemove]);
         await client.query(`DELETE FROM public.disc_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIdsToRemove]);
         await client.query(`DELETE FROM public.papi_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIdsToRemove]);
+        await client.query(`DELETE FROM public.cfit_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIdsToRemove]);
 
         // Hapus employee_assessments
         await client.query(`DELETE FROM public.employee_assessments WHERE id = ANY($1::uuid[])`, [assessmentIdsToRemove]);
@@ -541,6 +543,7 @@ export async function DELETE(request: Request) {
       await client.query(`DELETE FROM public.mbti_test_results WHERE assessment_id = $1`, [assessmentId]);
       await client.query(`DELETE FROM public.disc_test_results WHERE assessment_id = $1`, [assessmentId]);
       await client.query(`DELETE FROM public.papi_test_results WHERE assessment_id = $1`, [assessmentId]);
+      await client.query(`DELETE FROM public.cfit_test_results WHERE assessment_id = $1`, [assessmentId]);
 
       const delRes = await client.query(`DELETE FROM public.employee_assessments WHERE id = $1 RETURNING id`, [assessmentId]);
 
@@ -572,6 +575,7 @@ export async function DELETE(request: Request) {
         await client.query(`DELETE FROM public.mbti_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIds]);
         await client.query(`DELETE FROM public.disc_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIds]);
         await client.query(`DELETE FROM public.papi_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIds]);
+        await client.query(`DELETE FROM public.cfit_test_results WHERE assessment_id = ANY($1::uuid[])`, [assessmentIds]);
         await client.query(`DELETE FROM public.employee_assessments WHERE batch_id = $1`, [batchId]);
       }
 

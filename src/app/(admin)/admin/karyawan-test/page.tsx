@@ -25,12 +25,14 @@ import {
   UserMinus,
   X,
   Filter,
+  Brain,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import Modal from "@/app/components/modal";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
 import PAPIResultView from "@/app/components/admin/PAPIResultView";
+import CFITResultView from "@/app/components/admin/CFITResultView";
 import { getPAPIInterpretation } from "@/app/data/tests/papiInterpretations";
 import { getDISCProfileDetail } from "@/app/utils/discUtils";
 import { getMBTIProfileDetail } from "@/app/utils/mbtiUtils";
@@ -66,6 +68,7 @@ interface AssessmentItem {
   has_mbti: boolean;
   has_disc: boolean;
   has_papi: boolean;
+  has_cfit?: boolean;
 }
 
 interface BatchSummary {
@@ -502,7 +505,7 @@ export default function KaryawanTestPage() {
               Assesmen & Evaluasi Karyawan
             </h1>
             <p className="text-blue-100 text-xs md:text-sm mt-1 max-w-xl font-medium leading-relaxed">
-              Fasilitas penugasan tes psikometri (MBTI, DISC, PAPI Kostick) secara terstruktur via Magic Link Email untuk pertimbangan penetapan status Karyawan Tetap.
+              Fasilitas penugasan tes psikometri & kemampuan kognitif (MBTI, DISC, PAPI Kostick, CFIT) secara terstruktur via Magic Link Email untuk pertimbangan penetapan status Karyawan Tetap.
             </p>
           </div>
 
@@ -1692,12 +1695,33 @@ export default function KaryawanTestPage() {
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h5 className="font-black text-emerald-600 text-xs uppercase tracking-wider flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  3. PAPI Kostick (Roles & Needs Profile)
+                  3. PAPI Kostick (Roles &amp; Needs Profile)
                 </h5>
               </div>
 
               {selectedResultData.results.papi ? (
                 <PAPIResultView scores={selectedResultData.results.papi} />
+              ) : (
+                <p className="text-xs text-slate-400 italic">Belum dikerjakan</p>
+              )}
+            </div>
+
+            {/* RESULT SECTION 4: CFIT (CULTURE FAIR INTELLIGENCE TEST) */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h5 className="font-black text-purple-700 text-xs uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
+                  4. CFIT (Culture Fair Intelligence Test - Skala 3 Form A)
+                </h5>
+                {selectedResultData.results.cfit && (
+                  <span className="px-3 py-1 bg-purple-600 text-white font-black text-xs rounded uppercase tracking-widest shadow-xs">
+                    IQ {selectedResultData.results.cfit.iq_score} — {selectedResultData.results.cfit.category}
+                  </span>
+                )}
+              </div>
+
+              {selectedResultData.results.cfit ? (
+                <CFITResultView result={selectedResultData.results.cfit} />
               ) : (
                 <p className="text-xs text-slate-400 italic">Belum dikerjakan</p>
               )}

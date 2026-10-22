@@ -45,16 +45,18 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     let assessmentResults = null;
     if (assessmentRes && (assessmentRes.rowCount ?? 0) > 0) {
       const assessmentId = assessmentRes.rows[0].id;
-      const [mbti, disc, papi] = await Promise.all([
+      const [mbti, disc, papi, cfit] = await Promise.all([
         pool.query(`SELECT * FROM mbti_test_results WHERE assessment_id = $1`, [assessmentId]),
         pool.query(`SELECT * FROM disc_test_results WHERE assessment_id = $1`, [assessmentId]),
         pool.query(`SELECT * FROM papi_test_results WHERE assessment_id = $1`, [assessmentId]),
+        pool.query(`SELECT * FROM cfit_test_results WHERE assessment_id = $1`, [assessmentId]),
       ]);
       assessmentResults = {
         session: assessmentRes.rows[0],
         mbti: mbti.rows[0] || null,
         disc: disc.rows[0] || null,
         papi: papi.rows[0] || null,
+        cfit: cfit.rows[0] || null,
       };
     }
 

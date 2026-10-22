@@ -64,18 +64,49 @@ export async function POST(request: Request) {
           [assessment_id, JSON.stringify(answers), result.G || 0, result.L || 0, result.I || 0, result.T || 0, result.V || 0, result.S || 0, result.R || 0, result.D || 0, result.C || 0, result.E || 0, result.N || 0, result.A || 0, result.P || 0, result.X || 0, result.B || 0, result.O || 0, result.K || 0, result.Z || 0, result.F || 0, result.W || 0]
         );
       }
+    } else if (test_type === 'cfit') {
+      const check = await pool.query(`SELECT id FROM cfit_test_results WHERE assessment_id = $1`, [assessment_id]);
+      const {
+        subtest_1_score = 0,
+        subtest_2_score = 0,
+        subtest_3_score = 0,
+        subtest_4_score = 0,
+        total_score = 0,
+        iq_score = 0,
+        category = 'Average',
+        time_spent_seconds = {}
+      } = result;
+
+      if ((check.rowCount ?? 0) > 0) {
+        await pool.query(
+          `UPDATE cfit_test_results SET 
+           raw_answers = $2, subtest_1_score = $3, subtest_2_score = $4, subtest_3_score = $5,
+           subtest_4_score = $6, total_score = $7, iq_score = $8, category = $9, time_spent_seconds = $10,
+           updated_at = NOW()
+           WHERE assessment_id = $1`,
+          [assessment_id, JSON.stringify(answers), subtest_1_score, subtest_2_score, subtest_3_score, subtest_4_score, total_score, iq_score, category, JSON.stringify(time_spent_seconds)]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO cfit_test_results 
+           (assessment_id, raw_answers, subtest_1_score, subtest_2_score, subtest_3_score, subtest_4_score, total_score, iq_score, category, time_spent_seconds) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [assessment_id, JSON.stringify(answers), subtest_1_score, subtest_2_score, subtest_3_score, subtest_4_score, total_score, iq_score, category, JSON.stringify(time_spent_seconds)]
+        );
+      }
     } else {
         return NextResponse.json({ message: "Tipe tes tidak valid." }, { status: 400 });
     }
 
-    // Periksa apakah semua tes sudah selesai
-    const [mbtiRes, discRes, papiRes] = await Promise.all([
+    // Periksa apakah semua tes (MBTI, DISC, PAPI, CFIT) sudah selesai
+    const [mbtiRes, discRes, papiRes, cfitRes] = await Promise.all([
         pool.query(`SELECT 1 FROM mbti_test_results WHERE assessment_id = $1`, [assessment_id]),
         pool.query(`SELECT 1 FROM disc_test_results WHERE assessment_id = $1`, [assessment_id]),
         pool.query(`SELECT 1 FROM papi_test_results WHERE assessment_id = $1`, [assessment_id]),
+        pool.query(`SELECT 1 FROM cfit_test_results WHERE assessment_id = $1`, [assessment_id]),
     ]);
 
-    if ((mbtiRes.rowCount ?? 0) > 0 && (discRes.rowCount ?? 0) > 0 && (papiRes.rowCount ?? 0) > 0) {
+    if ((mbtiRes.rowCount ?? 0) > 0 && (discRes.rowCount ?? 0) > 0 && (papiRes.rowCount ?? 0) > 0 && (cfitRes.rowCount ?? 0) > 0) {
         await pool.query(
             "UPDATE public.candidate_assessments SET status = 'COMPLETED' WHERE id = $1",
             [assessment_id]

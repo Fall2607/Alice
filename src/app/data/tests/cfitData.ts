@@ -32,6 +32,9 @@ export const CFIT_SUBTEST_2_INSTRUCTION =
 export const CFIT_SUBTEST_3_INSTRUCTION =
   "Pada bagian ini, kalian akan melihat sebuah kotak besar yang terdiri dari 4 bagian gambar. Tiga bagian sudah terisi gambar, dan satu bagian di kanan bawah masih kosong.\n\nTugas kalian:\nTemukan pola hubungan dari gambar-gambar yang sudah ada, lalu pilih satu gambar dari pilihan yang tersedia untuk mengisi bagian yang kosong, sehingga pola menjadi lengkap dan logis.";
 
+export const CFIT_SUBTEST_4_INSTRUCTION =
+  "Pada bagian ini, kalian akan melihat satu gambar di sebelah kiri, dan di sebelah kanannya terdapat lima pilihan gambar (A sampai E).\n\nTugas kalian:\nPilih satu gambar dari lima pilihan yang tersedia, yang memiliki kondisi atau karakteristik yang serupa dengan gambar yang ada di sebelah kiri.\n\nJadi, kalian perlu mencermati bagaimana bentuk-bentuk di dalam gambar tersebut berinteraksi atau saling melengkapi, lalu mencari gambar lain yang juga menunjukkan hubungan serupa.";
+
 // ==========================================
 // SUBTES 1: CONTOH SOAL (LATIHAN)
 // ==========================================
@@ -967,9 +970,426 @@ export const cfitSubtest3Questions: CFITQuestion[] = [
   },
 ];
 
-// Gabungan semua soal CFIT (Subtes 1, Subtes 2, & Subtes 3)
+// ==========================================
+// SUBTES 4: CONTOH SOAL (LATIHAN)
+// Kunci Jawaban Contoh: 1. C | 2. D | 3. B
+// ==========================================
+
+export const cfitSubtest4Examples: CFITQuestion[] = [
+  {
+    id: "subtest_4_contoh_1",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Contoh Soal 1",
+    isExample: true,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/contoh_1/Contoh-Soal.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/contoh_1/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/contoh_1/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/contoh_1/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/contoh_1/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/contoh_1/E.png" },
+    ],
+    correctAnswer: "C",
+    correctAnswers: ["C"],
+    explanation:
+      "Perhatikan posisi titik dan keterkaitannya dengan bentuk-bentuk pada gambar di sebelah kiri. Di antara pilihan A sampai E, hanya gambar C yang memungkinkan penempatan titik pada kondisi atau karakteristik hubungan yang serupa.",
+  },
+  {
+    id: "subtest_4_contoh_2",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Contoh Soal 2",
+    isExample: true,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/contoh_2/Contoh-Soal.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/contoh_2/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/contoh_2/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/contoh_2/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/contoh_2/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/contoh_2/E.png" },
+    ],
+    correctAnswer: "D",
+    correctAnswers: ["D"],
+    explanation:
+      "Memperhatikan interaksi dan posisi titik di antara bentuk-bentuk pada gambar sebelah kiri, gambar D merupakan pilihan yang menunjukkan kondisi hubungan serupa.",
+  },
+  {
+    id: "subtest_4_contoh_3",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Contoh Soal 3",
+    isExample: true,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/contoh_3/Contoh-Soal.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/contoh_3/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/contoh_3/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/contoh_3/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/contoh_3/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/contoh_3/E.png" },
+    ],
+    correctAnswer: "B",
+    correctAnswers: ["B"],
+    explanation:
+      "Berdasarkan keterkaitan bentuk geometris dan penempatan titik pada gambar acuan sebelah kiri, pilihan B adalah gambar yang memiliki karakteristik hubungan serupa.",
+  },
+];
+
+// ==========================================
+// SUBTES 4: SOAL RESMI (NOMOR 1 - 10)
+// Kunci Jawaban Resmi:
+// 1. B | 2. A | 3. D | 4. D | 5. A | 6. B | 7. C | 8. D | 9. A | 10. A
+// ==========================================
+
+export const cfitSubtest4Questions: CFITQuestion[] = [
+  {
+    id: "subtest_4_soal_1",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 1",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_1/Soal-1.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_1/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_1/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_1/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_1/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_1/E.png" },
+    ],
+    correctAnswer: "B",
+    correctAnswers: ["B"],
+  },
+  {
+    id: "subtest_4_soal_2",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 2",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_2/Soal-2.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_2/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_2/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_2/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_2/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_2/E.png" },
+    ],
+    correctAnswer: "A",
+    correctAnswers: ["A"],
+  },
+  {
+    id: "subtest_4_soal_3",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 3",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_3/Soal-3.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_3/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_3/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_3/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_3/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_3/E.png" },
+    ],
+    correctAnswer: "D",
+    correctAnswers: ["D"],
+  },
+  {
+    id: "subtest_4_soal_4",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 4",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_4/Soal-4.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_4/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_4/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_4/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_4/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_4/E.png" },
+    ],
+    correctAnswer: "D",
+    correctAnswers: ["D"],
+  },
+  {
+    id: "subtest_4_soal_5",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 5",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_5/Soal-5.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_5/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_5/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_5/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_5/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_5/E.png" },
+    ],
+    correctAnswer: "A",
+    correctAnswers: ["A"],
+  },
+  {
+    id: "subtest_4_soal_6",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 6",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_6/Soal-6.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_6/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_6/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_6/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_6/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_6/E.png" },
+    ],
+    correctAnswer: "B",
+    correctAnswers: ["B"],
+  },
+  {
+    id: "subtest_4_soal_7",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 7",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_7/Soal-7.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_7/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_7/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_7/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_7/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_7/E.png" },
+    ],
+    correctAnswer: "C",
+    correctAnswers: ["C"],
+  },
+  {
+    id: "subtest_4_soal_8",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 8",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_8/Soal-8.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_8/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_8/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_8/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_8/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_8/E.png" },
+    ],
+    correctAnswer: "D",
+    correctAnswers: ["D"],
+  },
+  {
+    id: "subtest_4_soal_9",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 9",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_9/Soal-9.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_9/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_9/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_9/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_9/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_9/E.png" },
+    ],
+    correctAnswer: "A",
+    correctAnswers: ["A"],
+  },
+  {
+    id: "subtest_4_soal_10",
+    subtest: 4,
+    subtestTitle: "Karakteristik & Kondisi Serupa (Topology)",
+    title: "Soal 10",
+    isExample: false,
+    instruction: CFIT_SUBTEST_4_INSTRUCTION,
+    questionImage: "/img/cfit/subtest_4/soal_10/Soal-10.png",
+    options: [
+      { label: "A", image: "/img/cfit/subtest_4/soal_10/A.png" },
+      { label: "B", image: "/img/cfit/subtest_4/soal_10/B.png" },
+      { label: "C", image: "/img/cfit/subtest_4/soal_10/C.png" },
+      { label: "D", image: "/img/cfit/subtest_4/soal_10/D.png" },
+      { label: "E", image: "/img/cfit/subtest_4/soal_10/E.png" },
+    ],
+    correctAnswer: "A",
+    correctAnswers: ["A"],
+  },
+];
+
+// Gabungan semua soal CFIT (Subtes 1, Subtes 2, Subtes 3, & Subtes 4)
 export const cfitAllQuestions: CFITQuestion[] = [
   ...cfitSubtest1Questions,
   ...cfitSubtest2Questions,
   ...cfitSubtest3Questions,
+  ...cfitSubtest4Questions,
 ];
+
+// ==========================================
+// NORMA & SISTEM SKORING CFIT SKALA 3 FORM A
+// ==========================================
+
+export const CFIT_RAW_TO_IQ: Record<number, number> = {
+  0: 38,
+  1: 40,
+  2: 43,
+  3: 45,
+  4: 48,
+  5: 51,
+  6: 53,
+  7: 56,
+  8: 59,
+  9: 62,
+  10: 65,
+  11: 68,
+  12: 71,
+  13: 74,
+  14: 77,
+  15: 80,
+  16: 83,
+  17: 86,
+  18: 89,
+  19: 92,
+  20: 95,
+  21: 98,
+  22: 101,
+  23: 104,
+  24: 107,
+  25: 110,
+  26: 113,
+  27: 116,
+  28: 119,
+  29: 121,
+  30: 124,
+  31: 127,
+  32: 130,
+  33: 133,
+  34: 137,
+  35: 140,
+  36: 143,
+  37: 147,
+  38: 151,
+  39: 154,
+  40: 157,
+  41: 160,
+  42: 163,
+  43: 166,
+  44: 169,
+  45: 173,
+  46: 176,
+  47: 178,
+  48: 180,
+  49: 182,
+  50: 183,
+};
+
+export function getCFITCategory(iq: number): string {
+  if (iq >= 170) return "Genius";
+  if (iq >= 140) return "Very Superior (Sangat Unggul)";
+  if (iq >= 120) return "Superior (Unggul)";
+  if (iq >= 110) return "High Average (Di Atas Rata-rata)";
+  if (iq >= 90) return "Average (Rata-rata)";
+  if (iq >= 80) return "Low Average (Di Bawah Rata-rata)";
+  if (iq >= 70) return "Borderline (Garis Batas)";
+  return "Mentally Defective (Kurang Sekali)";
+}
+
+export interface CFITResult {
+  subtest_1_score: number;
+  subtest_2_score: number;
+  subtest_3_score: number;
+  subtest_4_score: number;
+  total_score: number;
+  iq_score: number;
+  category: string;
+  time_spent_seconds?: Record<string, number>;
+}
+
+export function calculateCFITResult(
+  answers: Record<string, any>,
+  timeSpentSeconds?: Record<string, number>
+): CFITResult {
+  let subtest_1_score = 0;
+  let subtest_2_score = 0;
+  let subtest_3_score = 0;
+  let subtest_4_score = 0;
+
+  // Subtest 1 (Single option)
+  cfitSubtest1Questions.forEach((q) => {
+    const userAns = answers[q.id];
+    if (
+      typeof userAns === "string" &&
+      q.correctAnswer &&
+      userAns.toUpperCase() === q.correctAnswer.toUpperCase()
+    ) {
+      subtest_1_score += 1;
+    }
+  });
+
+  // Subtest 2 (Two options - harus kedua-duanya benar)
+  cfitSubtest2Questions.forEach((q) => {
+    const userAns = answers[q.id];
+    if (Array.isArray(userAns) && q.correctAnswers && q.correctAnswers.length === 2) {
+      const userSorted = [...userAns].map((x) => String(x).toUpperCase()).sort();
+      const correctSorted = [...q.correctAnswers].map((x) => String(x).toUpperCase()).sort();
+      if (
+        userSorted.length === 2 &&
+        userSorted[0] === correctSorted[0] &&
+        userSorted[1] === correctSorted[1]
+      ) {
+        subtest_2_score += 1;
+      }
+    }
+  });
+
+  // Subtest 3 (Single option)
+  cfitSubtest3Questions.forEach((q) => {
+    const userAns = answers[q.id];
+    if (
+      typeof userAns === "string" &&
+      q.correctAnswer &&
+      userAns.toUpperCase() === q.correctAnswer.toUpperCase()
+    ) {
+      subtest_3_score += 1;
+    }
+  });
+
+  // Subtest 4 (Single option)
+  cfitSubtest4Questions.forEach((q) => {
+    const userAns = answers[q.id];
+    if (
+      typeof userAns === "string" &&
+      q.correctAnswer &&
+      userAns.toUpperCase() === q.correctAnswer.toUpperCase()
+    ) {
+      subtest_4_score += 1;
+    }
+  });
+
+  const total_score = subtest_1_score + subtest_2_score + subtest_3_score + subtest_4_score;
+  const clampedTotal = Math.max(0, Math.min(50, total_score));
+  const iq_score = CFIT_RAW_TO_IQ[clampedTotal] ?? 100;
+  const category = getCFITCategory(iq_score);
+
+  return {
+    subtest_1_score,
+    subtest_2_score,
+    subtest_3_score,
+    subtest_4_score,
+    total_score,
+    iq_score,
+    category,
+    time_spent_seconds: timeSpentSeconds || {},
+  };
+}
+

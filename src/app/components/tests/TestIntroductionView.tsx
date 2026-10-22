@@ -136,7 +136,7 @@ export default function TestIntroductionView({
       accentBg: "bg-purple-600",
       accentHover: "hover:bg-purple-700",
       icon: Brain,
-      questionCount: "40 Soal",
+      questionCount: "50 Soal (4 Bagian)",
       format: "Pola Gambar (Pilihan Ganda)",
       instruction: CFIT_SUBTEST_1_INSTRUCTION,
       tips: [
