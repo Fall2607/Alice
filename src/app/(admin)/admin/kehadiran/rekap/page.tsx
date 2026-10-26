@@ -38,22 +38,23 @@ export default function RekapAbsensiPage() {
 
   // Stats
   const totalKaryawan = data.length;
-  const workingDays = dates.filter(d => {
-    const dateObj = new Date(d);
-    const day = dateObj.getDay();
-    
-    const today = new Date();
-    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
-    const todayStr = today.toISOString().split('T')[0];
 
-    return d <= todayStr && day !== 0 && day !== 6; // exclude weekend and future dates
-  }).length;
-  
-  const avgKehadiran = totalKaryawan > 0 && workingDays > 0
-    ? (data.reduce((acc, curr) => acc + curr.rekap.hadir, 0) / (totalKaryawan * workingDays) * 100).toFixed(1) 
-    : "0";
+  // Hitung total kehadiran & total kewajiban hari kerja seluruh karyawan
+  const totalHadirAll = data.reduce((acc, curr) => acc + curr.rekap.hadir, 0);
   const totalTelat = data.reduce((acc, curr) => acc + curr.rekap.telat, 0);
   const totalAlpha = data.reduce((acc, curr) => acc + curr.rekap.alpha, 0);
+
+  // Total hari kerja/kewajiban seluruh karyawan (termasuk shift akhir pekan)
+  const totalHariKerjaAll = data.reduce((acc, curr) => {
+    const pDays = Object.values(curr.harian || {}).filter(
+      h => h.status === 'hadir' || h.status === 'telat' || h.status === 'alpha' || h.status === 'izin'
+    ).length;
+    return acc + pDays;
+  }, 0);
+
+  const avgKehadiran = totalHariKerjaAll > 0
+    ? ((totalHadirAll / totalHariKerjaAll) * 100).toFixed(1)
+    : (totalHadirAll > 0 ? "100.0" : "0");
 
   useEffect(() => {
     // Set default date range to current month
@@ -359,7 +360,12 @@ export default function RekapAbsensiPage() {
               </thead>
               <tbody>
                 {filteredData.map((kar, idx) => {
-                  const personalAvg = workingDays > 0 ? ((kar.rekap.hadir / workingDays) * 100).toFixed(1) : "0";
+                  const personalWorkingDays = Object.values(kar.harian || {}).filter(
+                    h => h.status === 'hadir' || h.status === 'telat' || h.status === 'alpha' || h.status === 'izin'
+                  ).length;
+                  const personalAvg = personalWorkingDays > 0 
+                    ? ((kar.rekap.hadir / personalWorkingDays) * 100).toFixed(1) 
+                    : (kar.rekap.hadir > 0 ? "100.0" : "0");
                   return (
                     <tr key={kar.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}`}>
                       <td className="py-4 px-6">
