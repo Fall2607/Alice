@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { Camera, Clock, CheckCircle2, AlertCircle, ScanFace, MapPin, Wifi, Loader2, User, ShieldCheck } from "lucide-react";
+import { getCurrentLocation } from "@/app/lib/geofence";
 
 export default function KioskAbsensiPage() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -115,6 +116,12 @@ export default function KioskAbsensiPage() {
     // Trik UI Unblocking: Beri jeda 100ms agar browser bisa menggambar layar biru dulu sebelum AI membajak Main Thread
     setTimeout(async () => {
       try {
+        // Ambil lokasi GPS secara paralel dengan proses deteksi wajah (validasi area absensi)
+        const locationPromise = getCurrentLocation().then(
+          (loc) => ({ loc, error: null as string | null }),
+          (err: any) => ({ loc: null, error: (err?.message as string) || "Gagal mendapatkan lokasi perangkat." })
+        );
+
         let faceDescriptor = cachedDescriptor;
         if (!faceDescriptor) {
             const faceapi = faceapiRef.current;
@@ -122,7 +129,7 @@ export default function KioskAbsensiPage() {
 
             // 1. Deteksi Wajah dari Kiosk
             const detection = await faceapi
-              .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
+              .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 }))
               .withFaceLandmarks()
               .withFaceDescriptor();
 
@@ -135,11 +142,21 @@ export default function KioskAbsensiPage() {
             faceDescriptor = Array.from(detection.descriptor);
         }
 
+        // 1.5 Pastikan lokasi perangkat berhasil didapat
+        const { loc, error: locError } = await locationPromise;
+        if (!loc) {
+          setScanStatus("error");
+          setCachedDescriptor(null);
+          setMockUser({ errorTitle: "Lokasi Tidak Terdeteksi", errorMessage: locError });
+          setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+          return;
+        }
+
         // 2. Kirim descriptor ke API Backend untuk pencocokan & absensi
         const response = await fetch("/api/absensi/verify-face", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id: karyawanInfo?.id }),
+          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id: karyawanInfo?.id, latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy }),
         });
 
         const resData = await response.json();
@@ -156,6 +173,13 @@ export default function KioskAbsensiPage() {
              setScanStatus("unresolved_checkout");
              setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
              return; // Jangan di-reset otomatis
+          }
+          if (resData.isOutOfArea) {
+             setScanStatus("error");
+             setCachedDescriptor(null);
+             setMockUser({ errorTitle: "Di Luar Area Absensi", errorMessage: resData.message });
+             setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 6000);
+             return;
           }
           if (response.status === 409 || response.status === 403) {
              setScanStatus("info");
@@ -391,7 +415,7 @@ export default function KioskAbsensiPage() {
                 <div className="w-20 h-20 bg-rose-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(244,63,94,0.5)] mb-6 border-4 border-rose-400/50">
                   <AlertCircle size={40} />
                 </div>
-                <h2 className="text-2xl font-black uppercase tracking-tight mb-3">Wajah Tidak Dikenali</h2>
+                <h2 className="text-2xl font-black uppercase tracking-tight mb-3">{mockUser?.errorTitle || "Wajah Tidak Dikenali"}</h2>
                 <p className="text-rose-200 text-xs font-bold leading-relaxed px-4 opacity-80">
                   {mockUser?.errorMessage || "Sistem tidak dapat mencocokkan profil wajah. Pastikan Anda tidak menggunakan masker/kacamata gelap, atau pencahayaan cukup."}
                 </p>

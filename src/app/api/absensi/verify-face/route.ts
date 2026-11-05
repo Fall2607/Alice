@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import { ABSENSI_GEOFENCE, getDistanceFromGeofence, formatDistance } from "@/app/lib/geofence";
 
 // Helper function untuk menghitung jarak Euclidean (Euclidean Distance)
 // Semakin kecil nilainya, semakin mirip wajahnya (biasanya threshold 0.45 - 0.5)
@@ -14,10 +15,36 @@ function euclideanDistance(desc1: number[], desc2: number[]): number {
 
 export async function POST(request: NextRequest) {
   try {
-    const { descriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id } = await request.json();
+    const { descriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id, latitude, longitude } = await request.json();
 
     if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
       return NextResponse.json({ message: "Data biometrik tidak valid atau rusak." }, { status: 400 });
+    }
+
+    // 1. Validasi Geofence (Area Absensi) - wajib berada dalam radius dari titik RSU Avisena
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (
+      latitude === undefined || latitude === null || longitude === undefined || longitude === null ||
+      !Number.isFinite(lat) || !Number.isFinite(lng) ||
+      Math.abs(lat) > 90 || Math.abs(lng) > 180
+    ) {
+      return NextResponse.json(
+        { isOutOfArea: true, message: "Lokasi perangkat tidak terdeteksi. Aktifkan GPS dan izinkan akses lokasi untuk melakukan absensi." },
+        { status: 400 }
+      );
+    }
+
+    const distanceFromCenter = getDistanceFromGeofence(lat, lng);
+    if (distanceFromCenter > ABSENSI_GEOFENCE.radiusMeters) {
+      return NextResponse.json(
+        {
+          isOutOfArea: true,
+          distance: Math.round(distanceFromCenter),
+          message: `Anda berada di luar area absensi. Jarak Anda ${formatDistance(distanceFromCenter)} dari ${ABSENSI_GEOFENCE.name} (maksimal ${formatDistance(ABSENSI_GEOFENCE.radiusMeters)}).`,
+        },
+        { status: 403 }
+      );
     }
 
     let queryStr = `SELECT k.id, k.nama_lengkap, k.face_descriptor, lj.nama_level as jabatan 
@@ -72,7 +99,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const MATCH_THRESHOLD = karyawan_id ? 0.60 : 0.40;
+    // Threshold verifikasi wajah:
+    // - Dengan NIP (karyawan_id, pencocokan 1:1) dibuat lebih longgar karena sudah ada
+    //   2 lapis otentikasi lain: NIP + validasi area (geofence).
+    // - Tanpa NIP (pencarian 1:N ke seluruh karyawan) tetap ketat untuk mencegah salah orang.
+    const MATCH_THRESHOLD = karyawan_id ? 0.70 : 0.40;
 
     if (!bestMatch || minDistance > MATCH_THRESHOLD) {
       return NextResponse.json(
@@ -84,7 +115,9 @@ export async function POST(request: NextRequest) {
     // 2.5 Adaptive Learning (Auto-Update Wajah)
     // Jika akurasi sangat tinggi (< batas_aman) tapi BUKAN persis foto yang sama (> 0.05)
     // Kita simpan wajah terbaru ini agar sistem makin pintar mengenali karyawan dari sudut/cahaya baru
-    const ADAPTIVE_THRESHOLD = MATCH_THRESHOLD - 0.15;
+    // Batas adaptive learning dibuat tetap (tidak ikut longgar) agar hanya wajah yang
+    // benar-benar mirip yang disimpan ke koleksi, sehingga data wajah tidak "tercemar".
+    const ADAPTIVE_THRESHOLD = 0.45;
     if (minDistance > 0.05 && minDistance <= ADAPTIVE_THRESHOLD) {
        const updatedDescriptorList = [...bestMatchDescriptorList, descriptor];
        
@@ -292,9 +325,9 @@ export async function POST(request: NextRequest) {
       }
 
       const insertRes = await pool.query(
-        `INSERT INTO absensi (karyawan_id, tanggal, jam_masuk, menit_terlambat, shift_id, is_late) 
-         VALUES ($1, $2, (NOW() AT TIME ZONE 'Asia/Jakarta'), $3, $4, $5) RETURNING *`,
-        [bestMatch.id, localDateStr, menitTerlambat, appliedShiftId, isLate]
+        `INSERT INTO absensi (karyawan_id, tanggal, jam_masuk, menit_terlambat, shift_id, is_late, lat_masuk, lng_masuk) 
+         VALUES ($1, $2, (NOW() AT TIME ZONE 'Asia/Jakarta'), $3, $4, $5, $6, $7) RETURNING *`,
+        [bestMatch.id, localDateStr, menitTerlambat, appliedShiftId, isLate, lat, lng]
       );
       
       absensiRecord = insertRes.rows[0];
@@ -397,8 +430,8 @@ export async function POST(request: NextRequest) {
 
       // 3. Update Database
       const updateRes = await pool.query(
-        `UPDATE absensi SET jam_keluar = (NOW() AT TIME ZONE 'Asia/Jakarta'), is_pulang_cepat = $2, menit_pulang_cepat = $3 WHERE id = $1 RETURNING *`,
-        [existingAbsen.id, is_pulang_cepat, menit_pulang_cepat]
+        `UPDATE absensi SET jam_keluar = (NOW() AT TIME ZONE 'Asia/Jakarta'), is_pulang_cepat = $2, menit_pulang_cepat = $3, lat_keluar = $4, lng_keluar = $5 WHERE id = $1 RETURNING *`,
+        [existingAbsen.id, is_pulang_cepat, menit_pulang_cepat, lat, lng]
       );
       absensiRecord = updateRes.rows[0];
       jenisAbsen = "Check-Out";

@@ -16,6 +16,7 @@ import {
   AlertCircle,
   ChevronDown
 } from "lucide-react";
+import { getCurrentLocation } from "@/app/lib/geofence";
 
 const MONTHS = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -163,13 +164,19 @@ export default function AbsensiTab() {
     
     setTimeout(async () => {
       try {
+        // Ambil lokasi GPS secara paralel dengan proses deteksi wajah (validasi area absensi)
+        const locationPromise = getCurrentLocation().then(
+          (loc) => ({ loc, error: null as string | null }),
+          (err: any) => ({ loc: null, error: (err?.message as string) || "Gagal mendapatkan lokasi perangkat." })
+        );
+
         let faceDescriptor = cachedDescriptor;
         if (!faceDescriptor) {
             const faceapi = faceapiRef.current;
             if (!faceapi) return;
 
             const detection = await faceapi
-              .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
+              .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 }))
               .withFaceLandmarks()
               .withFaceDescriptor();
 
@@ -182,10 +189,20 @@ export default function AbsensiTab() {
             faceDescriptor = Array.from(detection.descriptor);
         }
 
+        // Pastikan lokasi perangkat berhasil didapat
+        const { loc, error: locError } = await locationPromise;
+        if (!loc) {
+          setScanStatus("error");
+          setCachedDescriptor(null);
+          setScanResultMsg(locError || "Gagal mendapatkan lokasi perangkat.");
+          setTimeout(() => { setScanStatus("idle"); setScanResultMsg(""); }, 5000);
+          return;
+        }
+
         const response = await fetch("/api/absensi/verify-face", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id: karyawanId }),
+          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id: karyawanId, latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy }),
         });
 
         const resData = await response.json();
@@ -201,6 +218,13 @@ export default function AbsensiTab() {
              setCachedDescriptor(faceDescriptor);
              setScanStatus("unresolved_checkout");
              setScanResultMsg(resData.message);
+             return;
+          }
+          if (resData.isOutOfArea) {
+             setScanStatus("error");
+             setCachedDescriptor(null);
+             setScanResultMsg(resData.message);
+             setTimeout(() => { setScanStatus("idle"); setScanResultMsg(""); }, 6000);
              return;
           }
           if (response.status === 409 || response.status === 403) {
