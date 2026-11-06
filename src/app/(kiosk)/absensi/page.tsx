@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { Camera, Clock, CheckCircle2, AlertCircle, ScanFace, MapPin, Wifi, Loader2, User, ShieldCheck } from "lucide-react";
-import { getCurrentLocation } from "@/app/lib/geofence";
+import { ABSENSI_GEOFENCE, formatDistance } from "@/app/lib/geofence";
+import { useGpsGate } from "@/app/lib/useGpsGate";
+import GpsGatePanel from "@/app/components/absensi/GpsGatePanel";
 
 export default function KioskAbsensiPage() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -12,6 +14,10 @@ export default function KioskAbsensiPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mockUser, setMockUser] = useState<any>(null);
   const faceapiRef = useRef<any>(null);
+
+  // GPS wajib aktif selama halaman absensi dibuka (dipantau terus-menerus)
+  const gps = useGpsGate();
+  const gpsUnlocked = gps.isReady && gps.inArea;
 
   // NIP Flow States
   const [step, setStep] = useState<"input-nip" | "camera">("input-nip");
@@ -77,7 +83,7 @@ export default function KioskAbsensiPage() {
 
   // Membuka akses kamera (Visualisasi)
   useEffect(() => {
-    if (isClient && step === "camera" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    if (isClient && step === "camera" && gpsUnlocked && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       let activeStream: MediaStream | null = null;
       navigator.mediaDevices
         .getUserMedia({ 
@@ -104,7 +110,7 @@ export default function KioskAbsensiPage() {
         }
       };
     }
-  }, [isClient, step]);
+  }, [isClient, step, gpsUnlocked]);
 
   // Proses absensi (AI Scan)
   const handleScanAbsen = async (type: "in" | "out", forceEarlyOut: boolean = false, forceNewCheckIn: boolean = false) => {
@@ -116,12 +122,6 @@ export default function KioskAbsensiPage() {
     // Trik UI Unblocking: Beri jeda 100ms agar browser bisa menggambar layar biru dulu sebelum AI membajak Main Thread
     setTimeout(async () => {
       try {
-        // Ambil lokasi GPS secara paralel dengan proses deteksi wajah (validasi area absensi)
-        const locationPromise = getCurrentLocation().then(
-          (loc) => ({ loc, error: null as string | null }),
-          (err: any) => ({ loc: null, error: (err?.message as string) || "Gagal mendapatkan lokasi perangkat." })
-        );
-
         let faceDescriptor = cachedDescriptor;
         if (!faceDescriptor) {
             const faceapi = faceapiRef.current;
@@ -142,12 +142,12 @@ export default function KioskAbsensiPage() {
             faceDescriptor = Array.from(detection.descriptor);
         }
 
-        // 1.5 Pastikan lokasi perangkat berhasil didapat
-        const { loc, error: locError } = await locationPromise;
+        // 1.5 Ambil lokasi GPS terbaru (dipantau terus oleh useGpsGate)
+        const loc = gps.getLatestPosition();
         if (!loc) {
           setScanStatus("error");
           setCachedDescriptor(null);
-          setMockUser({ errorTitle: "Lokasi Tidak Terdeteksi", errorMessage: locError });
+          setMockUser({ errorTitle: "Lokasi Tidak Terdeteksi", errorMessage: "GPS tidak aktif. Nyalakan GPS (Lokasi) perangkat Anda lalu coba lagi." });
           setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
           return;
         }
@@ -244,13 +244,17 @@ export default function KioskAbsensiPage() {
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 bg-white/5 px-5 py-2.5 rounded-2xl border border-white/10 backdrop-blur-md">
-            <MapPin size={16} className="text-blue-400" />
+          <div className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border backdrop-blur-md ${gpsUnlocked ? "bg-white/5 border-white/10" : "bg-rose-500/10 border-rose-500/30"}`}>
+            <MapPin size={16} className={gpsUnlocked ? "text-blue-400" : "text-rose-400"} />
             <span className="text-xs font-black uppercase tracking-widest text-white">
-              Lobby Utama
+              {gps.status === "checking"
+                ? "Mencari GPS..."
+                : !gps.isReady
+                ? "GPS Tidak Aktif"
+                : `${ABSENSI_GEOFENCE.name} · ${gps.distance !== null ? formatDistance(gps.distance) : "-"}`}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-emerald-400">
+          <div className="hidden sm:flex items-center gap-2 text-emerald-400">
             <Wifi size={16} />
             <span className="text-[10px] font-black uppercase tracking-widest">
               System Online
@@ -279,7 +283,9 @@ export default function KioskAbsensiPage() {
           </h1>
         </div>
 
-        {step === "input-nip" ? (
+        {!gpsUnlocked ? (
+          <GpsGatePanel gps={gps} theme="dark" />
+        ) : step === "input-nip" ? (
           <div className="w-full max-w-md bg-white/5 p-6 lg:p-8 rounded-3xl border border-white/10 backdrop-blur-md shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-6 mx-auto">
               <User size={32} className="text-blue-400" />

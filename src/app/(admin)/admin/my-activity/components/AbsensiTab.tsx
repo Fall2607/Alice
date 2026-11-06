@@ -16,7 +16,8 @@ import {
   AlertCircle,
   ChevronDown
 } from "lucide-react";
-import { getCurrentLocation } from "@/app/lib/geofence";
+import { useGpsGate } from "@/app/lib/useGpsGate";
+import GpsGatePanel from "@/app/components/absensi/GpsGatePanel";
 
 const MONTHS = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -42,6 +43,10 @@ export default function AbsensiTab() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const faceapiRef = useRef<any>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
+
+  // GPS wajib aktif selama modal Live Absen terbuka (dipantau terus-menerus)
+  const gps = useGpsGate(isLiveAbsenOpen);
+  const gpsUnlocked = gps.isReady && gps.inArea;
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -109,7 +114,7 @@ export default function AbsensiTab() {
 
   // Load Models
   useEffect(() => {
-    if (!isLiveAbsenOpen) return;
+    if (!isLiveAbsenOpen || !gpsUnlocked) return;
     
     let activeStream: MediaStream | null = null;
     let isMounted = true;
@@ -152,7 +157,7 @@ export default function AbsensiTab() {
       setScanResultMsg("");
       setCachedDescriptor(null);
     };
-  }, [isLiveAbsenOpen]);
+  }, [isLiveAbsenOpen, gpsUnlocked]);
 
   const handleScanAbsen = async (type: "in" | "out", forceEarlyOut: boolean = false, forceNewCheckIn: boolean = false) => {
     if (scanStatus === "scanning") return;
@@ -164,12 +169,6 @@ export default function AbsensiTab() {
     
     setTimeout(async () => {
       try {
-        // Ambil lokasi GPS secara paralel dengan proses deteksi wajah (validasi area absensi)
-        const locationPromise = getCurrentLocation().then(
-          (loc) => ({ loc, error: null as string | null }),
-          (err: any) => ({ loc: null, error: (err?.message as string) || "Gagal mendapatkan lokasi perangkat." })
-        );
-
         let faceDescriptor = cachedDescriptor;
         if (!faceDescriptor) {
             const faceapi = faceapiRef.current;
@@ -189,12 +188,12 @@ export default function AbsensiTab() {
             faceDescriptor = Array.from(detection.descriptor);
         }
 
-        // Pastikan lokasi perangkat berhasil didapat
-        const { loc, error: locError } = await locationPromise;
+        // Ambil lokasi GPS terbaru (dipantau terus oleh useGpsGate)
+        const loc = gps.getLatestPosition();
         if (!loc) {
           setScanStatus("error");
           setCachedDescriptor(null);
-          setScanResultMsg(locError || "Gagal mendapatkan lokasi perangkat.");
+          setScanResultMsg("GPS tidak aktif. Nyalakan GPS (Lokasi) perangkat Anda lalu coba lagi.");
           setTimeout(() => { setScanStatus("idle"); setScanResultMsg(""); }, 5000);
           return;
         }
@@ -511,8 +510,14 @@ export default function AbsensiTab() {
               </button>
             </div>
 
-            {/* Camera Area */}
-            <div className="relative flex-1 bg-slate-900 min-h-[300px] flex items-center justify-center overflow-hidden">
+            {!gpsUnlocked ? (
+              <div className="p-6 overflow-y-auto">
+                <GpsGatePanel gps={gps} theme="light" />
+              </div>
+            ) : (
+              <>
+                {/* Camera Area */}
+                <div className="relative flex-1 bg-slate-900 min-h-[300px] flex items-center justify-center overflow-hidden">
               {!isCameraReady && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
                   <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
@@ -608,6 +613,8 @@ export default function AbsensiTab() {
                 Pastikan wajah Anda terlihat jelas dalam bingkai
               </p>
             </div>
+            </>
+            )}
           </div>
         </div>
       )}
