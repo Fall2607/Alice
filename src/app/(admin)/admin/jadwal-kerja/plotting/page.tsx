@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, UserCheck, CalendarRange, Search, Plus, ShieldCheck, Download, Upload, FileSpreadsheet } from "lucide-react";
+import { Loader2, UserCheck, CalendarRange, Search, Plus, ShieldCheck, Download, Upload, FileSpreadsheet, CheckSquare, Square, AlertCircle, CheckCircle2, Info, Filter, X } from "lucide-react";
 import Select from "react-select";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
@@ -71,6 +71,27 @@ export default function ManajemenJadwalKaryawanPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+
+  // Download Template Modal State
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [downloadMonth, setDownloadMonth] = useState("");
+  const [downloadUnit, setDownloadUnit] = useState("");
+  const [downloadSelectedKarIds, setDownloadSelectedKarIds] = useState<string[]>([]);
+  const [downloadSearchKar, setDownloadSearchKar] = useState("");
+  const [downloadMode, setDownloadMode] = useState<'schedule' | 'blank'>('schedule');
+  const [downloadIncludeExisting, setDownloadIncludeExisting] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Import Result Modal State
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    message: string;
+    successCount: number;
+    deletedCount?: number;
+    failedCount: number;
+    failedRows: string[];
+  } | null>(null);
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
 
   const getShiftCategory = (nama_shift: string): string => {
       const name = nama_shift.toLowerCase();
@@ -298,56 +319,176 @@ export default function ManajemenJadwalKaryawanPage() {
       }
   };
 
-  const handleDownloadTemplate = async () => {
+  const handleOpenDownloadModal = () => {
+    const currentM = plotMonth || new Date().toISOString().substring(0, 7);
+    setDownloadMonth(currentM);
+    const activeUnitVal = selectedUnit ? selectedUnit.value : "";
+    setDownloadUnit(activeUnitVal);
+    setDownloadSearchKar("");
+    setDownloadMode("schedule");
+    setDownloadIncludeExisting(true);
+
+    const targetList = activeUnitVal
+      ? karyawans.filter((k) => k.nama_departemen === activeUnitVal)
+      : karyawans;
+    setDownloadSelectedKarIds(targetList.map((k) => k.id));
+    setIsDownloadModalOpen(true);
+  };
+
+  const handleSelectAllDownload = () => {
+    const filtered = karyawans.filter((k) => {
+      const matchUnit = !downloadUnit || k.nama_departemen === downloadUnit;
+      const searchLower = downloadSearchKar.toLowerCase();
+      const matchSearch =
+        !downloadSearchKar ||
+        k.nama_lengkap.toLowerCase().includes(searchLower) ||
+        (k.nip && k.nip.toLowerCase().includes(searchLower));
+      return matchUnit && matchSearch;
+    });
+    const ids = filtered.map((k) => k.id);
+    setDownloadSelectedKarIds(Array.from(new Set([...downloadSelectedKarIds, ...ids])));
+  };
+
+  const handleDeselectAllDownload = () => {
+    const filtered = karyawans.filter((k) => {
+      const matchUnit = !downloadUnit || k.nama_departemen === downloadUnit;
+      const searchLower = downloadSearchKar.toLowerCase();
+      const matchSearch =
+        !downloadSearchKar ||
+        k.nama_lengkap.toLowerCase().includes(searchLower) ||
+        (k.nip && k.nip.toLowerCase().includes(searchLower));
+      return matchUnit && matchSearch;
+    });
+    const idsToRemove = new Set(filtered.map((k) => k.id));
+    setDownloadSelectedKarIds(
+      downloadSelectedKarIds.filter((id) => !idsToRemove.has(id))
+    );
+  };
+
+  const toggleDownloadKaryawan = (id: string) => {
+    if (downloadSelectedKarIds.includes(id)) {
+      setDownloadSelectedKarIds(downloadSelectedKarIds.filter((v) => v !== id));
+    } else {
+      setDownloadSelectedKarIds([...downloadSelectedKarIds, id]);
+    }
+  };
+
+  const handleExecuteDownloadTemplate = async () => {
+    if (downloadMode === "schedule" && downloadSelectedKarIds.length === 0) {
+      showErrorToast("Pilih minimal 1 karyawan untuk mendownload template jadwal.");
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+
+      let superior_id = null;
       try {
-          const res = await fetch('/api/karyawan-shift/template');
-          if (!res.ok) throw new Error("Gagal mengunduh template");
-          
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = "Template_Plotting_Cerdas.xlsx";
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          a.remove();
-      } catch (err) {
-          showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan koneksi.");
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          if (
+            user.role &&
+            !user.role.toLowerCase().includes("admin") &&
+            !user.role.toLowerCase().includes("hrd") &&
+            user.karyawan_id
+          ) {
+            superior_id = user.karyawan_id;
+          }
+        }
+      } catch (e) {}
+
+      const res = await fetch("/api/karyawan-shift/template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          karyawan_ids: downloadSelectedKarIds,
+          month: downloadMonth,
+          mode: downloadMode,
+          include_existing: downloadIncludeExisting,
+          superior_id: superior_id,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || "Gagal mengunduh template");
       }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Template_Plotting_Shift_${downloadMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+
+      showSuccessToast("Template Excel berhasil diunduh!");
+      setIsDownloadModalOpen(false);
+    } catch (err) {
+      showErrorToast(
+        err instanceof Error ? err.message : "Terjadi kesalahan saat mengunduh."
+      );
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleImportSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!importFile) return;
-      
-      setIsImporting(true);
-      const formData = new FormData();
-      formData.append("file", importFile);
+    e.preventDefault();
+    if (!importFile) return;
 
-      try {
-          const res = await fetch('/api/karyawan-shift/import', {
-              method: 'POST',
-              body: formData
-          });
-          const result = await res.json();
-          if (res.ok) {
-              showSuccessToast(result.message);
-              setIsImportModalOpen(false);
-              setImportFile(null);
-              fetchBoardData();
-          } else {
-              showErrorToast(result.message || "Gagal mengimport file.");
-              if (result.failedRows && result.failedRows.length > 0) {
-                 console.error("Failed Rows:", result.failedRows);
-                 alert("Beberapa data gagal diimport:\n" + result.failedRows.slice(0, 10).join("\n") + (result.failedRows.length > 10 ? "\n...dan lainnya" : ""));
-              }
-          }
-      } catch (err) {
-          showErrorToast(err instanceof Error ? err.message : "Terjadi kesalahan koneksi.");
-      } finally {
-          setIsImporting(false);
+    setIsImporting(true);
+    const formData = new FormData();
+    formData.append("file", importFile);
+
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (
+          user.role &&
+          !user.role.toLowerCase().includes("admin") &&
+          !user.role.toLowerCase().includes("hrd") &&
+          user.karyawan_id
+        ) {
+          formData.append("superior_id", user.karyawan_id);
+        }
       }
+    } catch (e) {}
+
+    try {
+      const res = await fetch("/api/karyawan-shift/import", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await res.json();
+      if (res.ok) {
+        showSuccessToast(result.message);
+        setIsImportModalOpen(false);
+        setImportFile(null);
+        fetchBoardData();
+
+        if (result.failedRows && result.failedRows.length > 0) {
+          setImportResult(result);
+          setIsResultModalOpen(true);
+        }
+      } else {
+        showErrorToast(result.message || "Gagal mengimport file.");
+        if (result.failedRows && result.failedRows.length > 0) {
+          setImportResult(result);
+          setIsResultModalOpen(true);
+        }
+      }
+    } catch (err) {
+      showErrorToast(
+        err instanceof Error ? err.message : "Terjadi kesalahan koneksi."
+      );
+    } finally {
+      setIsImporting(false);
+    }
   };
 
 
@@ -375,6 +516,16 @@ export default function ManajemenJadwalKaryawanPage() {
       if (!selectedUnit || selectedUnit.value === '') return true;
       const k = karyawans.find(kar => kar.id === b.karyawan_id);
       return k && k.nama_departemen === selectedUnit.value;
+  });
+
+  const filteredKaryawanForDownload = karyawans.filter((k) => {
+    const matchUnit = !downloadUnit || k.nama_departemen === downloadUnit;
+    const searchLower = downloadSearchKar.toLowerCase();
+    const matchSearch =
+      !downloadSearchKar ||
+      k.nama_lengkap.toLowerCase().includes(searchLower) ||
+      (k.nip && k.nip.toLowerCase().includes(searchLower));
+    return matchUnit && matchSearch;
   });
 
   // Filter shifts based on active tab
@@ -489,7 +640,7 @@ export default function ManajemenJadwalKaryawanPage() {
                     />
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-md font-semibold hover:bg-slate-200 transition-colors">
+                    <button onClick={handleOpenDownloadModal} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-md font-semibold hover:bg-slate-200 transition-colors">
                         <Download size={16} /> Template Excel
                     </button>
                     <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md font-semibold hover:bg-emerald-700 transition-colors shadow-sm">
@@ -709,30 +860,340 @@ export default function ManajemenJadwalKaryawanPage() {
           )}
       </Modal>
 
+      {/* MODAL DOWNLOAD TEMPLATE EXCEL */}
+      <Modal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        title="Download Template Plotting Shift"
+        size="2xl"
+      >
+        <div className="space-y-6">
+          {/* Header Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900 flex items-start gap-3">
+            <Info className="text-blue-600 mt-0.5 shrink-0" size={18} />
+            <div>
+              <p className="font-semibold">Konfigurasi Template Excel</p>
+              <p className="text-blue-800 text-xs mt-0.5 leading-relaxed">
+                Pilih periode dan karyawan yang ingin dibuatkan jadwal plotting shift. Template Excel yang di-generate akan memuat ID Karyawan unik, NIP, Nama, serta pilihan validasi dropdown Shift langsung dari database.
+              </p>
+            </div>
+          </div>
+
+          {/* Section 1: Periode & Mode */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Pilih Periode Bulan & Tahun
+              </label>
+              <input
+                type="month"
+                value={downloadMonth}
+                onChange={(e) => setDownloadMonth(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium bg-slate-50 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Template akan menyusun tanggal 1 s/d akhir bulan untuk periode ini.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Format Template
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDownloadMode("schedule")}
+                  className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                    downloadMode === "schedule"
+                      ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <CalendarRange size={16} className="mb-1" />
+                  <p className="font-medium">Jadwal Harian</p>
+                  <p className="text-[10px] opacity-75 font-normal">Baris tanggal otomatis</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDownloadMode("blank")}
+                  className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                    downloadMode === "blank"
+                      ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <FileSpreadsheet size={16} className="mb-1" />
+                  <p className="font-medium">Format Bebas</p>
+                  <p className="text-[10px] opacity-75 font-normal">Baris kosong dropdown</p>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Option: Include Existing Shifts */}
+          {downloadMode === "schedule" && (
+            <label className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer text-sm text-slate-700 hover:bg-slate-100 transition-colors">
+              <input
+                type="checkbox"
+                checked={downloadIncludeExisting}
+                onChange={(e) => setDownloadIncludeExisting(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+              />
+              <div>
+                <span className="font-semibold text-xs text-slate-800">
+                  Sertakan jadwal yang sudah tersimpan saat ini di database
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  Jika dicentang, shift yang sudah pernah di-plot pada bulan ini akan terisi otomatis di template Excel, sehingga Anda hanya perlu merevisi yang berubah.
+                </p>
+              </div>
+            </label>
+          )}
+
+          {/* Section 2: Pilih Karyawan */}
+          <div className="space-y-3 pt-2 border-t border-slate-200">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <label className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                Pilih Karyawan
+                <span className="text-xs font-normal text-slate-500">
+                  ({downloadSelectedKarIds.length} dari {karyawans.length} dipilih)
+                </span>
+              </label>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllDownload}
+                  className="text-xs text-primary hover:text-primary-dark font-medium flex items-center gap-1 bg-primary/10 px-2.5 py-1 rounded-md transition-colors"
+                >
+                  <CheckSquare size={13} /> Pilih Semua
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllDownload}
+                  className="text-xs text-slate-600 hover:text-slate-800 font-medium flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-md transition-colors"
+                >
+                  <Square size={13} /> Batal Semua
+                </button>
+              </div>
+            </div>
+
+            {/* Filter toolbar */}
+            <div className="flex gap-2">
+              {uniqueUnits.length > 0 && (
+                <select
+                  value={downloadUnit}
+                  onChange={(e) => setDownloadUnit(e.target.value)}
+                  className="border border-slate-300 rounded-lg px-3 py-1.5 text-xs bg-white text-slate-700 w-48 focus:ring-1 focus:ring-primary outline-none"
+                >
+                  <option value="">Semua Unit / Departemen</option>
+                  {uniqueUnits.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Cari nama atau NIP karyawan..."
+                  value={downloadSearchKar}
+                  onChange={(e) => setDownloadSearchKar(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none"
+                />
+              </div>
+            </div>
+
+            {/* List Karyawan */}
+            <div className="border border-slate-200 rounded-lg overflow-hidden max-h-56 overflow-y-auto bg-white divide-y divide-slate-100">
+              {filteredKaryawanForDownload.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate-500">
+                  Tidak ada karyawan yang sesuai kriteria pencarian.
+                </div>
+              ) : (
+                filteredKaryawanForDownload.map((kar) => {
+                  const isChecked = downloadSelectedKarIds.includes(kar.id);
+                  return (
+                    <label
+                      key={kar.id}
+                      className={`flex items-center justify-between px-3.5 py-2.5 cursor-pointer text-xs transition-colors hover:bg-slate-50 ${
+                        isChecked ? "bg-blue-50/40" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleDownloadKaryawan(kar.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                        />
+                        <div>
+                          <p className="font-medium text-slate-800">{kar.nama_lengkap}</p>
+                          <p className="text-[11px] text-slate-400">NIP: {kar.nip || "-"}</p>
+                        </div>
+                      </div>
+                      {kar.nama_departemen && (
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200 font-medium">
+                          {kar.nama_departemen}
+                        </span>
+                      )}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+            <span className="text-xs text-slate-500 font-medium">
+              File: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">Template_Plotting_Shift_{downloadMonth}.xlsx</code>
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsDownloadModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteDownloadTemplate}
+                disabled={isDownloading || (downloadMode === "schedule" && downloadSelectedKarIds.length === 0)}
+                className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium shadow-sm hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isDownloading ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <Download size={16} />
+                )}
+                {isDownloading ? "Mengunduh..." : "Download Excel (.xlsx)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       {/* MODAL IMPORT EXCEL */}
-      <Modal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="Import Template Jadwal" size="md">
-          <form onSubmit={handleImportSubmit} className="space-y-6">
-              <div className="text-center p-6 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50">
-                  <FileSpreadsheet className="mx-auto text-slate-400 mb-3" size={48} />
-                  <p className="text-sm text-slate-600 mb-4">
-                      Unggah file <b>.xlsx</b> atau <b>.csv</b> yang telah Anda isi sesuai dengan format Template.
-                  </p>
-                  <input 
-                      type="file" 
-                      accept=".xlsx, .xls, .csv" 
-                      onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                      className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
-                      required
-                  />
+      <Modal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="Import Jadwal Plotting Shift" size="lg">
+        <form onSubmit={handleImportSubmit} className="space-y-5">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-xs text-emerald-900 space-y-1.5">
+            <p className="font-semibold flex items-center gap-1.5 text-emerald-800">
+              <CheckCircle2 size={16} /> Petunjuk Import Jadwal Shift
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-emerald-800/90 pl-1 leading-relaxed">
+              <li>Unggah file template <b>.xlsx</b> yang telah diisi kolom <b>Nama Shift</b>-nya.</li>
+              <li>Sistem mencocokkan data secara akurat menggunakan <b>ID Karyawan</b> (UUID) atau <b>NIP</b> / <b>Nama</b>.</li>
+              <li>Pastikan nama shift sesuai dengan opsi yang tersedia di sheet <i>Master Shift</i>.</li>
+              <li>Jika kolom shift dikosongkan pada tanggal tertentu, sistem akan <b>menghapus plotting khusus</b> tersebut dan mengembalikannya ke jadwal default.</li>
+            </ul>
+          </div>
+
+          <div className="text-center p-8 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100/50 transition-colors">
+            <FileSpreadsheet className="mx-auto text-emerald-600 mb-3" size={44} />
+            <p className="text-sm font-medium text-slate-700 mb-1">
+              Pilih file template Excel yang telah diisi
+            </p>
+            <p className="text-xs text-slate-500 mb-4">
+              Mendukung format file <b>.xlsx</b> atau <b>.csv</b>
+            </p>
+            <input 
+              type="file" 
+              accept=".xlsx, .xls, .csv" 
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              className="w-full max-w-sm mx-auto text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
+              required
+            />
+            {importFile && (
+              <p className="text-xs font-semibold text-emerald-700 mt-3">
+                File terpilih: {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <button 
+              type="button" 
+              onClick={() => setIsImportModalOpen(false)} 
+              className="px-5 py-2 bg-slate-200 text-slate-700 rounded-full font-medium hover:bg-slate-300 transition-colors text-sm"
+            >
+              Batal
+            </button>
+            <button 
+              type="submit" 
+              disabled={!importFile || isImporting} 
+              className="px-6 py-2 bg-emerald-600 text-white rounded-full font-medium shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+            >
+              {isImporting ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+              {isImporting ? 'Memproses Import...' : 'Upload & Simpan Jadwal'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL HASIL IMPORT / CATATAN ERROR */}
+      <Modal isOpen={isResultModalOpen} onClose={() => setIsResultModalOpen(false)} title="Laporan Hasil Import Jadwal" size="lg">
+        {importResult && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <p className="text-xs text-emerald-700 font-medium">Berhasil Disimpan</p>
+                <p className="text-2xl font-bold text-emerald-800">{importResult.successCount}</p>
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                  <button type="button" onClick={() => setIsImportModalOpen(false)} className="px-5 py-2 bg-slate-200 text-slate-700 rounded-full font-medium hover:bg-slate-300 transition-colors">Batal</button>
-                  <button type="submit" disabled={!importFile || isImporting} className="px-5 py-2 bg-emerald-600 text-white rounded-full font-medium shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-                      {isImporting ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
-                      {isImporting ? 'Mengimport...' : 'Import Data'}
-                  </button>
+              {importResult.deletedCount !== undefined && importResult.deletedCount > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-700 font-medium">Dikosongkan</p>
+                  <p className="text-2xl font-bold text-blue-800">{importResult.deletedCount}</p>
+                </div>
+              )}
+              <div className={`rounded-lg p-3 border ${
+                importResult.failedCount > 0 
+                  ? "bg-amber-50 border-amber-200" 
+                  : "bg-slate-50 border-slate-200"
+              }`}>
+                <p className={`text-xs font-medium ${importResult.failedCount > 0 ? "text-amber-700" : "text-slate-500"}`}>
+                  Catatan / Dilewati
+                </p>
+                <p className={`text-2xl font-bold ${importResult.failedCount > 0 ? "text-amber-800" : "text-slate-700"}`}>
+                  {importResult.failedCount}
+                </p>
               </div>
-          </form>
+            </div>
+
+            {importResult.failedRows && importResult.failedRows.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                  <AlertCircle size={14} className="text-amber-600" />
+                  Rincian Baris yang Dilewati / Bermasalah:
+                </p>
+                <div className="max-h-56 overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 space-y-1 font-mono">
+                  {importResult.failedRows.map((err, idx) => (
+                    <div key={idx} className="flex items-start gap-1.5 text-amber-900 border-b border-slate-200/50 pb-1 last:border-b-0">
+                      <span className="text-amber-500 font-bold shrink-0">•</span>
+                      <span>{err}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsResultModalOpen(false)}
+                className="px-5 py-2 bg-primary text-white rounded-full text-sm font-medium hover:bg-primary-dark transition-colors"
+              >
+                Tutup Laporan
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
