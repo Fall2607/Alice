@@ -28,9 +28,9 @@ async function checkEmpAssessments() {
       const disc = await pool.query(`SELECT id FROM disc_test_results WHERE assessment_id = $1`, [ea.id]);
       const papi = await pool.query(`SELECT id FROM papi_test_results WHERE assessment_id = $1`, [ea.id]);
       console.log(`Assessment ID ${ea.id} (Status: ${ea.status}):`, {
-        mbti_completed: mbti.rowCount > 0,
-        disc_completed: disc.rowCount > 0,
-        papi_completed: papi.rowCount > 0,
+        mbti_completed: (mbti.rowCount ?? 0) > 0,
+        disc_completed: (disc.rowCount ?? 0) > 0,
+        papi_completed: (papi.rowCount ?? 0) > 0,
       });
     }
   } catch (e) {

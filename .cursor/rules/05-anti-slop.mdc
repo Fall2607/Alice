@@ -1,0 +1,29 @@
+---
+description: Elimination of AI tropes, filler buzzwords, robotic code comments, and generic templates
+globs: **/*.{ts,tsx,md}
+---
+
+# Anti-Slop Guardrails & Human Copywriting
+Adapted from `miqdadbadjuber/anti-slop` and `hardikpandya/stop-slop`.
+
+## 1. Hard Prohibitions
+- **NO Purple AI Gradients**: No `from-purple-600 to-indigo-600` or arbitrary neon backgrounds.
+- **NO Obvious Code Comments**:
+  - Remove redundant comments that only narrate the syntax (e.g., `// Render table`, `// Return response`, `// Handle click`).
+  - Keep ONLY non-obvious business domain logic comments (e.g. cut-off period, geofence radius calculation).
+- **NO AI Fluff Words in Copy & Toasts**:
+  - Banned: *seamless*, *elevate*, *leverage*, *delve*, *robust*, *game-changer*, *streamline*, *testament*.
+  - Write concise, direct human copy.
+
+## 2. Copywriting & Messages
+- **No Throat-Clearing**: Get directly to the point.
+  - Bad: "Dalam rangka meningkatkan kedisiplinan dan efisiensi kerja karyawan..."
+  - Good: "Plotting Jadwal Shift - Periode 26 Okt s/d 25 Nov"
+- **Clear & Actionable Error Messages**: State what went wrong and how the user can resolve it.
+  - Bad: "Oops! Terjadi kesalahan tak terduga."
+  - Good: "Gagal menyimpan absensi: GPS terdeteksi berada di luar radius 2 km dari RSU Avisena."
+
+## 3. Mobile & Delivery Guardrails
+- **Zero Horizontal Overflow**: Ensure components have `max-w-full` and proper flex wrapping on mobile screens (`< 640px`).
+- **Touch Targets**: Mobile buttons and clickable icons must have minimum `44x44px` clickable area (`min-h-[44px]` or `p-2.5`).
+

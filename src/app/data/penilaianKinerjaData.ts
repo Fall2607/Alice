@@ -49,7 +49,7 @@ export interface KaryawanKontrakItem {
     norma: number;
     kategoriNorma: "KURANG" | "CUKUP" | "BAIK" | "EXCELENT";
     rekomendasi: {
-      tipe: "KONTRAK" | "TETAP" | "MUTASI" | "PROMOSI" | "DEMOSI";
+      tipe: "KONTRAK" | "TETAP" | "MUTASI" | "PROMOSI" | "DEMOSI" | "TIDAK_LANJUT";
       detail: string;
     };
   };

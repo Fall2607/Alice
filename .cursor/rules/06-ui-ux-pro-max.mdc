@@ -1,0 +1,29 @@
+---
+description: UI/UX Pro Max standards for enterprise dashboards, tables, and data grids adapted from nextlevelbuilder/ui-ux-pro-max-skill
+globs: src/app/(admin)/**/*.tsx
+---
+
+# UI/UX Pro Max Rules (nextlevelbuilder/ui-ux-pro-max-skill)
+
+## 1. Full-Width Canvas for Admin Tables
+- Do not constrain data tables with artificial narrow widths (`max-w-7xl mx-auto`).
+- Use uniform dashboard outer padding (`p-6` or `p-8`) across sibling pages.
+- Ensure horizontal tables are wrapped in `<div className="overflow-x-auto">`.
+
+## 2. Table Architecture
+- Standardize thead with executive primary-dark style (`bg-primary-dark` / `#05445e` with white uppercase text).
+- Use generous cell padding (`px-6 py-4`).
+- Differentiate row states:
+  - Critical/Urgent: `bg-red-50/70 hover:bg-red-100/70`
+  - Warning/Pending: `bg-amber-50/40 hover:bg-amber-100/40`
+  - Normal: `bg-white hover:bg-slate-50`
+
+## 3. Filter Grid Standard
+- 5-Column filter grid: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6`.
+- SearchableSelect / library-styled dropdowns.
+- Clear search input with left icon.
+
+## 4. Typography & Numbers
+- Strict `font-mono tabular-nums` for all dates, times, NIP/NIK, scores, and countdowns.
+- High-contrast rounded-full status badges.
+

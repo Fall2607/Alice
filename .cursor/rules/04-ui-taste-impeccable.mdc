@@ -1,0 +1,31 @@
+---
+description: High-fidelity UI design taste, visual hierarchy, spatial polish, and bespoke craftsmanship
+globs: src/app/**/*.{tsx,jsx,css},src/components/**/*.{tsx,jsx,css}
+---
+
+# UI Design Taste & Impeccable Craft
+Adapted from `leonxlnx/taste-skill` and `pbakaus/impeccable`.
+
+## Core Guidelines
+- **Avoid Card-Soup**: Do not wrap every tiny element in nested cards with borders. Use whitespace, subtle dividers (`divide-y divide-slate-100`), or grouped lists to organize information.
+- **Color Discipline**:
+  - Primary brand color: `#0173b6` (Alice HRIS Corporate Blue).
+  - Neutrals: Tailwind `slate` palette (`slate-900` text, `slate-500` subtext, `slate-100` borders/bg).
+  - Semantic status colors:
+    - Success/Hadir: `emerald`
+    - Warning/Terlambat: `amber`
+    - Danger/Ditolak/Libur: `rose`
+    - Info/Shift: `blue` / `slate`
+  - Strictly avoid random purple/violet AI gradients.
+- **Typographic Polish**:
+  - Use `tabular-nums` for all numbers, timestamps, coordinates, and percentages to avoid layout jumps.
+  - Limit font sizes in a single view to 3–4 standard Tailwind scale sizes.
+  - Table headers: `text-xs font-semibold uppercase tracking-wider text-slate-500`.
+- **Micro-Interactions**:
+  - Interactive buttons must have active states (`active:scale-[0.98] transition-all`).
+  - Inputs must have clear focus rings (`focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6]`).
+  - Accessible `focus-visible` ring on keyboard focus.
+- **Empty & Loading States**:
+  - Empty states must provide actionable guidance (e.g. "Belum ada jadwal shift untuk periode ini. [Generate Template]").
+  - Skeletons and spinners (`Loader2` spin) must reflect the exact layout of the data being loaded.
+

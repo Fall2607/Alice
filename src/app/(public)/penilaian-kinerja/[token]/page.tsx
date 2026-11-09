@@ -69,7 +69,7 @@ export default function PenilaianKinerjaPublicPage({ params }: PageProps) {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-3xl mx-auto py-5 sm:py-8 px-3 sm:px-6 space-y-5">
+      <main className="max-w-6xl mx-auto py-6 sm:py-8 px-4 sm:px-6 space-y-6">
         {/* Banner Sukses (Jika Baru Disimpan) */}
         {isCompleted && submissionResult && (
           <div className="p-6 rounded-xl border border-emerald-500 bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">

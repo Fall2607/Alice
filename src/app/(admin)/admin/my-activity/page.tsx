@@ -1,8 +1,3 @@
-/** Path: app/(admin)/admin/self-service/page.tsx
- * Deskripsi: Antarmuka mandiri untuk Karyawan (Cuti, Lembur, dan Log Absensi).
- * Perubahan: Pemisahan komponen ke dalam tab untuk maintenance yang lebih baik.
- */
-
 "use client";
 
 import React, { useState } from "react";
@@ -24,72 +19,74 @@ export default function SelfServicePage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("absensi");
 
   return (
-    <div className="p-8 font-sans max-w-7xl mx-auto min-h-screen">
+    <div className="p-8 font-sans min-h-screen space-y-6">
       {/* Header Halaman */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-slate-200/80">
         <div>
-          <div className="flex items-center gap-2 mb-1 text-blue-600 font-black uppercase tracking-[0.3em] text-[9px]">
-            <Timer size={12} />
-            <span>Manajemen Waktu</span>
+          <div className="flex items-center gap-2 mb-1 text-primary font-bold uppercase tracking-wider text-xs">
+            <Timer size={15} />
+            <span>Manajemen Waktu & Kehadiran</span>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">
+          <h1 className="text-3xl font-bold text-primary-dark tracking-tight">
             Aktivitas Saya
           </h1>
-          <p className="text-slate-400 font-medium text-xs mt-2">
-            Pantau kehadiran dan kelola permohonan administrasi Anda.
+          <p className="text-slate-500 font-medium text-sm mt-1">
+            Pantau riwayat presensi harian, jadwal dinas unit kerja, dan administrasi permohonan mandiri Anda.
           </p>
         </div>
 
         {/* Tab Switcher Alice Style */}
-        <div className="flex bg-slate-100 p-1 rounded-[20px] border border-slate-200 shadow-inner">
+        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab("absensi")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === "absensi" ? "bg-white text-blue-600 shadow-md" : "text-slate-400 hover:text-slate-600"}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all min-h-[44px] whitespace-nowrap active:scale-[0.98] ${
+              activeTab === "absensi"
+                ? "bg-white text-primary shadow-xs border border-slate-200/80 font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
           >
-            <Calendar size={14} /> Absensi
+            <Calendar size={15} /> Presensi
           </button>
           <button
             onClick={() => setActiveTab("shift")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === "shift" ? "bg-white text-blue-600 shadow-md" : "text-slate-400 hover:text-slate-600"}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all min-h-[44px] whitespace-nowrap active:scale-[0.98] ${
+              activeTab === "shift"
+                ? "bg-white text-primary shadow-xs border border-slate-200/80 font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
           >
-            <RefreshCw size={14} /> Shift
+            <RefreshCw size={15} /> Jadwal Shift
           </button>
           <button
             onClick={() => setActiveTab("cuti")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === "cuti" ? "bg-white text-blue-600 shadow-md" : "text-slate-400 hover:text-slate-600"}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all min-h-[44px] whitespace-nowrap active:scale-[0.98] ${
+              activeTab === "cuti"
+                ? "bg-white text-primary shadow-xs border border-slate-200/80 font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
           >
-            <CalendarDays size={14} /> Cuti
+            <CalendarDays size={15} /> Cuti
           </button>
           <button
             onClick={() => setActiveTab("lembur")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === "lembur" ? "bg-white text-blue-600 shadow-md" : "text-slate-400 hover:text-slate-600"}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all min-h-[44px] whitespace-nowrap active:scale-[0.98] ${
+              activeTab === "lembur"
+                ? "bg-white text-primary shadow-xs border border-slate-200/80 font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
           >
-            <Clock size={14} /> Lembur
+            <Clock size={15} /> Lembur
           </button>
         </div>
       </div>
 
       {/* Render Active Tab */}
-      {activeTab === "absensi" && <AbsensiTab />}
-      {activeTab === "shift" && <ShiftTab />}
-      {activeTab === "cuti" && <CutiTab />}
-      {activeTab === "lembur" && <LemburTab />}
-
-      <div className="text-center py-10 opacity-20 mt-10">
-        <p className="text-[8px] font-black text-slate-900 uppercase tracking-[1.2em]">
-          Alice Digital Platform
-        </p>
+      <div className="transition-opacity duration-200">
+        {activeTab === "absensi" && <AbsensiTab />}
+        {activeTab === "shift" && <ShiftTab />}
+        {activeTab === "cuti" && <CutiTab />}
+        {activeTab === "lembur" && <LemburTab />}
       </div>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #e2e8f0;
-          border-radius: 10px;
-        }
-      `}</style>
     </div>
   );
 }

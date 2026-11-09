@@ -1,0 +1,59 @@
+---
+description: Clean Code TypeScript standards for naming, functions, types, and error handling
+globs: **/*.{ts,tsx}
+---
+
+# Clean Code TypeScript Standards
+Adapted from `labs42io/clean-code-typescript` and `PatrickJS/awesome-cursorrules`.
+
+## Naming Conventions
+- **Intention-Revealing**: Choose descriptive names. A reader should know what a variable represents without reading the implementation.
+  - Good: `karyawanList`, `attendanceRecord`, `isFaceMatched`
+  - Bad: `k`, `rec`, `flag`, `data1`
+- **Booleans**: Always prefix boolean variables and function returns with `is`, `has`, `can`, or `should`.
+  - Good: `isLoading`, `hasPermission`, `canClockIn`, `shouldRefresh`
+  - Bad: `loading`, `permission`, `clockIn`
+- **Functions**: Use active verbs:
+  - Good: `calculateWorkingHours`, `verifyGeofence`, `fetchRosterByPeriod`
+  - Bad: `hours`, `geofenceCheck`, `roster`
+- **Constants**: Use `UPPER_SNAKE_CASE` only for truly immutable global config values:
+  - Good: `DEFAULT_RADIUS_METERS = 2000`, `MAX_RETRIES = 3`
+- **Interfaces & Types**: Use `PascalCase`. Do NOT prefix with `I`.
+  - Good: `UserProfile`, `AttendancePayload`
+  - Bad: `IUserProfile`, `t_attendance_payload`
+
+## Functions & Architecture
+- **Single Responsibility (SRP)**: Each function should do exactly one thing well. If a function is doing validation, computation, and DB query, decompose it into smaller pure helper functions.
+- **Limit Arguments**: Keep arguments to 1 or 2. If 3 or more arguments are needed, use a single options object with a named interface:
+  ```ts
+  interface GenerateRosterOptions {
+    readonly month: number;
+    readonly year: number;
+    readonly unitId?: string;
+  }
+  export function generateRosterTemplate(options: GenerateRosterOptions) { ... }
+  ```
+- **No Flag Arguments**: Do not pass booleans that branch the entire function logic. Split into two functions (e.g. `exportExcelFull()` and `exportExcelSummary()` instead of `exportExcel(isFull: boolean)`).
+- **Guard Clauses & Early Returns**: Fail fast. Put parameter validation and permission checks at the very top with immediate returns, leaving the happy path clean and un-nested.
+- **Immutability & Pure Functions**: Avoid mutating parameters in place. Use spread operators or pure transformations (`map`, `filter`, `reduce`).
+
+## TypeScript Type System
+- **No `any`**: Strictly disallow `any`. If type is genuinely unknown (e.g. external API payload), use `unknown` and validate via type guards or Zod/assertions.
+- **Prefer `interface` over `type`** for object contracts.
+- **Avoid TypeScript `enum`**:
+  ```ts
+  export const ATTENDANCE_STATUS = {
+    HADIR: "Hadir",
+    TERLAMBAT: "Terlambat",
+    IZIN: "Izin",
+    SAKIT: "Sakit",
+    ALPHA: "Alpha",
+  } as const;
+  export type AttendanceStatus = typeof ATTENDANCE_STATUS[keyof typeof ATTENDANCE_STATUS];
+  ```
+- **Readonly Properties**: Mark fields that should not be mutated with `readonly`.
+
+## Error Handling
+- Never use empty catch blocks (`catch (err) {}`). Always log the error with contextual metadata or rethrow a domain-specific error.
+- Prefer returning structured result objects `{ success: true, data } | { success: false, error }` in internal business logic when appropriate.
+

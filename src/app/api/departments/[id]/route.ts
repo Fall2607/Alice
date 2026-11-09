@@ -3,9 +3,9 @@ import pool from "@/app/lib/db"; // Pastikan path ke koneksi pool Anda benar
 
 // Tipe untuk parameter dari URL dinamis
 type RouteContext = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 /**

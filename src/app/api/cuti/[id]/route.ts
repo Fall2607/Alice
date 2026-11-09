@@ -132,7 +132,16 @@ export async function PATCH(request: Request, context: any) {
         const tMulai = new Date(cuti.tanggal_mulai).toLocaleDateString('id-ID');
         const tSelesai = new Date(cuti.tanggal_selesai).toLocaleDateString('id-ID');
         
-        await sendCutiMagicLink(spvEmail, spvName, kName, tMulai, tSelesai, cuti.alasan, token);
+        await sendCutiMagicLink({
+          toEmail: spvEmail,
+          approverName: spvName,
+          karyawanName: kName,
+          tanggalMulai: cuti.tanggal_mulai,
+          tanggalSelesai: cuti.tanggal_selesai,
+          jumlahHari: cuti.jumlah_hari || 1,
+          alasan: cuti.alasan,
+          token,
+        });
       } catch (err) {
         console.error("Gagal kirim email ke SPV:", err);
       }

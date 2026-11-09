@@ -1,0 +1,76 @@
+# Alice HRIS - Cursor Rules
+# Adapted from: labs42io/clean-code-typescript, pontusab/cursorrules, midudev/cursor-rules, PatrickJS/awesome-cursorrules, leonxlnx/taste-skill, pbakaus/impeccable, miqdadbadjuber/anti-slop, hardikpandya/stop-slop
+
+You are an expert full-stack TypeScript engineer working on the Alice HRIS codebase.
+
+## Tech Stack & Architecture
+- Next.js 15 (App Router, Turbopack)
+- React 19 (Server Components first, Client Components when required)
+- TypeScript 5 (Strict Mode)
+- PostgreSQL via `pg` Connection Pool (`@/app/lib/db`)
+- Tailwind CSS v4 & Lucide React
+- Timezone: Asia/Jakarta (WIB)
+- Attendance & Roster Cut-off Period: 26th of previous month to 25th of current month
+
+## 1. Clean Code TypeScript (labs42io)
+- **Meaningful Names**: Use intention-revealing names (`karyawan`, `shiftSchedule`). Avoid single-letter or cryptic abbreviations.
+- **Booleans**: Prefix with `is`, `has`, `can`, `should` (e.g. `isLoading`, `hasFaceDescriptor`, `isEarlyOut`).
+- **Functions**:
+  - Keep functions small and adhere to Single Responsibility Principle (SRP).
+  - Limit arguments to 1-2. If more are needed, use a destructured object with a descriptive interface.
+  - No flag arguments (`boolean` toggles that drastically change function behavior). Split into two functions instead.
+  - Use guard clauses and return early. Keep the happy path at the end of the function without deep nesting.
+  - Avoid side-effects. Do not mutate object/array arguments in place; return new immutable copies.
+- **Types**:
+  - Never use `any`. Use `unknown` with type narrowing/guards if the shape is uncertain.
+  - Prefer `interface` over `type` for object shapes.
+  - Avoid TypeScript `enum`. Use `const` objects with `as const` and indexed union types.
+  - Use `readonly` for immutable properties and arrays.
+- **Error Handling**: Never swallow errors (`catch {}`). Always log with context or return structured error responses.
+
+## 2. Next.js 15 & React 19
+- **Server Components by Default**:
+  - Keep page files (`page.tsx`) and data-fetching components as RSC.
+  - Use `'use client'` only when state (`useState`), hooks (`useEffect`, `useRef`), event handlers (`onClick`), or browser APIs (GPS, camera) are strictly needed.
+  - Push interactive Client Components down to the leaves of the component tree.
+- **Next.js 15 Async Route Params**:
+  - `params` and `searchParams` in pages and Route Handlers are Promises. Always `await params`.
+- **Route Handlers (`src/app/api/**/route.ts`)**:
+  - Always return `NextResponse.json(data, { status })` with proper HTTP status codes (200, 201, 400, 401, 403, 404, 500).
+  - Wrap logic in `try...catch` blocks to prevent unhandled rejections.
+  - Add `export const dynamic = 'force-dynamic'` for endpoints reading headers/cookies or returning real-time data.
+
+## 3. PostgreSQL & Database (`pg`)
+- **Strict Parameterized Queries**:
+  - NEVER concatenate or interpolate raw strings into SQL queries. Always use `$1, $2, ...` to prevent SQL Injection.
+  - Array lookups: use `ANY($1::uuid[])` or `ANY($1::text[])`.
+- **Pool Management**:
+  - Import pool from `@/app/lib/db`. Never instantiate `new Pool()` inside route handlers.
+  - For transactions (`client = await pool.connect()`), always release in `finally`:
+    ```ts
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // queries...
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    ```
+
+## 4. UI Design Taste & Impeccable Craft (leonxlnx/taste-skill, pbakaus/impeccable)
+- **Eliminate Card-Soup**: Avoid wrapping every metric or item in nested bordered cards. Use clean whitespace and subtle dividers (`divide-y divide-slate-100`).
+- **Brand Palette Anchor**: Primary corporate blue `#0173b6`, slate neutrals, and functional status colors (Emerald/Amber/Rose). No arbitrary purple/violet AI gradients.
+- **Typographic Precision**:
+  - Use `tabular-nums` for numbers, timestamps, coordinates, and percentages to avoid layout shifts.
+  - Limit font sizes to 3–4 standard levels per screen.
+- **Micro-Interactions**: Provide physical active states (`active:scale-[0.98] transition-all`) and clean focus rings (`focus-visible:ring-2 focus-visible:ring-blue-500/40`).
+
+## 5. Anti-Slop Guardrails & Human Copy (miqdadbadjuber/anti-slop, hardikpandya/stop-slop)
+- **No Robotic Code Comments**: Delete obvious comments that state the syntax (e.g. `// Import react`, `// Render table`). Keep only real business domain logic comments.
+- **Banned AI Buzzwords**: Never use *seamless*, *elevate*, *leverage*, *delve*, *robust*, *game-changer*, *streamline*, *testament* in copy, toasts, or error dialogs.
+- **Direct & Actionable Copy**: No throat-clearing openings or dramatic false contrasts. Write concise, human-first Indonesian/English messages.
+- **Mobile Touch Gate**: Ensure minimum 44×44px touch targets on mobile and zero horizontal layout overflow.

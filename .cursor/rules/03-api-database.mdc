@@ -1,0 +1,67 @@
+---
+description: Route Handlers, PostgreSQL database operations, and security standards
+globs: src/app/api/**/*.{ts,tsx},src/app/lib/**/*.{ts,tsx}
+---
+
+# API & PostgreSQL Database Standards
+Adapted from `pontusab/cursorrules` and `PatrickJS/awesome-cursorrules`.
+
+## Route Handlers (`src/app/api/**/route.ts`)
+- **HTTP Methods**: Export uppercase named handlers: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`.
+- **Dynamic Configuration**: When reading dynamic request data (headers, cookies, or real-time DB queries), specify:
+  ```ts
+  export const dynamic = 'force-dynamic';
+  ```
+- **Consistent Response Formatting**:
+  - Always return `NextResponse.json(...)` with explicit HTTP status codes.
+  - Success responses:
+    ```ts
+    return NextResponse.json({ success: true, data: result }, { status: 200 });
+    ```
+  - Validation error:
+    ```ts
+    return NextResponse.json({ error: "NIP dan tanggal wajib diisi" }, { status: 400 });
+    ```
+  - Server error:
+    ```ts
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    ```
+- **Error Boundaries**: Wrap every handler in a `try...catch` block. Log the detailed error on the server (`console.error('[API_NAME_ERROR]', error)`) and return a clean, localized error message to the client.
+
+## PostgreSQL Security & Pool Hygiene (`pg`)
+- **Zero SQL Injection Tolerance**:
+  - Never interpolate or concatenate parameters directly into SQL queries:
+    ```ts
+    // BAD
+    await pool.query(`SELECT * FROM absensi WHERE karyawan_id = '${id}'`);
+
+    // GOOD
+    await pool.query(`SELECT * FROM absensi WHERE karyawan_id = $1`, [id]);
+    ```
+  - Use parameterized array queries:
+    ```ts
+    await pool.query(`SELECT * FROM karyawan WHERE id = ANY($1::uuid[])`, [idList]);
+    ```
+- **Connection Management**:
+  - Always import the shared pool from `@/app/lib/db`.
+  - For standard queries, use `pool.query(...)`.
+  - For atomic multi-step transactions, check out a client from the pool and ensure release in a `finally` block:
+    ```ts
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // transactional queries
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    ```
+
+## Domain Specifics
+- **Timezone**: All date/time operations must align with `Asia/Jakarta` (WIB).
+- **Roster & Attendance Cut-off**: 26th of previous month to 25th of selected month.
+- **Geofence Verification**: Always validate coordinates against the designated center point and enforce maximum radius before recording attendance.
+

@@ -1,134 +1,143 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   MOCK_KARYAWAN_KONTRAK,
   KaryawanKontrakItem,
   getNormaColorBadge,
 } from "@/app/data/penilaianKinerjaData";
-import FormPenilaianKinerjaView from "@/app/components/admin/FormPenilaianKinerjaView";
+import FormPenilaianKinerjaView, {
+  FormAssessmentData,
+} from "@/app/components/admin/FormPenilaianKinerjaView";
+import SearchableSelect from "@/app/components/admin/SearchableSelect";
+import Pagination from "@/app/components/admin/Pagination";
 import { showSuccessToast, showInfoToast } from "@/app/components/admin/Alert";
 import {
   FileSignature,
   Search,
-  Filter,
   Send,
   Mail,
   Copy,
   ExternalLink,
   CheckCircle2,
   Clock,
-  AlertTriangle,
-  UserCheck,
-  ChevronRight,
-  ShieldCheck,
-  Eye,
-  Calendar,
-  Building2,
-  Briefcase,
   X,
-  Sparkles,
-  Layers,
-  ArrowRight,
-  Users,
   Check,
 } from "lucide-react";
 
+type FormOption = { value: string; label: string };
+
+const LEVEL_OPTIONS: FormOption[] = [
+  { value: "all", label: "Semua Level" },
+  { value: "Staff", label: "Staff (Penilai: Koordinator)" },
+  { value: "Koordinator", label: "Koordinator (Penilai: SPV)" },
+  { value: "SPV", label: "SPV (Penilai: Direktur)" },
+];
+
+const STATUS_OPTIONS: FormOption[] = [
+  { value: "all", label: "Semua Status" },
+  { value: "BELUM_DIKIRIM", label: "Belum Dikirim" },
+  { value: "MENUNGGU_PENILAIAN", label: "Menunggu Penilaian" },
+  { value: "SELESAI", label: "Evaluasi Selesai" },
+];
+
+const URGENCY_OPTIONS: FormOption[] = [
+  { value: "all", label: "Semua Sisa Waktu" },
+  { value: "LE_30", label: "≤ 30 Hari (Kritis)" },
+  { value: "LE_60", label: "≤ 60 Hari" },
+];
+
 export default function KontrakPegawaiPage() {
-  // State data karyawan kontrak (bisa diupdate interaktif pada sesi ini)
-  const [karyawanList, setKaryawanList] = useState<KaryawanKontrakItem[]>(MOCK_KARYAWAN_KONTRAK);
+  const [karyawanList, setKaryawanList] =
+    useState<readonly KaryawanKontrakItem[]>(MOCK_KARYAWAN_KONTRAK);
 
-  // Filter & Search
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterLevel, setFilterLevel] = useState<string>("ALL");
-  const [filterStatus, setFilterStatus] = useState<string>("ALL");
-  const [filterUrgency, setFilterUrgency] = useState<string>("ALL");
+  const [selectedLevel, setSelectedLevel] = useState<FormOption | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<FormOption | null>(null);
+  const [selectedUrgency, setSelectedUrgency] = useState<FormOption | null>(null);
 
-  // Selection untuk blast massal
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  // Modal State
-  const [activeKaryawanForm, setActiveKaryawanForm] = useState<KaryawanKontrakItem | null>(null);
+  const [activeKaryawanForm, setActiveKaryawanForm] =
+    useState<KaryawanKontrakItem | null>(null);
+
   const [blastModalData, setBlastModalData] = useState<{
-    items: KaryawanKontrakItem[];
-    isOpen: boolean;
+    readonly items: readonly KaryawanKontrakItem[];
+    readonly isOpen: boolean;
   }>({
     items: [],
     isOpen: false,
   });
 
-  // State copy feedback
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  // Perhitungan ringkasan statistik
-  const stats = useMemo(() => {
-    const total = karyawanList.length;
-    const urgent = karyawanList.filter((k) => k.sisa_hari <= 30).length;
-    const menunggu = karyawanList.filter((k) => k.statusPenilaian === "MENUNGGU_PENILAIAN").length;
-    const selesai = karyawanList.filter((k) => k.statusPenilaian === "SELESAI").length;
-    const belum = karyawanList.filter((k) => k.statusPenilaian === "BELUM_DIKIRIM").length;
+  // Filter dan sort dari sisa kontrak paling dekat ke paling lama (ascending)
+  const sortedAndFilteredList = useMemo(() => {
+    return karyawanList
+      .filter((k) => {
+        const term = searchTerm.toLowerCase();
+        const searchMatch =
+          k.nama_lengkap.toLowerCase().includes(term) ||
+          k.nip.toLowerCase().includes(term) ||
+          k.unit.toLowerCase().includes(term) ||
+          k.jabatan.toLowerCase().includes(term) ||
+          k.penilai.nama.toLowerCase().includes(term) ||
+          k.penilai.jabatan.toLowerCase().includes(term);
 
-    return { total, urgent, menunggu, selesai, belum };
-  }, [karyawanList]);
+        if (!searchMatch) return false;
 
-  // Filter data karyawan
-  const filteredList = useMemo(() => {
-    return karyawanList.filter((k) => {
-      // Search
-      const searchMatch =
-        k.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        k.nip.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        k.unit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        k.jabatan.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        k.penilai.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        k.penilai.jabatan.toLowerCase().includes(searchTerm.toLowerCase());
+        if (selectedLevel && selectedLevel.value !== "all" && k.level !== selectedLevel.value) {
+          return false;
+        }
 
-      if (!searchMatch) return false;
+        if (
+          selectedStatus &&
+          selectedStatus.value !== "all" &&
+          k.statusPenilaian !== selectedStatus.value
+        ) {
+          return false;
+        }
 
-      // Filter Level
-      if (filterLevel !== "ALL" && k.level !== filterLevel) return false;
+        if (selectedUrgency && selectedUrgency.value === "LE_30" && k.sisa_hari > 30) {
+          return false;
+        }
+        if (selectedUrgency && selectedUrgency.value === "LE_60" && k.sisa_hari > 60) {
+          return false;
+        }
 
-      // Filter Status
-      if (filterStatus !== "ALL" && k.statusPenilaian !== filterStatus) return false;
+        return true;
+      })
+      .sort((a, b) => a.sisa_hari - b.sisa_hari); // Sort dari paling dekat ke paling lama
+  }, [karyawanList, searchTerm, selectedLevel, selectedStatus, selectedUrgency]);
 
-      // Filter Urgensi
-      if (filterUrgency === "LE_30" && k.sisa_hari > 30) return false;
-      if (filterUrgency === "LE_60" && k.sisa_hari > 60) return false;
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedLevel, selectedStatus, selectedUrgency]);
 
-      return true;
-    });
-  }, [karyawanList, searchTerm, filterLevel, filterStatus, filterUrgency]);
+  const itemOffset = (currentPage - 1) * itemsPerPage;
+  const currentItems = sortedAndFilteredList.slice(itemOffset, itemOffset + itemsPerPage);
+  const totalPages = Math.ceil(sortedAndFilteredList.length / itemsPerPage);
 
-  // Handler Select All
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedIds(filteredList.map((k) => k.id));
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  // Handler Select Single
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
-  // Salin Magic Link ke Clipboard
   const handleCopyMagicLink = (token: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const url = `${window.location.origin}/penilaian-kinerja/${token}`;
     navigator.clipboard.writeText(url);
     setCopiedToken(token);
-    showSuccessToast("Tautan Magic Link Penilaian berhasil disalin!");
+    showSuccessToast("Tautan Magic Link Penilaian berhasil disalin.");
     setTimeout(() => {
       setCopiedToken(null);
     }, 2500);
   };
 
-  // Trigger Blast Modal untuk 1 orang
   const handleOpenSingleBlast = (k: KaryawanKontrakItem) => {
     setBlastModalData({
       items: [k],
@@ -136,11 +145,10 @@ export default function KontrakPegawaiPage() {
     });
   };
 
-  // Trigger Blast Modal untuk multiple terpilih
   const handleOpenBulkBlast = () => {
     const selectedItems = karyawanList.filter((k) => selectedIds.includes(k.id));
     if (selectedItems.length === 0) {
-      showInfoToast("Pilih minimal 1 karyawan untuk dikirimkan link penilaian.");
+      showInfoToast("Pilih minimal 1 karyawan untuk dikirimkan link evaluasi.");
       return;
     }
     setBlastModalData({
@@ -149,7 +157,6 @@ export default function KontrakPegawaiPage() {
     });
   };
 
-  // Eksekusi Blast Email (Simulasi Frontend)
   const handleExecuteBlast = () => {
     const idsToUpdate = blastModalData.items.map((k) => k.id);
     const nowIso = new Date().toISOString();
@@ -164,18 +171,17 @@ export default function KontrakPegawaiPage() {
           };
         }
         return k;
-      })
+      }),
     );
 
     showSuccessToast(
-      `Berhasil melakukan blast Magic Link ke ${blastModalData.items.length} pimpinan penilai!`
+      `Magic link berhasil dikirimkan ke ${blastModalData.items.length} pimpinan penilai.`,
     );
     setBlastModalData({ items: [], isOpen: false });
     setSelectedIds([]);
   };
 
-  // Callback saat form penilaian disimpan dari modal
-  const handleSaveForm = (resultData: any) => {
+  const handleSaveForm = (resultData: FormAssessmentData) => {
     if (!activeKaryawanForm) return;
 
     setKaryawanList((prev) =>
@@ -192,603 +198,417 @@ export default function KontrakPegawaiPage() {
               kategoriNorma: resultData.kategoriNorma,
               rekomendasi: {
                 tipe: resultData.rekomendasiUtama,
-                detail: resultData.catatanSaran || "Penilaian telah diverifikasi pimpinan.",
+                detail:
+                  resultData.catatanSaran ||
+                  "Penilaian kinerja telah diverifikasi resmi oleh pimpinan.",
               },
             },
           };
         }
         return k;
-      })
+      }),
     );
 
     showSuccessToast(
-      `Hasil penilaian kinerja ${activeKaryawanForm.nama_lengkap} berhasil disimpan!`
+      `Hasil penilaian kinerja ${activeKaryawanForm.nama_lengkap} berhasil disimpan.`,
     );
     setActiveKaryawanForm(null);
   };
 
+  const renderTableRows = (employees: readonly KaryawanKontrakItem[]) => {
+    return employees.map((employee) => {
+      const isSelected = selectedIds.includes(employee.id);
+      const isUrgent = employee.sisa_hari <= 30;
+
+      const rowClass = isUrgent
+        ? "bg-red-50/70 hover:bg-red-100/70"
+        : employee.statusPenilaian === "MENUNGGU_PENILAIAN"
+          ? "bg-amber-50/40 hover:bg-amber-100/40"
+          : "bg-white hover:bg-slate-50";
+
+      return (
+        <tr
+          key={employee.id}
+          className={`${rowClass} border-b border-slate-300 last:border-b-0 ${isSelected ? "bg-blue-50/60" : ""
+            }`}
+        >
+          {/* Checkbox */}
+          <td className="px-6 py-4 text-center">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => handleToggleSelect(employee.id)}
+              className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 cursor-pointer"
+            />
+          </td>
+
+          {/* Nama Pegawai & NIP */}
+          <td className="px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="font-semibold text-slate-900 leading-snug">
+                  {employee.gelar_depan ? `${employee.gelar_depan} ` : ""}
+                  {employee.nama_lengkap}
+                  {employee.gelar_belakang ? `, ${employee.gelar_belakang}` : ""}
+                </p>
+                <p className="text-xs text-slate-500 font-mono tabular-nums mt-0.5">
+                  NIP: {employee.nip} &bull; {employee.unit}
+                </p>
+              </div>
+            </div>
+          </td>
+
+          {/* Level & Jabatan */}
+          <td className="px-6 py-4">
+            <p className="font-medium text-slate-900">{employee.jabatan}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span
+                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${employee.level === "SPV"
+                    ? "bg-purple-100 text-purple-800"
+                    : employee.level === "Koordinator"
+                      ? "bg-indigo-100 text-indigo-800"
+                      : "bg-blue-100 text-blue-800"
+                  }`}
+              >
+                {employee.level}
+              </span>
+              {employee.hasSubordinates && (
+                <span className="text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full font-medium">
+                  + Manajerial
+                </span>
+              )}
+            </div>
+          </td>
+
+          {/* Sisa Masa Kontrak */}
+          <td className="px-6 py-4 font-mono tabular-nums">
+            <div className="flex items-center gap-2">
+              <p
+                className={`font-bold text-sm ${isUrgent ? "text-red-700" : "text-slate-800"
+                  }`}
+              >
+                {employee.sisa_hari} Hari Lagi
+              </p>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              s/d {employee.tgl_selesai_kontrak}
+            </p>
+          </td>
+
+          {/* Atasan Penilai */}
+          <td className="px-6 py-4">
+            <p className="font-medium text-slate-900">{employee.penilai.nama}</p>
+            <p className="text-xs text-slate-500">{employee.penilai.jabatan}</p>
+          </td>
+
+          {/* Status Penilaian */}
+          <td className="px-6 py-4 text-center">
+            {employee.statusPenilaian === "SELESAI" && employee.hasil ? (
+              <div className="inline-flex flex-col items-center">
+                <span
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-full ${getNormaColorBadge(
+                    employee.hasil.kategoriNorma,
+                  )}`}
+                >
+                  Norma {employee.hasil.norma.toFixed(2)} ({employee.hasil.kategoriNorma})
+                </span>
+                <span className="text-[11px] text-slate-500 mt-1 font-medium">
+                  Rekomendasi: {employee.hasil.rekomendasi.tipe}
+                </span>
+              </div>
+            ) : employee.statusPenilaian === "MENUNGGU_PENILAIAN" ? (
+              <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+                Menunggu Penilaian
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">
+                Belum Dikirim
+              </span>
+            )}
+          </td>
+
+          {/* Aksi */}
+          <td className="px-6 py-4">
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => setActiveKaryawanForm(employee)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary-dark transition-colors"
+                title="Buka Form Penilaian Kinerja"
+              >
+                <FileSignature size={14} />
+                <span>Form Nilai</span>
+              </button>
+
+              <button
+                onClick={() => handleOpenSingleBlast(employee)}
+                className="p-1.5 text-slate-500 hover:text-emerald-600 transition-colors"
+                title="Kirim Magic Link ke Atasan Penilai"
+              >
+                <Mail size={18} />
+              </button>
+
+              <button
+                onClick={(e) => handleCopyMagicLink(employee.magicLinkToken, e)}
+                className={`p-1.5 transition-colors ${copiedToken === employee.magicLinkToken
+                    ? "text-emerald-600"
+                    : "text-slate-500 hover:text-primary"
+                  }`}
+                title="Salin Magic Link Penilaian"
+              >
+                {copiedToken === employee.magicLinkToken ? (
+                  <Check size={18} />
+                ) : (
+                  <Copy size={18} />
+                )}
+              </button>
+
+              <Link
+                href={`/penilaian-kinerja/${employee.magicLinkToken}`}
+                target="_blank"
+                className="p-1.5 text-blue-600 hover:text-blue-800 transition-colors"
+                title="Buka Form di Tab Baru"
+              >
+                <ExternalLink size={18} />
+              </Link>
+            </div>
+          </td>
+        </tr>
+      );
+    });
+  };
+
   return (
-    <div className="space-y-6 pb-16">
-      {/* Header Halaman */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-[#014e7a] to-[#0173b6] p-6 lg:p-8 rounded-2xl text-white shadow-xl shadow-blue-950/10">
+    <div className="p-8">
+      {/* Header Halaman (Identik dengan Manajemen Pegawai) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-cyan-200 text-xs font-bold uppercase tracking-wider backdrop-blur-md mb-3 border border-white/15">
-            <Sparkles size={14} className="text-cyan-300" />
-            Personalia &bullet; Evaluasi Masa Kontrak
-          </div>
-          <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-white">
-            Monitoring Habis Kontrak & Blast Penilaian
+          <h1 className="text-3xl font-bold text-primary-dark">
+            Monitoring Masa Kontrak Pegawai (PKWT)
           </h1>
-          <p className="text-sm font-medium text-slate-200 mt-2 max-w-2xl leading-relaxed">
-            Daftar karyawan yang akan mengakhiri masa kontrak dalam 3 bulan ke depan. Kirimkan email
-            magic link ke pimpinan langsung (Staff &rarr; Koordinator, Koordinator &rarr; SPV, SPV
-            &rarr; Direktur) untuk pengisian formulir evaluasi resmi RSU Avisena.
+          <p className="text-sm text-slate-500 mt-1">
+            Daftar pegawai dengan masa kontrak yang berakhir dalam 90 hari ke depan, diurutkan dari sisa masa kontrak terdekat.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3">
           <button
             onClick={handleOpenBulkBlast}
             disabled={selectedIds.length === 0}
-            className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm shadow-lg transition-all ${
-              selectedIds.length > 0
-                ? "bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-600/30 active:scale-95"
-                : "bg-white/10 text-slate-300 border border-white/10 cursor-not-allowed opacity-60"
-            }`}
+            className={`flex items-center gap-2 font-semibold py-2 px-4 rounded-lg transition-all ${selectedIds.length > 0
+                ? "bg-primary text-white hover:bg-primary-dark shadow-sm active:scale-95"
+                : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+              }`}
           >
-            <Send size={16} />
-            <span>Blast Link Terpilih ({selectedIds.length})</span>
+            <Send size={18} />
+            <span>Blast Magic Link ({selectedIds.length})</span>
           </button>
         </div>
       </div>
 
-      {/* Metric Cards Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Total Kontrak <= 3 Bulan */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Habis &le; 3 Bulan
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#0173b6] flex items-center justify-center font-black">
-              <Users size={18} />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl lg:text-3xl font-black text-slate-800">{stats.total}</span>
-            <span className="text-xs font-semibold text-slate-400">Pegawai</span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Seluruh unit kerja RSU Avisena</p>
-        </div>
-
-        {/* Urgensi Tinggi <= 30 Hari */}
-        <div className="bg-white p-5 rounded-2xl border border-rose-200/80 bg-gradient-to-br from-white to-rose-50/30 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">
-              Kritis (&le; 30 Hari)
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-black">
-              <AlertTriangle size={18} />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl lg:text-3xl font-black text-rose-600">{stats.urgent}</span>
-            <span className="text-xs font-semibold text-rose-400">Harus Segera Dinilai</span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Perlu prioritas blast pimpinan</p>
-        </div>
-
-        {/* Menunggu Penilaian */}
-        <div className="bg-white p-5 rounded-2xl border border-amber-200/80 bg-gradient-to-br from-white to-amber-50/30 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">
-              Menunggu Pimpinan
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-black">
-              <Clock size={18} />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl lg:text-3xl font-black text-amber-600">{stats.menunggu}</span>
-            <span className="text-xs font-semibold text-amber-500">Link Aktif</span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Email magic link telah terkirim</p>
-        </div>
-
-        {/* Selesai Dinilai */}
-        <div className="bg-white p-5 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/30 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-              Evaluasi Selesai
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">
-              <CheckCircle2 size={18} />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl lg:text-3xl font-black text-emerald-600">{stats.selesai}</span>
-            <span className="text-xs font-semibold text-emerald-500">Rekomendasi Siap</span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Siap diproses SK Perpanjangan/Tetap</p>
-        </div>
-      </div>
-
-      {/* Hierarki Penilaian Info Banner */}
-      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-slate-600 font-medium">
-        <div className="flex items-center gap-2 text-slate-800 font-bold">
-          <Layers size={16} className="text-[#0173b6]" />
-          <span>Aturan Hierarki Penilai Otomatis:</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            <b>Staff</b> &rarr; dinilai <b>Koordinator</b>
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700">
-            <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-            <b>Koordinator</b> &rarr; dinilai <b>SPV</b>
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700">
-            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-            <b>SPV</b> &rarr; dinilai <b>Direktur</b>
-          </span>
-        </div>
-      </div>
-
-      {/* Toolbar Filter & Search */}
-      <div className="bg-white p-4 lg:p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
+      {/* Grid Filter (Identik dengan grid 5 kolom Manajemen Pegawai) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className="relative lg:col-span-2">
           <input
             type="text"
+            placeholder="Cari NIP, nama pegawai, unit kerja, atau atasan..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Cari nama karyawan, NIP, unit, atau penilai..."
-            className="w-full bg-slate-50 border border-slate-200 text-slate-800 py-2.5 pl-10 pr-4 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6] transition-all"
+            className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm text-slate-900 focus:outline-none focus:border-primary"
           />
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <X size={14} />
-            </button>
-          )}
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            size={20}
+          />
         </div>
 
-        {/* Dropdown Filters */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Level Filter */}
-          <div className="relative">
-            <select
-              value={filterLevel}
-              onChange={(e) => setFilterLevel(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20"
-            >
-              <option value="ALL">Semua Level</option>
-              <option value="Staff">Level Staff (dinilai Koordinator)</option>
-              <option value="Koordinator">Level Koordinator (dinilai SPV)</option>
-              <option value="SPV">Level SPV (dinilai Direktur)</option>
-            </select>
-          </div>
+        <div>
+          <SearchableSelect
+            options={LEVEL_OPTIONS}
+            value={selectedLevel}
+            onChange={(val) => setSelectedLevel(val as FormOption | null)}
+            placeholder="Filter level..."
+          />
+        </div>
 
-          {/* Status Penilaian Filter */}
-          <div className="relative">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20"
-            >
-              <option value="ALL">Semua Status</option>
-              <option value="BELUM_DIKIRIM">Belum Dikirim</option>
-              <option value="MENUNGGU_PENILAIAN">Menunggu Penilaian</option>
-              <option value="SELESAI">Selesai</option>
-            </select>
-          </div>
+        <div>
+          <SearchableSelect
+            options={STATUS_OPTIONS}
+            value={selectedStatus}
+            onChange={(val) => setSelectedStatus(val as FormOption | null)}
+            placeholder="Filter status..."
+          />
+        </div>
 
-          {/* Sisa Waktu Filter */}
-          <div className="relative">
-            <select
-              value={filterUrgency}
-              onChange={(e) => setFilterUrgency(e.target.value)}
-              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold py-2.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20"
-            >
-              <option value="ALL">Semua Sisa Waktu</option>
-              <option value="LE_30">&le; 30 Hari (Kritis)</option>
-              <option value="LE_60">&le; 60 Hari</option>
-            </select>
-          </div>
-
-          {(searchTerm || filterLevel !== "ALL" || filterStatus !== "ALL" || filterUrgency !== "ALL") && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
-                setFilterLevel("ALL");
-                setFilterStatus("ALL");
-                setFilterUrgency("ALL");
-              }}
-              className="text-xs text-rose-600 hover:text-rose-700 font-bold px-2.5 py-2 hover:bg-rose-50 rounded-lg transition-colors"
-            >
-              Reset
-            </button>
-          )}
+        <div>
+          <SearchableSelect
+            options={URGENCY_OPTIONS}
+            value={selectedUrgency}
+            onChange={(val) => setSelectedUrgency(val as FormOption | null)}
+            placeholder="Filter sisa waktu..."
+          />
         </div>
       </div>
 
-      {/* Tabel Karyawan Kontrak */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      {/* Title Bar Tabel Tunggal */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-semibold text-primary-dark">
+          Daftar Kontrak Pegawai
+        </h2>
+        <span className="text-sm text-slate-600">
+          Total: <b className="text-slate-900 font-mono tabular-nums">{sortedAndFilteredList.length}</b> pegawai
+        </span>
+      </div>
+
+      {/* Tabel Utama Tunggal: Diurutkan dari paling dekat ke paling lama */}
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                <th className="py-4 px-4 w-12 text-center">
+          <table className="w-full text-sm text-left text-slate-500">
+            <thead className="text-xs text-white uppercase bg-primary-dark">
+              <tr>
+                <th scope="col" className="px-6 py-3.5 w-12 text-center">
                   <input
                     type="checkbox"
                     checked={
-                      filteredList.length > 0 && selectedIds.length === filteredList.length
+                      currentItems.length > 0 &&
+                      currentItems.every((k) => selectedIds.includes(k.id))
                     }
-                    onChange={handleSelectAll}
-                    className="w-4 h-4 rounded text-[#0173b6] focus:ring-[#0173b6] border-slate-300 cursor-pointer"
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const newIds = Array.from(
+                          new Set([...selectedIds, ...currentItems.map((k) => k.id)]),
+                        );
+                        setSelectedIds(newIds);
+                      } else {
+                        setSelectedIds(
+                          selectedIds.filter((id) => !currentItems.some((k) => k.id === id)),
+                        );
+                      }
+                    }}
+                    className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300 cursor-pointer"
                   />
                 </th>
-                <th className="py-4 px-4">Karyawan / Pegawai</th>
-                <th className="py-4 px-4">Level & Jabatan</th>
-                <th className="py-4 px-4">Sisa Masa Kontrak</th>
-                <th className="py-4 px-4">Pimpinan Penilai</th>
-                <th className="py-4 px-4 text-center">Status Evaluasi</th>
-                <th className="py-4 px-4 text-right">Aksi Penilaian</th>
+                <th scope="col" className="px-6 py-3.5">Nama Pegawai</th>
+                <th scope="col" className="px-6 py-3.5">Level & Jabatan</th>
+                <th scope="col" className="px-6 py-3.5">Sisa Kontrak</th>
+                <th scope="col" className="px-6 py-3.5">Atasan Penilai</th>
+                <th scope="col" className="px-6 py-3.5 text-center">Status</th>
+                <th scope="col" className="px-6 py-3.5 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredList.length === 0 ? (
+            <tbody className="divide-y divide-slate-200">
+              {currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <FileSignature size={36} className="mx-auto mb-2 text-slate-300" />
-                    <p className="font-bold text-slate-600">Tidak ada data karyawan yang cocok</p>
-                    <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci atau filter Anda</p>
+                  <td colSpan={7} className="text-center p-8 text-slate-500">
+                    Tidak ada data pegawai yang sesuai dengan filter pencarian.
                   </td>
                 </tr>
               ) : (
-                filteredList.map((k) => {
-                  const isSelected = selectedIds.includes(k.id);
-                  const isUrgent = k.sisa_hari <= 30;
-
-                  return (
-                    <tr
-                      key={k.id}
-                      className={`hover:bg-slate-50/70 transition-colors ${
-                        isSelected ? "bg-blue-50/40" : ""
-                      }`}
-                    >
-                      {/* Checkbox */}
-                      <td className="py-4 px-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleSelect(k.id)}
-                          className="w-4 h-4 rounded text-[#0173b6] focus:ring-[#0173b6] border-slate-300 cursor-pointer"
-                        />
-                      </td>
-
-                      {/* Info Karyawan */}
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0173b6]/10 to-cyan-500/10 text-[#0173b6] font-black flex items-center justify-center shrink-0 border border-[#0173b6]/20">
-                            {k.nama_lengkap.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900 hover:text-[#0173b6] cursor-pointer">
-                              {k.gelar_depan ? `${k.gelar_depan} ` : ""}
-                              {k.nama_lengkap}
-                              {k.gelar_belakang ? `, ${k.gelar_belakang}` : ""}
-                            </div>
-                            <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                              <span className="font-mono text-slate-500">{k.nip}</span>
-                              <span>&bull;</span>
-                              <span>{k.unit}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Level & Jabatan */}
-                      <td className="py-4 px-4">
-                        <div>
-                          <span
-                            className={`inline-block text-[11px] font-black px-2.5 py-0.5 rounded-full border mb-1 ${
-                              k.level === "SPV"
-                                ? "bg-purple-100 text-purple-800 border-purple-200"
-                                : k.level === "Koordinator"
-                                ? "bg-indigo-100 text-indigo-800 border-indigo-200"
-                                : "bg-blue-100 text-blue-800 border-blue-200"
-                            }`}
-                          >
-                            {k.level}
-                          </span>
-                          <p className="text-xs font-semibold text-slate-700 leading-tight">
-                            {k.jabatan}
-                          </p>
-                          {k.hasSubordinates && (
-                            <span className="inline-block text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-1">
-                              + Aspek Managerial
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Sisa Masa Kontrak */}
-                      <td className="py-4 px-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black border ${
-                                isUrgent
-                                  ? "bg-rose-100 text-rose-700 border-rose-300 animate-pulse"
-                                  : "bg-slate-100 text-slate-700 border-slate-200"
-                              }`}
-                            >
-                              <Clock size={12} />
-                              {k.sisa_hari} Hari Lagi
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-400">
-                            Berakhir:{" "}
-                            <span className="font-bold text-slate-600">
-                              {k.tgl_selesai_kontrak}
-                            </span>
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* Pimpinan Penilai (Hierarki) */}
-                      <td className="py-4 px-4">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            <span className="text-xs font-bold text-slate-900">
-                              {k.penilai.nama}
-                            </span>
-                          </div>
-                          <p className="text-[11px] font-medium text-slate-500">
-                            {k.penilai.jabatan}
-                          </p>
-                          <p className="text-[11px] font-mono text-slate-400">{k.penilai.email}</p>
-                        </div>
-                      </td>
-
-                      {/* Status Evaluasi */}
-                      <td className="py-4 px-4 text-center">
-                        {k.statusPenilaian === "SELESAI" && k.hasil ? (
-                          <div className="inline-flex flex-col items-center">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${getNormaColorBadge(
-                                k.hasil.kategoriNorma
-                              )}`}
-                            >
-                              <CheckCircle2 size={13} />
-                              Selesai: {k.hasil.norma.toFixed(2)} ({k.hasil.kategoriNorma})
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-semibold mt-1">
-                              Rekomendasi: {k.hasil.rekomendasi.tipe}
-                            </span>
-                          </div>
-                        ) : k.statusPenilaian === "MENUNGGU_PENILAIAN" ? (
-                          <div className="inline-flex flex-col items-center">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                              <Clock size={13} className="text-amber-600" />
-                              Menunggu Pimpinan
-                            </span>
-                            <span className="text-[10px] text-slate-400 mt-1">Link Terkirim</span>
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-                            Belum Dikirim
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Aksi */}
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Tombol Buka Form Penilaian (Modal Direct Testing) */}
-                          <button
-                            onClick={() => setActiveKaryawanForm(k)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0173b6] hover:bg-[#015d94] text-white rounded-lg text-xs font-bold shadow-sm transition-all"
-                            title="Buka Form Penilaian Kinerja Karyawan"
-                          >
-                            <FileSignature size={13} />
-                            <span>Form Nilai</span>
-                          </button>
-
-                          {/* Tombol Blast Email Modal */}
-                          <button
-                            onClick={() => handleOpenSingleBlast(k)}
-                            className="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200"
-                            title="Pratinjau & Kirim Blast Email ke Pimpinan"
-                          >
-                            <Mail size={15} />
-                          </button>
-
-                          {/* Tombol Copy Magic Link */}
-                          <button
-                            onClick={(e) => handleCopyMagicLink(k.magicLinkToken, e)}
-                            className={`p-1.5 rounded-lg transition-colors border ${
-                              copiedToken === k.magicLinkToken
-                                ? "bg-emerald-50 text-emerald-600 border-emerald-300"
-                                : "text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 border-slate-200"
-                            }`}
-                            title="Salin Magic Link Penilaian"
-                          >
-                            {copiedToken === k.magicLinkToken ? (
-                              <Check size={15} />
-                            ) : (
-                              <Copy size={15} />
-                            )}
-                          </button>
-
-                          {/* Tombol Buka di Tab Baru (Halaman Publik Magic Link) */}
-                          <Link
-                            href={`/penilaian-kinerja/${k.magicLinkToken}`}
-                            target="_blank"
-                            className="p-1.5 text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
-                            title="Buka Halaman Magic Link di Tab Baru"
-                          >
-                            <ExternalLink size={15} />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                renderTableRows(currentItems)
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Footer info */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-          <div>
-            Menampilkan <span className="font-bold text-slate-700">{filteredList.length}</span> dari{" "}
-            <span className="font-bold text-slate-700">{karyawanList.length}</span> karyawan habis
-            kontrak (&le; 3 bulan)
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            <span>Simulasi Mode Frontend Aktif (Siap Ditest Manual)</span>
-          </div>
-        </div>
+        {/* Pagination Identik dengan Halaman Manajemen Pegawai */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* ================= MODAL BLAST EMAIL MAGIC LINK ================= */}
       {blastModalData.isOpen && blastModalData.items.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-xl border border-slate-200 overflow-hidden">
             {/* Header Modal */}
-            <div className="p-5 bg-gradient-to-r from-slate-900 to-[#0173b6] text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <Send size={20} className="text-cyan-300" />
-                </div>
-                <div>
-                  <h3 className="font-black text-lg leading-tight">
-                    Blast Email Otorisasi Magic Link
-                  </h3>
-                  <p className="text-xs text-slate-200 mt-0.5">
-                    Mengirimkan undangan evaluasi kepada {blastModalData.items.length} pimpinan
-                    penilai
-                  </p>
-                </div>
+            <div className="p-4 bg-primary-dark text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <Send size={18} className="text-cyan-400" />
+                <h3 className="font-bold text-sm">
+                  Pengiriman Magic Link Evaluasi Kinerja
+                </h3>
               </div>
               <button
                 onClick={() => setBlastModalData({ items: [], isOpen: false })}
-                className="p-2 text-white/70 hover:text-white rounded-lg hover:bg-white/10"
+                className="text-slate-300 hover:text-white p-1"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Email Preview Body */}
-            <div className="p-6 overflow-y-auto space-y-5 text-sm">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-1.5 font-medium text-slate-600">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400 w-16">Pengirim:</span>
-                  <span className="font-bold text-slate-800">
-                    HRD RSU Avisena &lt;hrd@avisena.co.id&gt;
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5 text-slate-600 font-medium">
+                <div>
+                  <span className="text-slate-400 w-16 inline-block">Pengirim:</span>
+                  <span className="font-semibold text-slate-800">
+                    Human Capital RSU Avisena &lt;hrd@avisena.co.id&gt;
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400 w-16">Penerima:</span>
-                  <span className="font-bold text-slate-800">
+                <div>
+                  <span className="text-slate-400 w-16 inline-block">Penerima:</span>
+                  <span className="font-semibold text-slate-800">
                     {blastModalData.items.map((it) => it.penilai.email).join(", ")}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400 w-16">Perihal:</span>
-                  <span className="font-bold text-[#0173b6]">
-                    [RSU Avisena] Permohonan Penilaian Kinerja Karyawan Habis Masa Kontrak
+                <div>
+                  <span className="text-slate-400 w-16 inline-block">Perihal:</span>
+                  <span className="font-semibold text-primary">
+                    [RSU Avisena] Permohonan Penilaian Kinerja Karyawan Habis Kontrak
                   </span>
                 </div>
               </div>
 
-              {/* Template Email Preview Box */}
-              <div className="border border-slate-200 rounded-xl p-6 bg-white space-y-4 shadow-inner">
-                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-400 tracking-wider uppercase">
-                    Pratinjau Konten Email Pimpinan
-                  </span>
-                  <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Magic Link Secured
-                  </span>
+              <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-3 text-slate-700 leading-relaxed">
+                <p>
+                  Yth.{" "}
+                  <b>
+                    {blastModalData.items.length === 1
+                      ? `${blastModalData.items[0].penilai.nama}`
+                      : "Bapak / Ibu Pimpinan Penilai"}
+                  </b>
+                  ,
+                </p>
+                <p>
+                  Sehubungan dengan akan berakhirnya masa perjanjian kerja pegawai di unit Anda, kami
+                  memohon kesediaan Bapak/Ibu untuk mengisi formulir evaluasi kinerja resmi RSU Avisena.
+                </p>
+
+                <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-1">
+                  <p className="font-bold text-slate-800">Daftar Pegawai yang Perlu Dinilai:</p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-600">
+                    {blastModalData.items.map((it) => (
+                      <li key={it.id}>
+                        <b>{it.nama_lengkap}</b> ({it.jabatan} - {it.unit}) &mdash; Sisa:{" "}
+                        <span className="text-red-600 font-bold font-mono tabular-nums">
+                          {it.sisa_hari} hari
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
-                <div className="text-slate-700 space-y-3 leading-relaxed text-xs">
-                  <p>
-                    Kepada Yth.{" "}
-                    <b>
-                      {blastModalData.items.length === 1
-                        ? `${blastModalData.items[0].penilai.nama} (${blastModalData.items[0].penilai.jabatan})`
-                        : "Bapak / Ibu Pimpinan Penilai"}
-                    </b>
-                    ,
-                  </p>
-                  <p>
-                    Sehubungan dengan akan berakhirnya masa perjanjian kerja (PKWT) karyawan di bawah
-                    satuan kerja Anda dalam 3 (tiga) bulan ke depan, kami memohon kesediaan Bapak/Ibu
-                    untuk mengisi <b>Formulir Penilaian Kinerja Karyawan (Form/HRD/XI/REV.1)</b>.
-                  </p>
-
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    <p className="font-bold text-slate-800 mb-2">Daftar Karyawan yang Dinilai:</p>
-                    <ul className="space-y-1 list-disc list-inside">
-                      {blastModalData.items.map((it) => (
-                        <li key={it.id} className="text-slate-700">
-                          <b>{it.nama_lengkap}</b> &mdash; {it.jabatan} ({it.unit}) | Sisa:{" "}
-                          <span className="text-rose-600 font-bold">{it.sisa_hari} Hari</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <p>
-                    Penilaian dapat dilakukan secara langsung melalui tombol aman (Magic Link) di
-                    bawah ini tanpa perlu login password:
-                  </p>
-
-                  <div className="py-2 text-center">
-                    <div className="inline-block bg-[#0173b6] text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-md shadow-blue-500/20">
-                      Buka Formulir Penilaian Kinerja
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-2">
-                      *Tautan ini bersifat rahasia dan hanya diperuntukkan bagi pimpinan penilai.
-                    </p>
-                  </div>
-
-                  <p className="text-slate-500 text-[11px] pt-2 border-t border-slate-100">
-                    Hormat Kami,
-                    <br />
-                    <b>Bagian Sumber Daya Manusia (HRD)</b>
-                    <br />
-                    RSU Avisena Cimahi
-                  </p>
-                </div>
+                <p className="text-slate-500 text-[11px] pt-2 border-t border-slate-100">
+                  Tautan evaluasi bersifat rahasia dan dapat diakses langsung oleh atasan tanpa kata sandi.
+                </p>
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
               <button
                 onClick={() => setBlastModalData({ items: [], isOpen: false })}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold"
+                className="px-3.5 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-semibold rounded-lg"
               >
                 Batal
               </button>
               <button
                 onClick={handleExecuteBlast}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
               >
-                <Send size={14} />
-                <span>Kirim Blast Email Sekarang</span>
+                <Send size={13} />
+                <span>Kirimkan Sekarang</span>
               </button>
             </div>
           </div>
@@ -797,21 +617,19 @@ export default function KontrakPegawaiPage() {
 
       {/* ================= MODAL FULL FORM PENILAIAN KINERJA ================= */}
       {activeKaryawanForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-3 md:p-6 bg-black/70 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl w-full max-w-5xl h-[96vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
-            {/* Modal Title Bar */}
-            <div className="px-4 sm:px-6 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#0173b6] flex items-center justify-center font-bold shrink-0">
-                  <FileSignature size={16} className="text-white" />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-sm sm:text-base font-black leading-tight truncate">
-                    Evaluasi: {activeKaryawanForm.nama_lengkap}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-xl w-full max-w-6xl h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 bg-primary-dark text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <FileSignature size={18} className="text-white" />
+                <div>
+                  <h2 className="text-sm font-bold truncate">
+                    Evaluasi Kinerja: {activeKaryawanForm.nama_lengkap}
                   </h2>
-                  <p className="text-[11px] text-slate-300 truncate">
+                  <p className="text-[11px] text-slate-300">
                     {activeKaryawanForm.jabatan} &bull; Penilai:{" "}
-                    <span className="text-cyan-300 font-bold">
+                    <span className="text-white font-semibold">
                       {activeKaryawanForm.penilai.nama}
                     </span>
                   </p>
@@ -819,14 +637,14 @@ export default function KontrakPegawaiPage() {
               </div>
               <button
                 onClick={() => setActiveKaryawanForm(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors shrink-0"
+                className="text-slate-300 hover:text-white p-1"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Modal Scrollable Content Container */}
-            <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 bg-slate-50">
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
               <FormPenilaianKinerjaView
                 karyawan={activeKaryawanForm}
                 onSave={handleSaveForm}

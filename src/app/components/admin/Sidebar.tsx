@@ -34,6 +34,7 @@ interface LoggedInUser {
   name: string;
   role: string;
   role_id?: string;
+  karyawan_id?: string;
   jenis_kelamin?: string;
 }
 
@@ -127,10 +128,10 @@ export default function Sidebar({
     setOpenMenu(openMenu === label ? null : label);
   };
 
-  const filteredMenuItems = useMemo(() => {
+  const filteredMenuItems: MenuItem[] = useMemo(() => {
     if (!searchTerm) return displayMenus;
     return displayMenus
-      .map((item) => {
+      .map((item): MenuItem | null => {
         const matchesParent = item.label
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
@@ -142,7 +143,7 @@ export default function Sidebar({
         }
         return null;
       })
-      .filter((x): x is MenuItem => x !== null);
+      .filter((item): item is MenuItem => item !== null);
   }, [displayMenus, searchTerm]);
 
   const profileImg =
