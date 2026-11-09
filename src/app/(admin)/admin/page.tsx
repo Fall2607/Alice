@@ -72,7 +72,15 @@ export default function DashboardPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight">Halo, {user?.name?.split(' ')[0] || 'Karyawan'}!</h1>
-                    <p className="text-slate-500 font-medium mt-1">Ini adalah jadwal kerja Anda untuk bulan ini.</p>
+                    <p className="text-slate-500 font-medium mt-1">
+                      {month ? (() => {
+                        const [y, m] = month.split('-').map(Number);
+                        const s = new Date(y, m - 2, 26);
+                        const e = new Date(y, m - 1, 25);
+                        const opt: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+                        return `Jadwal periode cut-off: ${s.toLocaleDateString('id-ID', opt)} s/d ${e.toLocaleDateString('id-ID', opt)}`;
+                      })() : 'Ini adalah jadwal kerja Anda untuk bulan ini.'}
+                    </p>
                 </div>
                 <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
                     <CalendarIcon className="text-slate-400 ml-2" size={20} />
@@ -126,11 +134,14 @@ export default function DashboardPage() {
                                     <div className="flex sm:flex-col justify-between items-start h-full gap-2">
                                         <div className="flex items-center gap-2">
                                             <span className={`
-                                                flex items-center justify-center w-8 h-8 rounded-full text-sm font-black
+                                                flex flex-col items-center justify-center w-9 h-9 rounded-full font-black leading-tight
                                                 ${isToday ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 
-                                                  isWeekend ? 'text-rose-500' : 'text-slate-700'}
+                                                  isWeekend ? 'text-rose-500 bg-rose-50/50' : 'text-slate-700 bg-slate-50/60'}
                                             `}>
-                                                {dateObj.getDate()}
+                                                <span className="text-sm">{dateObj.getDate()}</span>
+                                                <span className="text-[8px] uppercase -mt-0.5 opacity-75 font-semibold">
+                                                    {dateObj.toLocaleDateString('id-ID', { month: 'short' })}
+                                                </span>
                                             </span>
                                             {/* Mobile Day Name */}
                                             <span className="sm:hidden text-sm font-bold text-slate-500">

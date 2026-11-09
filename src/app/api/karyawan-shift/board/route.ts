@@ -19,8 +19,18 @@ export async function GET(req: Request) {
         const conditions = [];
         
         if (monthYear) {
-            values.push(`${monthYear}-%`);
-            conditions.push(`ks.tanggal LIKE $${values.length}`);
+            const [yStr, mStr] = monthYear.split('-');
+            const year = parseInt(yStr, 10);
+            const month = parseInt(mStr, 10);
+            const pad2 = (n: number) => String(n).padStart(2, '0');
+            const startDate = new Date(year, month - 2, 26);
+            const endDate = new Date(year, month - 1, 25);
+            const startStr = `${startDate.getFullYear()}-${pad2(startDate.getMonth() + 1)}-${pad2(startDate.getDate())}`;
+            const endStr = `${endDate.getFullYear()}-${pad2(endDate.getMonth() + 1)}-${pad2(endDate.getDate())}`;
+
+            values.push(startStr);
+            values.push(endStr);
+            conditions.push(`ks.tanggal::text >= $${values.length - 1} AND ks.tanggal::text <= $${values.length}`);
         }
 
         if (superiorId) {

@@ -54,31 +54,42 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             }
         }
 
-        // Ambil karyawan_shift (override) untuk bulan ini
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const startDate = new Date(year, month - 2, 26);
+        const endDate = new Date(year, month - 1, 25);
+        const startStr = `${startDate.getFullYear()}-${pad2(startDate.getMonth() + 1)}-${pad2(startDate.getDate())}`;
+        const endStr = `${endDate.getFullYear()}-${pad2(endDate.getMonth() + 1)}-${pad2(endDate.getDate())}`;
+
+        // Ambil karyawan_shift (override) untuk periode cut-off (26 bulan lalu s/d 25 bulan terpilih)
         const overrideRes = await pool.query(`
             SELECT ks.tanggal, s.id as shift_id, s.nama_shift, s.jam_masuk, s.jam_keluar
             FROM karyawan_shift ks
             JOIN shift s ON ks.shift_id = s.id
-            WHERE ks.karyawan_id = $1 AND ks.tanggal LIKE $2
-        `, [karyawanId, `${monthParam}-%`]);
+            WHERE ks.karyawan_id = $1 AND ks.tanggal::text >= $2 AND ks.tanggal::text <= $3
+        `, [karyawanId, startStr, endStr]);
         
         const overrides: Record<string, any[]> = {};
         for (const row of overrideRes.rows) {
-            if (!overrides[row.tanggal]) overrides[row.tanggal] = [];
-            overrides[row.tanggal].push(row);
+            const tgl = row.tanggal instanceof Date
+                ? `${row.tanggal.getFullYear()}-${pad2(row.tanggal.getMonth() + 1)}-${pad2(row.tanggal.getDate())}`
+                : String(row.tanggal).slice(0, 10);
+            if (!overrides[tgl]) overrides[tgl] = [];
+            overrides[tgl].push(row);
         }
 
-        const daysInMonth = new Date(year, month, 0).getDate();
         const schedule = [];
 
         // Fetch shift 8-4 just in case
         let shift84Res = await pool.query(`SELECT id as shift_id, nama_shift, jam_masuk, jam_keluar FROM shift WHERE nama_shift LIKE '%8-4 (Senin-Jumat)%' LIMIT 1`);
         const shift84 = shift84Res.rows.length > 0 ? shift84Res.rows[0] : null;
 
-        for (let i = 1; i <= daysInMonth; i++) {
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-            const currentDate = new Date(year, month - 1, i);
-            const jsDayOfWeek = currentDate.getDay(); // 0 (Sun) - 6 (Sat)
+        const curDate = new Date(startDate.getTime());
+        while (curDate <= endDate) {
+            const curY = curDate.getFullYear();
+            const curM = curDate.getMonth();
+            const curD = curDate.getDate();
+            const dateStr = `${curY}-${pad2(curM + 1)}-${pad2(curD)}`;
+            const jsDayOfWeek = curDate.getDay(); // 0 (Sun) - 6 (Sat)
             const dbDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek; // DB hari: 1=Senin, 7=Minggu (asumsi standar)
 
             let finalShifts: any[] = [];
@@ -94,8 +105,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             // 3. Logika Piket (Hanya untuk Senin-Jumat jika default-nya 8-5)
             if (jsDayOfWeek >= 1 && jsDayOfWeek <= 5 && finalShifts.length === 1 && finalShifts[0].nama_shift.includes('8-5') && shift84) {
                 const daysToSaturday = 6 - jsDayOfWeek;
-                const saturdayDate = new Date(year, month - 1, i + daysToSaturday);
-                const satDateStr = `${saturdayDate.getFullYear()}-${String(saturdayDate.getMonth() + 1).padStart(2, '0')}-${String(saturdayDate.getDate()).padStart(2, '0')}`;
+                const saturdayDate = new Date(curY, curM, curD + daysToSaturday);
+                const satDateStr = `${saturdayDate.getFullYear()}-${pad2(saturdayDate.getMonth() + 1)}-${pad2(saturdayDate.getDate())}`;
                 
                 // Apakah ada piket sabtu?
                 const piketRes = await pool.query(
@@ -121,6 +132,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 shift: formattedShifts.length > 0 ? formattedShifts[0] : null, // Backward compatibility
                 shifts: formattedShifts // Array untuk double shift
             });
+
+            curDate.setDate(curDate.getDate() + 1);
         }
 
         return NextResponse.json({ schedule });

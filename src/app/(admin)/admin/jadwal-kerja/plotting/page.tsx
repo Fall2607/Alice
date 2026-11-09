@@ -208,16 +208,28 @@ export default function ManajemenJadwalKaryawanPage() {
   // --- ACTIONS TAB 2 & 3 ---
   const getDaysInMonth = (onlySaturdays = false) => {
       if (!plotMonth) return [];
-      const [year, month] = plotMonth.split("-");
-      const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
-      const days = [];
-      for (let i = 1; i <= daysInMonth; i++) {
-          const dateStr = `${year}-${month}-${String(i).padStart(2, '0')}`;
+      const [yearStr, monthStr] = plotMonth.split("-");
+      const year = parseInt(yearStr, 10);
+      const monthNum = parseInt(monthStr, 10);
+      const pad2 = (n: number) => String(n).padStart(2, '0');
+
+      // Periode cut-off: 26 bulan sebelumnya s/d 25 bulan terpilih
+      const startDate = new Date(year, monthNum - 2, 26);
+      const endDate = new Date(year, monthNum - 1, 25);
+
+      const days: string[] = [];
+      const cur = new Date(startDate.getTime());
+      while (cur <= endDate) {
+          const y = cur.getFullYear();
+          const m = pad2(cur.getMonth() + 1);
+          const d = pad2(cur.getDate());
+          const dateStr = `${y}-${m}-${d}`;
           if (onlySaturdays) {
-             if (new Date(dateStr).getDay() === 6) days.push(dateStr);
+             if (cur.getDay() === 6) days.push(dateStr);
           } else {
              days.push(dateStr);
           }
+          cur.setDate(cur.getDate() + 1);
       }
       return days;
   };
@@ -636,8 +648,21 @@ export default function ManajemenJadwalKaryawanPage() {
                         type="month" 
                         value={plotMonth} 
                         onChange={(e) => setPlotMonth(e.target.value)} 
-                        className="border rounded-md px-3 py-2 bg-slate-50 font-medium"
+                        className="border rounded-md px-3 py-2 bg-slate-50 font-medium text-sm"
                     />
+                    {plotMonth && (
+                      <span className="text-xs bg-blue-50 text-blue-700 font-semibold px-3 py-1.5 rounded-md border border-blue-200">
+                        Periode Cut-Off: {(() => {
+                          const [y, m] = plotMonth.split("-").map(Number);
+                          if (!y || !m) return "";
+                          const start = new Date(y, m - 2, 26);
+                          const end = new Date(y, m - 1, 25);
+                          const opt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
+                          return `${start.toLocaleDateString("id-ID", opt)} s/d ${end.toLocaleDateString("id-ID", opt)}`;
+                        })()}
+                      </span>
+                    )}
+
                 </div>
                 <div className="flex gap-2">
                     <button onClick={handleOpenDownloadModal} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-md font-semibold hover:bg-slate-200 transition-colors">
@@ -675,8 +700,9 @@ export default function ManajemenJadwalKaryawanPage() {
                                      <tr key={dateStr} className={`border-b border-slate-200 ${isWeekend ? 'bg-red-50/40' : 'hover:bg-slate-50'}`}>
                                          <td className={`px-4 py-3 border-r border-slate-200 font-medium ${isWeekend ? 'text-red-600' : 'text-slate-700'}`}>
                                              <div className="flex flex-col items-center">
-                                                 <span className="text-lg">{new Date(dateStr).getDate()}</span>
-                                                 <span className="text-xs">{getDayName(dateStr)}</span>
+                                                 <span className="text-lg font-bold leading-tight">{new Date(dateStr).getDate()}</span>
+                                                 <span className="text-[10px] text-slate-400 font-semibold uppercase">{new Date(dateStr).toLocaleDateString('id-ID', { month: 'short' })}</span>
+                                                 <span className="text-xs text-slate-500">{getDayName(dateStr)}</span>
                                              </div>
                                          </td>
                                          {(activeTab === 'BOARD_SHIFT' ? categories : piketCols).map((catOrShift, idx) => {

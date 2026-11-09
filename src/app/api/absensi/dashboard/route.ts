@@ -67,9 +67,18 @@ export async function GET(request: NextRequest) {
         // Simple Alpha estimation (if they didn't clock in, they might be alpha, though it could be leave)
         const alphaHariIni = totalKaryawan - hadirHariIni; 
 
-        // Rata-rata Bulan Ini (approximate)
-        let queryBulan = `SELECT COUNT(id) as total_absen FROM absensi WHERE tanggal::text LIKE $1 AND karyawan_id = ANY($2::uuid[])`;
-        const bulanRes = await pool.query(queryBulan, [dateFilter, karyawanIds]);
+        // Rata-rata Periode Cut-Off Ini (26 bulan lalu s/d 25 bulan terpilih)
+        const [yStr, mStr] = (monthParam || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`).split('-');
+        const yNum = parseInt(yStr, 10);
+        const mNum = parseInt(mStr, 10);
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const startCutOff = new Date(yNum, mNum - 2, 26);
+        const endCutOff = new Date(yNum, mNum - 1, 25);
+        const startStr = `${startCutOff.getFullYear()}-${pad2(startCutOff.getMonth() + 1)}-${pad2(startCutOff.getDate())}`;
+        const endStr = `${endCutOff.getFullYear()}-${pad2(endCutOff.getMonth() + 1)}-${pad2(endCutOff.getDate())}`;
+
+        let queryBulan = `SELECT COUNT(id) as total_absen FROM absensi WHERE tanggal::text >= $1 AND tanggal::text <= $2 AND karyawan_id = ANY($3::uuid[])`;
+        const bulanRes = await pool.query(queryBulan, [startStr, endStr, karyawanIds]);
         
         // Asumsi hari kerja efektif sebulan sekitar 22 hari
         const totalExpectedAbsen = totalKaryawan * 22; 
