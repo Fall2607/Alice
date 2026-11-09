@@ -891,9 +891,25 @@ export default function ManajemenJadwalKaryawanPage() {
                 onChange={(e) => setDownloadMonth(e.target.value)}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium bg-slate-50 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
               />
-              <p className="text-xs text-slate-500 mt-1">
-                Template akan menyusun tanggal 1 s/d akhir bulan untuk periode ini.
-              </p>
+              {downloadMonth ? (
+                <p className="text-xs text-blue-700 bg-blue-50/80 border border-blue-200/60 rounded px-2.5 py-1.5 mt-1.5 font-medium flex items-center gap-1.5">
+                  <span className="font-bold">Periode Cut-Off:</span>
+                  <span>
+                    {(() => {
+                      const [y, m] = downloadMonth.split("-").map(Number);
+                      if (!y || !m) return "";
+                      const start = new Date(y, m - 2, 26);
+                      const end = new Date(y, m - 1, 25);
+                      const opt: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
+                      return `${start.toLocaleDateString("id-ID", opt)} s/d ${end.toLocaleDateString("id-ID", opt)}`;
+                    })()}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 mt-1">
+                  Pilih bulan untuk melihat rentang periode cut-off (26 bulan lalu s/d 25 bulan terpilih).
+                </p>
+              )}
             </div>
 
             <div>
@@ -946,7 +962,7 @@ export default function ManajemenJadwalKaryawanPage() {
                   Sertakan jadwal yang sudah tersimpan saat ini di database
                 </span>
                 <p className="text-[11px] text-slate-500">
-                  Jika dicentang, shift yang sudah pernah di-plot pada bulan ini akan terisi otomatis di template Excel, sehingga Anda hanya perlu merevisi yang berubah.
+                  Jika dicentang, shift yang sudah pernah di-plot pada periode cut-off ini (26 s/d 25) akan terisi otomatis di template Excel, sehingga Anda hanya perlu merevisi yang berubah.
                 </p>
               </div>
             </label>
@@ -1090,7 +1106,7 @@ export default function ManajemenJadwalKaryawanPage() {
             <ul className="list-disc list-inside space-y-1 text-emerald-800/90 pl-1 leading-relaxed">
               <li>Unggah file template <b>.xlsx</b> yang telah diisi kolom <b>Nama Shift</b>-nya.</li>
               <li>Sistem mencocokkan data secara akurat menggunakan <b>ID Karyawan</b> (UUID) atau <b>NIP</b> / <b>Nama</b>.</li>
-              <li>Pastikan nama shift sesuai dengan opsi yang tersedia di sheet <i>Master Shift</i>.</li>
+              <li>Nama shift dapat dipilih melalui dropdown atau <b>diketik langsung</b> (contoh: <i>Pagi1.1</i>, <i>Siang1.6</i>, <i>Libur / Off</i>, <i>Cuti</i>).</li>
               <li>Jika kolom shift dikosongkan pada tanggal tertentu, sistem akan <b>menghapus plotting khusus</b> tersebut dan mengembalikannya ke jadwal default.</li>
             </ul>
           </div>

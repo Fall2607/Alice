@@ -39,9 +39,9 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
   workbook.created = new Date();
   workbook.modified = new Date();
 
-  // 1. Fetch Master Shift
+  // 1. Fetch Master Shift (diurutkan berdasarkan nama agar rapi dan mudah dicari saat dropdown dibuka)
   const shiftRes = await pool.query(
-    "SELECT id, nama_shift, jam_masuk, jam_keluar FROM shift ORDER BY id ASC"
+    "SELECT id, nama_shift, jam_masuk, jam_keluar FROM shift ORDER BY nama_shift ASC"
   );
   const shifts = shiftRes.rows;
 
@@ -168,6 +168,23 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
       { header: "Keterangan", key: "keterangan", width: 22 },
     ];
 
+    // Hitung periode cut-off: tanggal 26 bulan sebelumnya s/d tanggal 25 bulan terpilih
+    // Contoh: jika memilih November 2026 (2026-11), maka tanggal: 26 Oktober 2026 s/d 25 November 2026
+    const [yearStr, monthStr] = month.split("-");
+    const year = parseInt(yearStr, 10);
+    const monthNum = parseInt(monthStr, 10); // 1-12
+
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    const formatDate = (d: Date) =>
+      `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+    // startDate = 26 bulan sebelumnya (monthNum - 2 pada indeks bulan 0-indexed)
+    // endDate = 25 bulan terpilih (monthNum - 1 pada indeks bulan 0-indexed)
+    const startDate = new Date(year, monthNum - 2, 26);
+    const endDate = new Date(year, monthNum - 1, 25);
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(endDate);
+
     // Ambil data plotting yang sudah ada di database jika include_existing = true
     const existingShiftMap = new Map<string, string>();
     if (include_existing && selectedKaryawans.length > 0) {
@@ -178,14 +195,15 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
           SELECT ks.karyawan_id, ks.tanggal, s.nama_shift
           FROM karyawan_shift ks
           JOIN shift s ON ks.shift_id = s.id
-          WHERE ks.karyawan_id = ANY($1::uuid[]) AND ks.tanggal::text LIKE $2
+          WHERE ks.karyawan_id = ANY($1::uuid[]) 
+            AND ks.tanggal::text >= $2 AND ks.tanggal::text <= $3
         `,
-          [targetKarIds, `${month}-%`]
+          [targetKarIds, startDateStr, endDateStr]
         );
         existingRes.rows.forEach((r) => {
           const tglStr =
             r.tanggal instanceof Date
-              ? r.tanggal.toISOString().slice(0, 10)
+              ? formatDate(r.tanggal)
               : String(r.tanggal).slice(0, 10);
           existingShiftMap.set(`${r.karyawan_id}_${tglStr}`, r.nama_shift);
         });
@@ -194,21 +212,32 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
       }
     }
 
-    // Hitung tanggal dalam bulan
-    const [yearStr, monthStr] = month.split("-");
-    const year = parseInt(yearStr, 10);
-    const monthNum = parseInt(monthStr, 10);
-    const daysInMonth = new Date(year, monthNum, 0).getDate();
+    // Susun daftar tanggal berurutan dalam periode cut-off
+    const periodDates: {
+      dateStr: string;
+      dayName: string;
+      isSunday: boolean;
+      isSaturday: boolean;
+    }[] = [];
+
+    const curDate = new Date(startDate.getTime());
+    while (curDate <= endDate) {
+      const dateStr = formatDate(curDate);
+      const dayOfWeek = curDate.getDay();
+      periodDates.push({
+        dateStr,
+        dayName: NAMA_HARI[dayOfWeek],
+        isSunday: dayOfWeek === 0,
+        isSaturday: dayOfWeek === 6,
+      });
+      curDate.setDate(curDate.getDate() + 1);
+    }
 
     let rowIndex = 2;
 
     for (const kar of selectedKaryawans) {
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${year}-${String(monthNum).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const dateObj = new Date(year, monthNum - 1, day);
-        const dayName = NAMA_HARI[dateObj.getDay()];
-        const isSunday = dateObj.getDay() === 0;
-        const isSaturday = dateObj.getDay() === 6;
+      for (const item of periodDates) {
+        const { dateStr, dayName, isSunday, isSaturday } = item;
         const currentShift = existingShiftMap.get(`${kar.id}_${dateStr}`) || "";
 
         const row = templateSheet.getRow(rowIndex);
@@ -241,14 +270,14 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
         }
 
         // Dropdown Shift dari sheet Master Shift
+        // showErrorMessage: false agar user bisa memilih dari dropdown ATAU mengetik langsung nama/kode shift tanpa dicekal Excel Stop Alert
         if (shifts.length > 0) {
           row.getCell(8).dataValidation = {
             type: "list",
             allowBlank: true,
             formulae: [`'Master Shift'!$B$2:$B$${shifts.length + 1}`],
-            showErrorMessage: true,
-            errorTitle: "Shift Tidak Valid",
-            error: "Pilih nama shift dari daftar pilihan dropdown.",
+            showErrorMessage: false,
+            errorStyle: "information",
           };
         }
 
@@ -286,9 +315,8 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
           type: "list",
           allowBlank: true,
           formulae: [`'Master Karyawan'!$C$2:$C$${allKaryawans.length + 1}`],
-          showErrorMessage: true,
-          errorTitle: "Nama Karyawan Tidak Valid",
-          error: "Pilih nama karyawan dari daftar dropdown.",
+          showErrorMessage: false,
+          errorStyle: "information",
         };
       }
 
@@ -312,9 +340,8 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
           type: "list",
           allowBlank: true,
           formulae: [`'Master Shift'!$B$2:$B$${shifts.length + 1}`],
-          showErrorMessage: true,
-          errorTitle: "Shift Tidak Valid",
-          error: "Pilih shift dari daftar dropdown.",
+          showErrorMessage: false,
+          errorStyle: "information",
         };
       }
     }
@@ -330,6 +357,10 @@ async function generatePlottingWorkbook(options: GenerateTemplateOptions) {
   };
   templateHeader.alignment = { vertical: "middle", horizontal: "center" };
   templateHeader.height = 28;
+
+  // Catatan petunjuk di header kolom Nama Shift
+  const shiftHeaderCell = mode === "schedule" ? templateSheet.getCell("H1") : templateSheet.getCell("F1");
+  shiftHeaderCell.note = "Pilih dari dropdown atau ketik langsung nama shift (contoh: Pagi1.1, Siang1.6, Libur / Off, Cuti, dll).";
 
   // Freeze header row
   templateSheet.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];

@@ -194,9 +194,39 @@ export async function POST(request: NextRequest) {
       const cleanName = s.nama_shift.toLowerCase().trim();
       mapShiftByName.set(cleanName, s.id);
 
+      // Dukung varian tanpa spasi (contoh: "pagi 1.1" <-> "pagi1.1")
+      mapShiftByName.set(cleanName.replace(/\s+/g, ""), s.id);
+
+      // Dukung varian dengan spasi di antara huruf dan angka (contoh: "pagi1.1" -> "pagi 1.1")
+      const withSpace = cleanName.replace(/([a-zA-Z]+)(\d+)/g, "$1 $2");
+      mapShiftByName.set(withSpace, s.id);
+      mapShiftByName.set(withSpace.replace(/\s+/g, ""), s.id);
+
       // Dukung varian tanpa prefix "shift " (contoh: "pagi" -> Shift Pagi)
       if (cleanName.startsWith("shift ")) {
-        mapShiftByName.set(cleanName.replace("shift ", "").trim(), s.id);
+        const withoutPrefix = cleanName.replace("shift ", "").trim();
+        mapShiftByName.set(withoutPrefix, s.id);
+        mapShiftByName.set(withoutPrefix.replace(/\s+/g, ""), s.id);
+      }
+
+      // Dukung varian slash (contoh: "libur / off" -> "libur", "off", "libur/off")
+      if (cleanName.includes("/")) {
+        cleanName.split("/").forEach((part: string) => {
+          const p = part.trim();
+          if (p) {
+            mapShiftByName.set(p, s.id);
+            mapShiftByName.set(p.replace(/\s+/g, ""), s.id);
+          }
+        });
+      }
+
+      // Dukung jika ada keterangan dalam kurung (contoh: "normal 8-4 (senin-jumat)" -> "normal 8-4")
+      if (cleanName.includes("(")) {
+        const beforeParen = cleanName.split("(")[0].trim();
+        if (beforeParen) {
+          mapShiftByName.set(beforeParen, s.id);
+          mapShiftByName.set(beforeParen.replace(/\s+/g, ""), s.id);
+        }
       }
 
       // Dukung jika ada jam di nama (contoh: "shift pagi (07:00 - 14:00)")
@@ -315,13 +345,17 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Cari shift_id yang cocok
-      let resolvedShiftId: number | undefined = mapShiftByName.get(lowerShift);
+      // Cari shift_id yang cocok (toleran terhadap spasi, huruf besar/kecil, dan tanda kurung)
+      let resolvedShiftId: number | undefined =
+        mapShiftByName.get(lowerShift) ||
+        mapShiftByName.get(lowerShift.replace(/\s+/g, ""));
 
       // Coba potong keterangan dalam kurung jika ada (misal: "Shift Pagi (07:00-14:00)")
       if (!resolvedShiftId && lowerShift.includes("(")) {
         const beforeParen = lowerShift.split("(")[0].trim();
-        resolvedShiftId = mapShiftByName.get(beforeParen);
+        resolvedShiftId =
+          mapShiftByName.get(beforeParen) ||
+          mapShiftByName.get(beforeParen.replace(/\s+/g, ""));
       }
 
       // Coba jika yang dimasukkan adalah ID angka shift
