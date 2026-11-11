@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // Cek apakah karyawan ini memiliki delegasi jadwal (hanya jika karyawanId valid)
+    // Cek apakah karyawan ini memiliki delegasi jaydwal (hanya jika karyawanId valid)
     let hasDelegation = false;
     if (karyawanId && karyawanId !== "null" && karyawanId.length > 10) {
       const delCheck = await pool.query(
