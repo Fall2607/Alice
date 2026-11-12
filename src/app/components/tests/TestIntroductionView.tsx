@@ -15,16 +15,22 @@ import {
   Info,
   Check,
   RotateCcw,
-  Brain
+  Brain,
+  FileText
 } from "lucide-react";
 import { CFIT_SUBTEST_1_INSTRUCTION } from "@/app/data/tests/cfitData";
 
-export type TestType = "mbti" | "disc" | "papi" | "cfit";
+export type TestType = "mbti" | "disc" | "papi" | "cfit" | "essay";
 
 interface TestIntroductionViewProps {
   testType: TestType;
   onStart: (subtest?: number) => void;
   onBack: () => void;
+  essayMeta?: {
+    namaBundle: string;
+    durasiMenit: number;
+    questionCount: number;
+  } | null;
 }
 
 interface TestConfigItem {
@@ -46,6 +52,7 @@ export default function TestIntroductionView({
   testType,
   onStart,
   onBack,
+  essayMeta,
 }: TestIntroductionViewProps) {
   // Checkbox konfirmasi pemahaman instruksi
   const [understood, setUnderstood] = useState(false);
@@ -144,6 +151,26 @@ export default function TestIntroductionView({
         "Pilih 1 opsi dari 6 gambar (A - F) yang paling tepat melengkapi kotak terakhir yang kosong.",
         "Tersedia 3 contoh soal simulasi interaktif di bawah ini untuk memahami logikanya sebelum memulai ujian.",
         "Pastikan menjawab dengan teliti dan fokus pada setiap nomor soal."
+      ]
+    },
+    essay: {
+      title: essayMeta?.namaBundle || "Tes Essay Kompetensi",
+      subtitle: "Evaluasi Kompetensi Tertulis Unit Kerja",
+      badgeColor: "bg-sky-50 text-[#0173b6] border-sky-200",
+      themeColor: "#0173b6",
+      accentBg: "bg-[#0173b6]",
+      accentHover: "hover:bg-[#05445e]",
+      icon: FileText,
+      duration: `${essayMeta?.durasiMenit ?? 30} Menit`,
+      questionCount: `${essayMeta?.questionCount ?? 0} Pertanyaan Essay`,
+      format: "Jawaban Uraian Terstruktur",
+      instruction:
+        "Jawablah seluruh pertanyaan essay secara jelas, sistematis, dan sesuai pengalaman atau kompetensi kerja Anda. Jawaban Anda akan ditinjau langsung oleh tim unit terkait dan tim Human Capital RSU Avisena.",
+      tips: [
+        "Gunakan bahasa yang jelas, lugas, dan langsung menjawab inti pertanyaan.",
+        "Perhatikan hitung mundur waktu di bagian atas layar; jawaban akan terkirim otomatis saat waktu berakhir.",
+        "Pastikan setiap nomor pertanyaan sudah diisi sebelum menekan tombol kirim.",
+        "Pastikan koneksi internet tetap stabil selama pengerjaan dan pengiriman jawaban."
       ]
     }
   };

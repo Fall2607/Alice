@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import pool from "@/app/lib/db";
 import { PoolClient } from "pg";
+import { verifyAdminRequest } from "@/app/lib/recruitmentAuth";
 
 export async function GET(
     request: NextRequest,
@@ -30,6 +31,17 @@ export async function PUT(
     request: NextRequest,
     context: { params: Promise<{ jobOpeningId: string }> }
 ) {
+    const user = await verifyAdminRequest(request);
+    if (!user) {
+        return NextResponse.json({ message: "Sesi admin tidak valid." }, { status: 401 });
+    }
+    if (!user.isHcLowonganManager) {
+        return NextResponse.json(
+            { message: "Hanya HC yang dapat mengatur bundle assessment lowongan." },
+            { status: 403 }
+        );
+    }
+
     const client: PoolClient = await pool.connect();
     try {
         const params = await context.params;

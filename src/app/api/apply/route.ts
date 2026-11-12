@@ -6,6 +6,10 @@
 
 import { NextResponse, NextRequest } from "next/server";
 import pool from "@/app/lib/db";
+import {
+  canUserAccessJobOpening,
+  verifyAdminRequest,
+} from "@/app/lib/recruitmentAuth";
 
 export async function POST(req: NextRequest) {
   const client = await pool.connect();
@@ -432,8 +436,41 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const result = await pool.query(`
-      SELECT 
+    const { searchParams } = new URL(req.url);
+    const jobOpeningId = searchParams.get("job_opening_id");
+    const isAdminScope = searchParams.get("scope") === "admin";
+
+    if (isAdminScope) {
+      const user = await verifyAdminRequest(req);
+      if (!user) {
+        return NextResponse.json({ message: "Sesi admin tidak valid." }, { status: 401 });
+      }
+      if (jobOpeningId) {
+        const allowed = await canUserAccessJobOpening({ user, jobOpeningId });
+        if (!allowed) {
+          return NextResponse.json(
+            { message: "Anda tidak memiliki akses melihat pelamar pada lowongan ini." },
+            { status: 403 }
+          );
+        }
+      } else if (!user.isHcLowonganManager) {
+        return NextResponse.json(
+          { message: "Parameter job_opening_id diperlukan." },
+          { status: 400 }
+        );
+      }
+    }
+
+    const params: string[] = [];
+    const whereClause = jobOpeningId
+      ? (() => {
+          params.push(jobOpeningId);
+          return `WHERE as_stat.job_opening_id = $1`;
+        })()
+      : "";
+
+    const result = await pool.query(
+      `SELECT 
         c.id, 
         c.nama, 
         c.email, 
@@ -443,12 +480,34 @@ export async function GET(req: NextRequest) {
         as_stat.suitability_match,
         as_stat.id as application_status_id,
         jo.title as job_title, 
-        jo.id as job_opening_id
+        jo.id as job_opening_id,
+        ca.id as assessment_id,
+        ca.status as assessment_session_status,
+        (etr.id IS NOT NULL) as essay_submitted,
+        etr.review_decision as essay_review_decision,
+        etr.reviewed_by_name as essay_reviewed_by_name,
+        EXISTS (
+          SELECT 1
+          FROM public.job_opening_essay_bundles joeb
+          INNER JOIN public.job_essay_bundles jeb ON joeb.bundle_id = jeb.id
+          INNER JOIN public.job_essay_questions jeq ON jeq.bundle_id = jeb.id
+          WHERE joeb.job_opening_id = jo.id AND jeb.is_active = true
+        ) as essay_required
       FROM candidates c
       JOIN application_status as_stat ON c.id = as_stat.candidate_id
       LEFT JOIN job_openings jo ON as_stat.job_opening_id = jo.id
-      ORDER BY c.created_at DESC
-    `);
+      LEFT JOIN LATERAL (
+        SELECT id, status
+        FROM public.candidate_assessments
+        WHERE candidate_id = c.id AND job_opening_id = as_stat.job_opening_id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) ca ON true
+      LEFT JOIN public.essay_test_results etr ON etr.assessment_id = ca.id
+      ${whereClause}
+      ORDER BY c.created_at DESC`,
+      params
+    );
     return NextResponse.json(result.rows);
   } catch (error: any) {
     return NextResponse.json(

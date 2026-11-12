@@ -20,9 +20,11 @@ import {
   Calendar,
   Search,
   X,
-  ChevronRight
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
+import { getAuthHeaders } from '@/app/lib/adminFetch';
 
 // Mock Alert/Toast untuk pratinjau (Di lokal gunakan @/app/components/admin/Alert)
 const showSuccessToast = (msg: string) => console.log("Success Toast:", msg);
@@ -58,10 +60,16 @@ interface JobOpening {
     posted_date: string | null;
     closing_date?: string | null;
     applicant_count: number;
+    requester_name?: string | null;
+    requester_jabatan?: string | null;
+    unit_name?: string | null;
+    essay_bundle_name?: string | null;
+    essay_duration_minutes?: number | null;
 }
 
 export default function JobManagementPage() {
     const [jobs, setJobs] = useState<JobOpening[]>([]);
+    const [canManageLowongan, setCanManageLowongan] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
@@ -80,17 +88,25 @@ export default function JobManagementPage() {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${baseUrl}/job-openings`);
-            if (!res.ok) throw new Error("Gagal memuat data lowongan.");
+            const res = await fetch(`${baseUrl}/job-openings?scope=admin`, {
+                headers: getAuthHeaders(),
+            });
             const data = await res.json();
-            setJobs(data);
-        } catch (err) {
+            if (!res.ok) {
+                throw new Error(data.error || "Gagal memuat data lowongan.");
+            }
+            if (Array.isArray(data)) {
+                setJobs(data);
+                setCanManageLowongan(false);
+            } else {
+                setJobs(data.jobs || []);
+                setCanManageLowongan(Boolean(data.can_manage_lowongan));
+            }
+        } catch (err: unknown) {
             console.error("Fetch Error:", err);
-            // Fallback dummy untuk simulasi pratinjau jika API belum siap
-            setJobs([
-                { id: "1", title: "Perawat Pelaksana", category: "Medis", status: "Published", posted_date: "2026-04-08", applicant_count: 12 },
-                { id: "2", title: "Admin Radiologi", category: "Non-Medis", status: "Draft", posted_date: null, applicant_count: 0 }
-            ]);
+            const message = err instanceof Error ? err.message : "Gagal memuat data lowongan.";
+            setError(message);
+            setJobs([]);
         } finally {
             setIsLoading(false);
         }
@@ -107,7 +123,10 @@ export default function JobManagementPage() {
     const handleConfirmDelete = async () => {
         if (!selectedJob) return;
         try {
-            const res = await fetch(`${baseUrl}/job-openings/${selectedJob.id}`, { method: 'DELETE' });
+            const res = await fetch(`${baseUrl}/job-openings/${selectedJob.id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
             if (!res.ok) throw new Error("Gagal menghapus lowongan.");
             showSuccessToast("Lowongan berhasil dihapus.");
             fetchData();
@@ -151,7 +170,7 @@ export default function JobManagementPage() {
             };
             const res = await fetch(`${baseUrl}/job-openings/${selectedJob.id}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify(body)
             });
             if (!res.ok) throw new Error("Gagal memperbarui.");
@@ -179,13 +198,26 @@ export default function JobManagementPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
                 <div>
                     <h1 className="text-4xl font-extrabold text-[#05445e] tracking-tight leading-none mb-2">Manajemen Lowongan Kerja</h1>
-                    <p className="text-slate-400 font-medium text-sm">Kelola publikasi posisi dan pantau antrean pelamar secara real-time.</p>
+                    <p className="text-slate-400 font-medium text-sm">
+                        {canManageLowongan
+                            ? "Kelola publikasi posisi dan pantau antrean pelamar secara real-time."
+                            : "Pantau lowongan dari pengajuan unit Anda beserta hasil psikotes dan evaluasi essay pelamar."}
+                    </p>
                 </div>
-                <Link href="/admin/request-pegawai" className="flex items-center gap-3 bg-[#0173b6] text-white font-bold py-3 px-6 rounded-md hover:bg-[#015a8f] transition-all shadow-lg shadow-blue-200 active:scale-95 text-xs uppercase tracking-widest">
-                    <PlusCircle size={18} />
-                    Buat Dari Request
-                </Link>
+                {canManageLowongan && (
+                    <Link href="/admin/request-pegawai" className="flex items-center gap-3 bg-[#0173b6] text-white font-bold py-3 px-6 rounded-md hover:bg-[#015a8f] transition-all shadow-lg shadow-blue-200 active:scale-95 text-xs uppercase tracking-widest min-h-[44px]">
+                        <PlusCircle size={18} />
+                        Buat Dari Request
+                    </Link>
+                )}
             </div>
+
+            {error && (
+                <div className="mb-6 flex items-center gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium">
+                    <AlertTriangle size={18} className="shrink-0" />
+                    <span>{error}</span>
+                </div>
+            )}
 
             {/* Bar Pencarian */}
             <div className="mb-6 relative group">
@@ -226,9 +258,22 @@ export default function JobManagementPage() {
                                                 </div>
                                                 <div>
                                                     <span className="font-bold text-slate-800 tracking-tight block mb-1">{job.title}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                        <Calendar size={12} /> Deadline: {job.closing_date ? new Date(job.closing_date).toLocaleDateString('id-ID') : 'Tanpa Batas'}
-                                                    </span>
+                                                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Calendar size={12} /> Deadline: {job.closing_date ? new Date(job.closing_date).toLocaleDateString('id-ID') : 'Tanpa Batas'}
+                                                        </span>
+                                                        {(job.unit_name || job.requester_name) && (
+                                                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                                {job.unit_name || job.requester_name}
+                                                            </span>
+                                                        )}
+                                                        {job.essay_bundle_name && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-[#0173b6] border border-blue-200">
+                                                                <FileText size={10} />
+                                                                Essay: {job.essay_bundle_name} ({job.essay_duration_minutes || 30}m)
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -259,15 +304,19 @@ export default function JobManagementPage() {
                                         </td>
                                         <td className="px-8 py-6 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <Link href={`/admin/lowongan/${job.id}`} className="p-2.5 text-slate-400 hover:text-[#0173b6] hover:bg-blue-50 rounded-md transition-all" title="Detail & Pelamar">
+                                                <Link href={`/admin/lowongan/${job.id}`} className="p-2.5 text-slate-400 hover:text-[#0173b6] hover:bg-blue-50 rounded-md transition-all min-h-[44px] inline-flex items-center justify-center" title="Detail & Pelamar">
                                                     <Eye size={18} />
                                                 </Link>
-                                                <button onClick={() => handleOpenEditModal(job)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all" title="Edit Lowongan">
-                                                    <Edit size={18} />
-                                                </button>
-                                                <button onClick={() => handleOpenDeleteModal(job)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all" title="Hapus Lowongan">
-                                                    <Trash2 size={18} />
-                                                </button>
+                                                {canManageLowongan && (
+                                                    <>
+                                                        <button onClick={() => handleOpenEditModal(job)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all min-h-[44px]" title="Edit Lowongan">
+                                                            <Edit size={18} />
+                                                        </button>
+                                                        <button onClick={() => handleOpenDeleteModal(job)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-all min-h-[44px]" title="Hapus Lowongan">
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

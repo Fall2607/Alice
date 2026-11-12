@@ -6,10 +6,36 @@
 
 import { NextResponse, NextRequest } from "next/server";
 import pool from "@/app/lib/db";
+import {
+  canUserAccessJobOpening,
+  verifyAdminRequest,
+} from "@/app/lib/recruitmentAuth";
+import { getActiveEssayBundleForOpening } from "@/app/lib/essayAssessment";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    const { searchParams } = new URL(req.url);
+    const jobOpeningId = searchParams.get("job_opening_id");
+    const isAdminScope = searchParams.get("scope") === "admin";
+
+    if (isAdminScope) {
+      const user = await verifyAdminRequest(req);
+      if (!user) {
+        return NextResponse.json({ message: "Sesi admin tidak valid." }, { status: 401 });
+      }
+      if (jobOpeningId) {
+        const allowed = await canUserAccessJobOpening({ user, jobOpeningId });
+        if (!allowed) {
+          return NextResponse.json(
+            { message: "Anda tidak memiliki akses melihat detail kandidat ini." },
+            { status: 403 }
+          );
+        }
+      }
+    }
 
     // 1. Ambil data induk kandidat
     const candidateRes = await pool.query(`SELECT * FROM candidates WHERE id = $1`, [id]);
@@ -19,7 +45,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const candidate = candidateRes.rows[0];
 
     // 2. Ambil semua detail terkait (Gunakan Promise.all untuk performa)
-    // PERBAIKAN: Query appData diubah dari job_id ke job_opening_id
     const [spouse, parents, siblings, eduFormal, eduNonFormal, experience, docs, otherDocs, appData, assessmentRes] = await Promise.all([
       pool.query(`SELECT * FROM candidate_spouse WHERE candidate_id = $1`, [id]),
       pool.query(`SELECT * FROM candidate_parents WHERE candidate_id = $1`, [id]),
@@ -29,34 +54,55 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       pool.query(`SELECT * FROM candidate_work_experience WHERE candidate_id = $1 ORDER BY tahun_mulai DESC`, [id]),
       pool.query(`SELECT * FROM candidate_documents WHERE candidate_id = $1`, [id]),
       pool.query(`SELECT * FROM candidate_other_documents WHERE candidate_id = $1`, [id]),
-      // Join ke job_openings menggunakan kolom baru: job_opening_id
       pool.query(`
         SELECT 
           ast.status, 
           ast.updated_at as applied_at, 
+          ast.job_opening_id,
           jo.title AS job_title 
         FROM application_status ast 
         LEFT JOIN job_openings jo ON ast.job_opening_id = jo.id 
         WHERE ast.candidate_id = $1
-      `, [id]),
-      pool.query(`SELECT id, status, created_at, expires_at FROM candidate_assessments WHERE candidate_id = $1 ORDER BY created_at DESC LIMIT 1`, [id])
+        ORDER BY CASE WHEN ast.job_opening_id = $2::uuid THEN 0 ELSE 1 END, ast.updated_at DESC
+      `, [id, jobOpeningId]),
+      pool.query(
+        `SELECT id, job_opening_id, status, created_at, expires_at
+         FROM candidate_assessments
+         WHERE candidate_id = $1
+         ORDER BY CASE WHEN job_opening_id = $2::uuid THEN 0 ELSE 1 END, created_at DESC
+         LIMIT 1`,
+        [id, jobOpeningId]
+      )
     ]);
 
     let assessmentResults = null;
     if (assessmentRes && (assessmentRes.rowCount ?? 0) > 0) {
-      const assessmentId = assessmentRes.rows[0].id;
-      const [mbti, disc, papi, cfit] = await Promise.all([
+      const sessionRow = assessmentRes.rows[0];
+      const assessmentId = sessionRow.id;
+      const [mbti, disc, papi, cfit, essay, activeEssayBundle] = await Promise.all([
         pool.query(`SELECT * FROM mbti_test_results WHERE assessment_id = $1`, [assessmentId]),
         pool.query(`SELECT * FROM disc_test_results WHERE assessment_id = $1`, [assessmentId]),
         pool.query(`SELECT * FROM papi_test_results WHERE assessment_id = $1`, [assessmentId]),
         pool.query(`SELECT * FROM cfit_test_results WHERE assessment_id = $1`, [assessmentId]),
+        pool.query(
+          `SELECT id, assessment_id, bundle_id, answers, time_spent_seconds, started_at, submitted_at,
+                  review_decision, review_notes, question_notes, reviewed_by_name, reviewed_at
+           FROM public.essay_test_results
+           WHERE assessment_id = $1
+           LIMIT 1`,
+          [assessmentId]
+        ),
+        getActiveEssayBundleForOpening(sessionRow.job_opening_id),
       ]);
       assessmentResults = {
-        session: assessmentRes.rows[0],
+        session: sessionRow,
         mbti: mbti.rows[0] || null,
         disc: disc.rows[0] || null,
         papi: papi.rows[0] || null,
         cfit: cfit.rows[0] || null,
+        essay: essay.rows[0] || null,
+        essay_required: activeEssayBundle !== null,
+        essay_bundle_name: activeEssayBundle?.namaBundle ?? null,
       };
     }
 
@@ -93,6 +139,17 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const user = await verifyAdminRequest(req);
+    if (!user) {
+      return NextResponse.json({ message: "Sesi admin tidak valid." }, { status: 401 });
+    }
+    if (!user.isHcLowonganManager) {
+      return NextResponse.json(
+        { message: "Akses ditolak: keputusan status akhir pelamar hanya dapat dilakukan oleh HC." },
+        { status: 403 }
+      );
+    }
+
     const { id } = await context.params;
     const { status, job_opening_id } = await req.json();
 

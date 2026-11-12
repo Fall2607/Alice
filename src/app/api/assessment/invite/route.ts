@@ -2,8 +2,21 @@ import { NextResponse } from "next/server";
 import pool from "@/app/lib/db";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { verifyAdminRequest } from "@/app/lib/recruitmentAuth";
+import { getActiveEssayBundleForOpening } from "@/app/lib/essayAssessment";
 
 export async function POST(request: Request) {
+  const user = await verifyAdminRequest(request);
+  if (!user) {
+    return NextResponse.json({ message: "Sesi admin tidak valid." }, { status: 401 });
+  }
+  if (!user.isHcLowonganManager) {
+    return NextResponse.json(
+      { message: "Akses ditolak: hanya HC yang dapat mengundang kandidat ke tahap tes." },
+      { status: 403 }
+    );
+  }
+
   const client = await pool.connect();
   
   try {
@@ -59,12 +72,16 @@ export async function POST(request: Request) {
 
     // Link Ujian mengarah ke rute publik assessment
     const testUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/assessment/${token}`;
+    const essayBundle = await getActiveEssayBundleForOpening(job_opening_id, client);
+    const modulesSummary = essayBundle
+      ? `Ujian Psikometri Online (MBTI, DISC, PAPI Kostik, CFIT) & Tes Essay Kompetensi (${essayBundle.durasiMenit} Menit)`
+      : `Ujian Psikometri Online (MBTI, DISC, PAPI Kostik, & CFIT)`;
 
     // 5. Kirim Template Email Otorisasi
     await transporter.sendMail({
       from: `"People Development RSU Avisena" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: `Undangan Tes Psikometri Seleksi: ${job_title} - RSU Avisena`,
+      subject: `Undangan Tes Seleksi: ${job_title} - RSU Avisena`,
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #f1f5f9; padding: 30px; border-radius: 16px; color: #1e293b; background-color: #ffffff;">
           <div style="text-align: center; margin-bottom: 30px;">
@@ -73,7 +90,7 @@ export async function POST(request: Request) {
           </div>
           <p>Yth. <strong>${candidate_name}</strong>,</p>
           <p>Terima kasih atas partisipasi Anda dalam seleksi penerimaan staf untuk posisi <strong>${job_title}</strong> di RSU Avisena.</p>
-          <p>Kami dengan senang hati mengundang Anda untuk mengikuti tahapan seleksi berikutnya, yaitu <strong>Ujian Psikometri Online (MBTI, DISC, & PAPI Kostik)</strong>.</p>
+          <p>Kami dengan senang hati mengundang Anda untuk mengikuti tahapan seleksi berikutnya, yaitu <strong>${modulesSummary}</strong>.</p>
           
           <div style="background-color: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 25px; margin: 30px 0; text-align: center;">
              <p style="margin: 0 0 10px 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: #64748b; font-weight: 800;">Kode Akses Otorisasi</p>

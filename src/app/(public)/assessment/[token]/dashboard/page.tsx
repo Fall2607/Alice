@@ -20,7 +20,8 @@ import {
   Sparkles,
   AlertCircle,
   Lock,
-  Brain
+  Brain,
+  FileText
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { getMbtiResult } from "@/app/utils/mbtiUtils";
@@ -30,18 +31,26 @@ import MBTITestContent from "@/app/components/tests/MBTITest";
 import DISCTestContent from "@/app/components/tests/DISCTest";
 import PAPITestContent from "@/app/components/tests/PAPITest";
 import CFITTestContent from "@/app/components/tests/CFITTest";
+import EssayTestContent, { type CandidateEssayQuestion } from "@/app/components/tests/EssayTest";
 import { calculateCFITResult } from "@/app/data/tests/cfitData";
 import TestIntroductionView, { TestType } from "@/app/components/tests/TestIntroductionView";
+
+interface EssayBundleConfig {
+  readonly bundleId: string;
+  readonly namaBundle: string;
+  readonly durasiMenit: number;
+  readonly questionCount: number;
+}
 
 export default function AssessmentDashboard() {
   const params = useParams() as any;
   const router = useRouter();
   const token = params?.token || "ALICE-PREVIEW";
-  const [currentTest, setCurrentTest] = useState<"mbti" | "disc" | "papi" | "cfit" | null>(null);
+  const [currentTest, setCurrentTest] = useState<TestType | null>(null);
   const [introTest, setIntroTest] = useState<TestType | null>(null);
 
   const [view, setView] = useState<
-    "dashboard" | "intro" | "mbti" | "disc" | "papi" | "cfit" | "result"
+    "dashboard" | "intro" | "mbti" | "disc" | "papi" | "cfit" | "essay" | "result"
   >("dashboard");
   const [activeStage, setActiveStage] = useState(0);
   const [cfitInitialSubtest, setCfitInitialSubtest] = useState<number>(1);
@@ -50,12 +59,26 @@ export default function AssessmentDashboard() {
   const [globalTimeLeft, setGlobalTimeLeft] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [completedTests, setCompletedTests] = useState<{ mbti: boolean; disc: boolean; papi: boolean; cfit: boolean }>({
+  const [completedTests, setCompletedTests] = useState<{
+    mbti: boolean;
+    disc: boolean;
+    papi: boolean;
+    cfit: boolean;
+    essay: boolean;
+  }>({
     mbti: false,
     disc: false,
     papi: false,
     cfit: false,
+    essay: false,
   });
+  const [essayRequired, setEssayRequired] = useState(false);
+  const [essayConfig, setEssayConfig] = useState<EssayBundleConfig | null>(null);
+  const [essayQuestions, setEssayQuestions] = useState<CandidateEssayQuestion[]>([]);
+  const [essayAnswers, setEssayAnswers] = useState<Record<string, string>>({});
+  const [essayStartedAt, setEssayStartedAt] = useState<string | null>(null);
+  const [essayTotalSeconds, setEssayTotalSeconds] = useState(0);
+  const [isSubmittingEssay, setIsSubmittingEssay] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const checkStatus = async () => {
@@ -69,7 +92,15 @@ export default function AssessmentDashboard() {
         if (data.assessment_id) {
           sessionStorage.setItem("assessment_id", data.assessment_id);
         }
-        setCompletedTests(data.completed);
+        setCompletedTests({
+          mbti: Boolean(data.completed?.mbti),
+          disc: Boolean(data.completed?.disc),
+          papi: Boolean(data.completed?.papi),
+          cfit: Boolean(data.completed?.cfit),
+          essay: Boolean(data.completed?.essay),
+        });
+        setEssayRequired(Boolean(data.essayRequired));
+        setEssayConfig(data.essayConfig || null);
       }
     } catch (err) {
       console.error("Gagal memeriksa status tes:", err);
@@ -103,7 +134,38 @@ export default function AssessmentDashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleStartTest = (type: "mbti" | "disc" | "papi" | "cfit", subtest?: number) => {
+  const handleStartTest = async (type: TestType, subtest?: number) => {
+    if (type === "essay") {
+      try {
+        const assessmentId = sessionStorage.getItem("assessment_id");
+        const query = assessmentId
+          ? `assessment_id=${encodeURIComponent(assessmentId)}`
+          : `token=${encodeURIComponent(token)}`;
+        const res = await fetch(`/api/assessment/essay?${query}`);
+        const data = await res.json();
+        if (!res.ok || !data.essayRequired) {
+          alert(data.message || "Modul essay tidak tersedia untuk lowongan ini.");
+          setView("dashboard");
+          return;
+        }
+        const durationMinutes = Math.min(Math.max(Number(data.bundle?.durasi_menit || 30), 1), 30);
+        const totalSecs = durationMinutes * 60;
+        setEssayQuestions(Array.isArray(data.questions) ? data.questions : []);
+        setEssayAnswers({});
+        setEssayStartedAt(new Date().toISOString());
+        setEssayTotalSeconds(totalSecs);
+        setCurrentTest("essay");
+        setView("essay");
+        setGlobalTimeLeft(totalSecs);
+        setIsTimerRunning(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (err) {
+        console.error("Gagal memuat soal essay:", err);
+        setView("dashboard");
+      }
+      return;
+    }
+
     setView(type);
     setCurrentTest(type);
     setActiveStage(type === "mbti" ? 1 : 0);
@@ -113,7 +175,7 @@ export default function AssessmentDashboard() {
     setAnswers({});
     if (type !== "cfit") {
       const durations = { mbti: 15, disc: 20, papi: 30 };
-      setGlobalTimeLeft((durations as any)[type] * 60);
+      setGlobalTimeLeft(durations[type] * 60);
       setIsTimerRunning(true);
     } else {
       setIsTimerRunning(false);
@@ -140,7 +202,42 @@ export default function AssessmentDashboard() {
       }
     }
 
-    if (currentTest && assessmentId) {
+    if (currentTest === "essay" && assessmentId) {
+      setIsSubmittingEssay(true);
+      try {
+        const elapsedSeconds = Math.max(0, essayTotalSeconds - globalTimeLeft);
+        const submitRes = await fetch("/api/assessment/essay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assessment_id: assessmentId,
+            token,
+            answers: essayQuestions.map((q) => ({
+              question_id: q.id,
+              answer: essayAnswers[q.id] ?? "",
+            })),
+            time_spent_seconds: elapsedSeconds,
+            started_at: essayStartedAt,
+          }),
+        });
+        if (submitRes.ok) {
+          setCompletedTests((prev) => ({ ...prev, essay: true }));
+          await checkStatus();
+        } else {
+          const errData = await submitRes.json();
+          console.error("Gagal simpan essay:", errData.message);
+        }
+      } catch (err) {
+        console.error("Gagal menyimpan hasil essay", err);
+      } finally {
+        setIsSubmittingEssay(false);
+      }
+      setView("dashboard");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    if (currentTest && currentTest !== "essay" && assessmentId) {
       let result;
       if (currentTest === 'mbti') result = getMbtiResult(answers);
       else if (currentTest === 'disc') result = calculateDISCResult(answers);
@@ -203,8 +300,14 @@ export default function AssessmentDashboard() {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  const completedCount = (completedTests.mbti ? 1 : 0) + (completedTests.disc ? 1 : 0) + (completedTests.papi ? 1 : 0) + (completedTests.cfit ? 1 : 0);
-  const isAllTestsDone = completedCount === 4;
+  const totalModules = essayRequired ? 5 : 4;
+  const completedCount =
+    (completedTests.mbti ? 1 : 0) +
+    (completedTests.disc ? 1 : 0) +
+    (completedTests.papi ? 1 : 0) +
+    (completedTests.cfit ? 1 : 0) +
+    (essayRequired && completedTests.essay ? 1 : 0);
+  const isAllTestsDone = completedCount === totalModules;
 
   if (!mounted) return null;
 
@@ -231,7 +334,7 @@ export default function AssessmentDashboard() {
                   Portal Ujian Psikometri Digital
                 </h2>
                 <p className="text-xs text-slate-400 font-medium mt-1">
-                  Silakan selesaikan 4 modul tes asesmen di bawah ini secara mandiri dan jujur.
+                  Silakan selesaikan {totalModules} modul tes asesmen di bawah ini secara mandiri dan jujur.
                 </p>
               </div>
             </div>
@@ -249,8 +352,8 @@ export default function AssessmentDashboard() {
                   }`}>
                     Progress Pengerjaan
                   </span>
-                  <span className="text-xs font-bold font-mono">
-                    {completedCount} / 4 Modul Selesai
+                  <span className="text-xs font-bold font-mono tabular-nums">
+                    {completedCount} / {totalModules} Modul Selesai
                   </span>
                 </div>
                 <h3 className="text-base font-black uppercase tracking-tight">
@@ -293,7 +396,7 @@ export default function AssessmentDashboard() {
                 ) : (
                   <>
                     <Lock size={16} />
-                    Selesaikan 4/4 Tes Untuk Keluar ({completedCount}/4)
+                    Selesaikan {totalModules}/{totalModules} Tes Untuk Keluar ({completedCount}/{totalModules})
                   </>
                 )}
               </button>
@@ -462,6 +565,54 @@ export default function AssessmentDashboard() {
                   )}
                 </button>
               </div>
+
+              {essayRequired && essayConfig && (
+                <div className="bg-white p-5 md:p-6 rounded-xl border border-slate-100 hover:border-[#0173b6] transition-all flex flex-col sm:flex-row items-center justify-between gap-6 group shadow-sm hover:shadow-xl shadow-blue-900/5">
+                  <div className="flex items-center gap-6 w-full sm:flex-1">
+                    <div
+                      className={`h-16 w-16 rounded-xl flex items-center justify-center border transition-all duration-500 ${
+                        completedTests.essay
+                          ? "bg-sky-50 text-[#0173b6] border-sky-200"
+                          : "bg-sky-50 text-[#0173b6] border-sky-100 group-hover:bg-[#0173b6] group-hover:text-white"
+                      }`}
+                    >
+                      {completedTests.essay ? <CheckCircle2 size={32} /> : <FileText size={32} />}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h4 className="font-black uppercase text-sm text-slate-800 group-hover:text-[#0173b6] transition-colors">
+                          Tes Essay Kompetensi
+                        </h4>
+                        <span className="bg-sky-100 text-[#0173b6] text-[9px] font-black uppercase px-2 py-0.5 rounded tabular-nums">
+                          {completedTests.essay
+                            ? "Selesai"
+                            : `${essayConfig.questionCount} Soal • ${essayConfig.durasiMenit} Menit`}
+                        </span>
+                      </div>
+                      <p className="text-slate-400 text-[10px] font-medium max-w-sm uppercase tracking-tight italic leading-relaxed">
+                        {essayConfig.namaBundle} — Modul studi kasus tertulis unit terkait.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleOpenIntro("essay")}
+                    disabled={completedTests.essay}
+                    className={`w-full sm:w-auto px-8 py-3.5 font-black rounded-lg uppercase text-[10px] tracking-widest transition-all shadow-blue-900/10 active:scale-95 min-h-[44px] ${
+                      completedTests.essay
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                        : "bg-[#0173b6] text-white hover:bg-[#05445e] cursor-pointer"
+                    }`}
+                  >
+                    {completedTests.essay ? (
+                      <span className="flex items-center gap-1.5 justify-center">
+                        Selesai <Check size={14} />
+                      </span>
+                    ) : (
+                      "Mulai"
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -470,6 +621,7 @@ export default function AssessmentDashboard() {
         {view === "intro" && introTest && (
           <TestIntroductionView
             testType={introTest}
+            essayMeta={essayConfig}
             onStart={(subtest) => handleStartTest(introTest, subtest)}
             onBack={() => {
               setView("dashboard");
@@ -479,20 +631,25 @@ export default function AssessmentDashboard() {
           />
         )}
 
-        {/* VIEW: TEST EXECUTION (MBTI, DISC, PAPI, CFIT) */}
-        {(view === "mbti" || view === "disc" || view === "papi" || view === "cfit") && (
+        {/* VIEW: TEST EXECUTION (MBTI, DISC, PAPI, CFIT, ESSAY) */}
+        {(view === "mbti" || view === "disc" || view === "papi" || view === "cfit" || view === "essay") && (
           <div className="flex flex-col animate-in fade-in duration-500">
             <div className="mb-10 flex items-center justify-between border-b border-slate-100 pb-6 sticky top-0 bg-[#fcfcfd]/95 backdrop-blur-md z-50 py-2 px-1">
               <div className="flex items-center gap-4 min-w-0">
                 <button
-                  onClick={() => setView("dashboard")}
+                  onClick={() => {
+                    setIsTimerRunning(false);
+                    setView("dashboard");
+                  }}
                   className="p-2.5 text-slate-400 hover:text-red-500 bg-white border border-slate-200 rounded-md shadow-sm shrink-0 transition-colors cursor-pointer"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <div className="min-w-0">
                   <h1 className="text-sm md:text-lg font-black text-slate-800 uppercase tracking-tight truncate leading-none mb-1">
-                    {view.toUpperCase()} Exam
+                    {view === "essay"
+                      ? essayConfig?.namaBundle || "Tes Essay Kompetensi"
+                      : `${view.toUpperCase()} Exam`}
                   </h1>
                   <p className="text-[8px] font-black text-purple-600 uppercase tracking-widest">
                     Digital Assessment Unit
@@ -502,7 +659,7 @@ export default function AssessmentDashboard() {
               {view !== "cfit" && (
                 <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md shadow-xl border border-slate-800">
                   <TimerIcon size={14} className="text-purple-400" />
-                  <span className="font-mono text-sm font-black tracking-widest">
+                  <span className="font-mono tabular-nums text-sm font-black tracking-widest">
                     {formatTime(globalTimeLeft)}
                   </span>
                 </div>
@@ -557,13 +714,23 @@ export default function AssessmentDashboard() {
                   } else handleFinishTest();
                 }}
               />
-            ) : (
+            ) : view === "cfit" ? (
               <CFITTestContent
                 initialSubtest={cfitInitialSubtest}
                 answers={answers}
                 setAnswers={setAnswers}
                 onBack={() => setView("dashboard")}
                 onNext={handleFinishTest}
+              />
+            ) : (
+              <EssayTestContent
+                bundleName={essayConfig?.namaBundle || "Tes Essay Kompetensi"}
+                durationMinutes={essayConfig?.durasiMenit || 30}
+                questions={essayQuestions}
+                answers={essayAnswers}
+                setAnswers={setEssayAnswers}
+                isSubmitting={isSubmittingEssay}
+                onSubmit={handleFinishTest}
               />
             )}
           </div>
@@ -585,7 +752,7 @@ export default function AssessmentDashboard() {
                 </h2>
               </div>
               <p className="text-xs font-medium text-slate-500 leading-relaxed">
-                Seluruh jawaban tes asesmen Anda (MBTI, DISC, PAPI Kostick, CFIT) telah berhasil dienkripsi dan disimpan dengan aman ke dalam sistem HRIS RSU Avisena.
+                Seluruh jawaban tes asesmen Anda ({essayRequired ? "MBTI, DISC, PAPI Kostick, CFIT, dan Essay Kompetensi" : "MBTI, DISC, PAPI Kostick, CFIT"}) telah berhasil dienkripsi dan disimpan dengan aman ke dalam sistem HRIS RSU Avisena.
               </p>
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-left text-xs font-medium text-slate-600 space-y-2">
                 <p className="font-bold text-slate-800">Langkah Selanjutnya:</p>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import { evaluateAssessmentCompletion } from "@/app/lib/essayAssessment";
 
 export async function POST(request: Request) {
   try {
@@ -98,24 +99,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Tipe tes tidak valid." }, { status: 400 });
     }
 
-    // Periksa apakah semua tes (MBTI, DISC, PAPI, CFIT) sudah selesai
-    const [mbtiRes, discRes, papiRes, cfitRes] = await Promise.all([
-        pool.query(`SELECT 1 FROM mbti_test_results WHERE assessment_id = $1`, [assessment_id]),
-        pool.query(`SELECT 1 FROM disc_test_results WHERE assessment_id = $1`, [assessment_id]),
-        pool.query(`SELECT 1 FROM papi_test_results WHERE assessment_id = $1`, [assessment_id]),
-        pool.query(`SELECT 1 FROM cfit_test_results WHERE assessment_id = $1`, [assessment_id]),
-    ]);
-
-    if ((mbtiRes.rowCount ?? 0) > 0 && (discRes.rowCount ?? 0) > 0 && (papiRes.rowCount ?? 0) > 0 && (cfitRes.rowCount ?? 0) > 0) {
-        await pool.query(
-            "UPDATE public.candidate_assessments SET status = 'COMPLETED' WHERE id = $1",
-            [assessment_id]
-        );
-        await pool.query(
-            "UPDATE public.employee_assessments SET status = 'COMPLETED' WHERE id = $1",
-            [assessment_id]
-        );
-    }
+    // Periksa kelengkapan seluruh modul (termasuk essay jika aktif pada lowongan kandidat)
+    await evaluateAssessmentCompletion(assessment_id);
 
     return NextResponse.json({ success: true, message: `Hasil tes ${test_type.toUpperCase()} berhasil disimpan.` });
   } catch (error: any) {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Save, Loader2, ListChecks, AlertCircle, CheckCircle2 } from "lucide-react";
+import { getAuthHeaders } from "@/app/lib/adminFetch";
 
 interface AssessmentQuestion {
   id: string;
@@ -63,7 +64,7 @@ export default function AssessmentSelector({ jobOpeningId, jobId }: { jobOpening
 
       const res = await fetch(`/api/job-opening-assessments/${jobOpeningId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ selectedAssessmentIds: selectedIds })
       });
       const data = await res.json();

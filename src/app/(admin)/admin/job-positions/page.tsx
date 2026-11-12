@@ -2,11 +2,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { PlusCircle, Edit, Trash2, Loader2, Eye, Search, Target } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Loader2, Eye, Search, Target, FileText } from "lucide-react";
 import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import DynamicInputList from "@/app/components/admin/DynamicInputList";
 import AssessmentBuilder from "@/app/components/admin/AssessmentBuilder";
+import EssayBundleBuilder from "@/app/components/admin/EssayBundleBuilder";
 
 interface JobPosition {
   id: number;
@@ -37,6 +38,7 @@ export default function JobPositionsPage() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
+  const [isEssayModalOpen, setIsEssayModalOpen] = useState(false);
 
   // State pencarian terpisah
   const [searchTermMedis, setSearchTermMedis] = useState("");
@@ -83,6 +85,7 @@ export default function JobPositionsPage() {
     setIsDetailsModalOpen(false);
     setIsDeleteModalOpen(false);
     setIsAssessmentModalOpen(false);
+    setIsEssayModalOpen(false);
     setSelectedPosition(null);
   };
 
@@ -269,6 +272,16 @@ export default function JobPositionsPage() {
                         title="Konfigurasi Assessment"
                       >
                         <Target size={18} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedPosition(pos);
+                          setIsEssayModalOpen(true);
+                        }}
+                        className="text-[#0173b6] hover:text-[#05445e]"
+                        title="Bank Soal Essay"
+                      >
+                        <FileText size={18} />
                       </button>
                     </td>
                   </tr>
@@ -538,6 +551,17 @@ export default function JobPositionsPage() {
       >
         <div className="max-h-[80vh] overflow-y-auto">
           {selectedPosition && <AssessmentBuilder jobId={selectedPosition.id.toString()} />}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isEssayModalOpen}
+        onClose={handleCloseModals}
+        title={`Bank Soal Essay — ${selectedPosition?.nama_job}`}
+        size="5xl"
+      >
+        <div className="max-h-[80vh] overflow-y-auto">
+          {selectedPosition && <EssayBundleBuilder jobId={selectedPosition.id.toString()} />}
         </div>
       </Modal>
     </div>

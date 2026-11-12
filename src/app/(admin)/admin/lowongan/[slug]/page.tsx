@@ -41,10 +41,13 @@ import {
   Brain,
 } from "lucide-react";
 import AssessmentSelector from "@/app/components/admin/AssessmentSelector";
+import EssayBundleSelector from "@/app/components/admin/EssayBundleSelector";
+import EssayReviewPanel, { type EssayResultRecord } from "@/app/components/admin/EssayReviewPanel";
 import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
 import PAPIResultView from "@/app/components/admin/PAPIResultView";
 import CFITResultView from "@/app/components/admin/CFITResultView";
 import Modal from "@/app/components/modal";
+import { getAuthHeaders } from "@/app/lib/adminFetch";
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -62,6 +65,10 @@ interface JobDetail {
   category: string;
   deskripsi_job: string[];
   kualifikasi_job: string[];
+  requester_name?: string | null;
+  requester_jabatan?: string | null;
+  unit_name?: string | null;
+  can_manage_lowongan?: boolean;
 }
 
 interface ApplicantSummary {
@@ -74,6 +81,11 @@ interface ApplicantSummary {
   job_opening_id: string;
   suitability_match?: string | number;
   application_status_id?: string;
+  assessment_session_status?: string | null;
+  essay_submitted?: boolean;
+  essay_review_decision?: string | null;
+  essay_reviewed_by_name?: string | null;
+  essay_required?: boolean;
 }
 
 const Badge = ({
@@ -95,6 +107,7 @@ const Badge = ({
 export default function DetailLowonganPage() {
   const { slug } = useParams();
   const [job, setJob] = useState<JobDetail | null>(null);
+  const [canManageLowongan, setCanManageLowongan] = useState(false);
   const [applicants, setApplicants] = useState<ApplicantSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -174,7 +187,7 @@ export default function DetailLowonganPage() {
     try {
       const response = await fetch(`/api/assessment/invite`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           candidate_id: applicant.id,
           job_opening_id: slug,
@@ -238,7 +251,7 @@ export default function DetailLowonganPage() {
         try {
           const response = await fetch(`/api/apply/${candidateId}`, {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            headers: getAuthHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({ status: "REJECTED", job_opening_id: slug }),
           });
           const data = await response.json();
@@ -322,18 +335,28 @@ export default function DetailLowonganPage() {
     if (!slug) return;
     const fetchData = async () => {
       setIsLoading(true);
+      setError(null);
       try {
+        const headers = getAuthHeaders();
         const [jobRes, applicantsRes] = await Promise.all([
-          fetch(`${baseUrl}/job-openings/${slug}`),
-          fetch(`${baseUrl}/apply`),
+          fetch(`${baseUrl}/job-openings/${slug}?scope=admin`, { headers }),
+          fetch(`${baseUrl}/apply?scope=admin&job_opening_id=${slug}`, { headers }),
         ]);
-        if (jobRes.ok) setJob(await jobRes.json());
+
+        const jobPayload = await jobRes.json();
+        if (!jobRes.ok) {
+          throw new Error(jobPayload.error || "Anda tidak memiliki akses ke lowongan ini.");
+        }
+
+        setJob(jobPayload);
+        setCanManageLowongan(Boolean(jobPayload.can_manage_lowongan));
+
         if (applicantsRes.ok) {
-          const all = await applicantsRes.json();
-          setApplicants(all.filter((a: any) => a.job_opening_id === slug));
+          const filtered = await applicantsRes.json();
+          setApplicants(Array.isArray(filtered) ? filtered : []);
         }
       } catch (err: any) {
-        setError(err.message);
+        setError(err.message || "Gagal memuat detail lowongan.");
       } finally {
         setIsLoading(false);
       }
@@ -345,7 +368,10 @@ export default function DetailLowonganPage() {
     setSelectedCandidateId(candidateId);
     setIsLoadingDetail(true);
     try {
-      const res = await fetch(`${baseUrl}/apply/${candidateId}`);
+      const res = await fetch(
+        `${baseUrl}/apply/${candidateId}?scope=admin&job_opening_id=${slug}`,
+        { headers: getAuthHeaders() },
+      );
       if (!res.ok) throw new Error("Gagal memuat profil.");
       setCandidateDetail(await res.json());
     } catch (err) {
@@ -367,7 +393,10 @@ export default function DetailLowonganPage() {
     setSelectedAssessmentId(candidateId);
     setIsLoadingDetail(true);
     try {
-      const res = await fetch(`${baseUrl}/apply/${candidateId}`);
+      const res = await fetch(
+        `${baseUrl}/apply/${candidateId}?scope=admin&job_opening_id=${slug}`,
+        { headers: getAuthHeaders() },
+      );
       if (!res.ok) throw new Error("Gagal memuat profil.");
       setCandidateDetail(await res.json());
     } catch (err) {
@@ -445,6 +474,18 @@ export default function DetailLowonganPage() {
               <span className="px-3 py-1 text-[10px] font-bold uppercase rounded bg-slate-100 text-slate-600 border border-slate-200">
                 {job.status}
               </span>
+              {(job.unit_name || job.requester_name) && (
+                <span className="px-3 py-1 text-[10px] font-bold uppercase rounded bg-sky-50 text-[#0173b6] border border-sky-200 flex items-center gap-1.5">
+                  <Building2 size={12} />
+                  {job.unit_name || "Unit Terkait"}
+                  {job.requester_name ? ` — ${job.requester_name}` : ""}
+                </span>
+              )}
+              {!canManageLowongan && (
+                <span className="px-3 py-1 text-[10px] font-bold uppercase rounded bg-amber-50 text-amber-700 border border-amber-200">
+                  Mode Evaluator Unit
+                </span>
+              )}
             </div>
             <h1 className="text-4xl font-extrabold text-primary-dark tracking-tight leading-tight mb-3">
               {job.title}
@@ -526,15 +567,17 @@ export default function DetailLowonganPage() {
         >
           <Briefcase size={16} /> Data Pelamar & Lowongan
         </button>
-        <button
-          onClick={() => setActiveTab("assessment")}
-          className={`px-6 py-4 font-bold text-sm uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === "assessment" ? "border-primary text-primary bg-primary/5" : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}
-        >
-          <FileSpreadsheet size={16} /> Konfigurasi Assessment
-        </button>
+        {canManageLowongan && (
+          <button
+            onClick={() => setActiveTab("assessment")}
+            className={`px-6 py-4 font-bold text-sm uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${activeTab === "assessment" ? "border-primary text-primary bg-primary/5" : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}
+          >
+            <FileSpreadsheet size={16} /> Konfigurasi Assessment
+          </button>
+        )}
       </div>
 
-      {activeTab === "detail" ? (
+      {activeTab === "detail" || !canManageLowongan ? (
         <>
           {/* TABEL PELAMAR (Style Lancip & Lebar) */}
           <div className="bg-white rounded-md shadow-sm border border-slate-200 overflow-hidden mb-12">
@@ -543,7 +586,7 @@ export default function DetailLowonganPage() {
                 <Users size={18} className="text-blue-300" />
                 Daftar Kandidat Pelamar
               </h2>
-              {selectedCandidates.length > 0 && (
+              {canManageLowongan && selectedCandidates.length > 0 && (
                 <button
                   onClick={handleBulkSendInvite}
                   disabled={isBulkInviting}
@@ -563,21 +606,24 @@ export default function DetailLowonganPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                    <th className="px-6 py-5 w-[50px] text-center">
-                      <input
-                        type="checkbox"
-                        checked={
-                          applicants.length > 0 &&
-                          selectedCandidates.length === applicants.length
-                        }
-                        onChange={toggleSelectAll}
-                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
-                      />
-                    </th>
+                    {canManageLowongan && (
+                      <th className="px-6 py-5 w-[50px] text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            applicants.length > 0 &&
+                            selectedCandidates.length === applicants.length
+                          }
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+                        />
+                      </th>
+                    )}
                     <th className="px-4 py-5">Nama Lengkap</th>
                     <th className="px-8 py-5">Informasi Kontak</th>
                     <th className="px-8 py-5 text-center">Tanggal Apply</th>
                     <th className="px-8 py-5 text-center">Status Pipeline</th>
+                    <th className="px-6 py-5 text-center">Tes Essay</th>
                     <th className="px-8 py-5 text-center">Kecocokan</th>
                     <th className="px-8 py-5 text-center">Tindakan</th>
                   </tr>
@@ -589,21 +635,23 @@ export default function DetailLowonganPage() {
                         key={applicant.id}
                         className={`hover:bg-slate-50 transition-all group ${selectedCandidates.includes(applicant.id) ? "bg-blue-50/30" : ""}`}
                       >
-                        <td className="px-6 py-6 text-center">
-                          {(!applicant.status ||
-                            ["SUBMITTED", "APPLIED", "PENDING"].includes(
-                              applicant.status.toUpperCase(),
-                            )) && (
-                              <input
-                                type="checkbox"
-                                checked={selectedCandidates.includes(
-                                  applicant.id,
-                                )}
-                                onChange={() => toggleSelect(applicant.id)}
-                                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
-                              />
-                            )}
-                        </td>
+                        {canManageLowongan && (
+                          <td className="px-6 py-6 text-center">
+                            {(!applicant.status ||
+                              ["SUBMITTED", "APPLIED", "PENDING"].includes(
+                                applicant.status.toUpperCase(),
+                              )) && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCandidates.includes(
+                                    applicant.id,
+                                  )}
+                                  onChange={() => toggleSelect(applicant.id)}
+                                  className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+                                />
+                              )}
+                          </td>
+                        )}
                         <td className="px-4 py-6">
                           <div className="font-bold text-slate-800 text-base tracking-tight">
                             {applicant.nama}
@@ -636,6 +684,27 @@ export default function DetailLowonganPage() {
                           >
                             {applicant.status}
                           </span>
+                        </td>
+                        <td className="px-6 py-6 text-center">
+                          {applicant.essay_review_decision === "LOLOS" ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Essay: Lolos
+                            </span>
+                          ) : applicant.essay_review_decision === "TIDAK_LOLOS" ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                              Essay: Tidak Lolos
+                            </span>
+                          ) : applicant.essay_submitted ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                              Perlu Review
+                            </span>
+                          ) : applicant.essay_required ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-50 text-slate-500 border border-slate-200">
+                              Menunggu Jawaban
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold text-slate-300">-</span>
+                          )}
                         </td>
                         <td className="px-8 py-6 text-center w-[150px]">
                           {applicant.suitability_match !== null &&
@@ -678,12 +747,12 @@ export default function DetailLowonganPage() {
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => handleViewCandidate(applicant.id)}
-                              className="p-3 text-primary hover:text-white border border-slate-100 hover:bg-primary rounded-md shadow-sm transition-all active:scale-95"
+                              className="p-3 text-primary hover:text-white border border-slate-100 hover:bg-primary rounded-md shadow-sm transition-all active:scale-95 min-h-[44px]"
                               title="Lihat Profil Lengkap"
                             >
                               <Eye size={18} />
                             </button>
-                            {(!applicant.status ||
+                            {canManageLowongan && (!applicant.status ||
                               ["SUBMITTED", "APPLIED", "PENDING"].includes(
                                 applicant.status.toUpperCase(),
                               )) && (
@@ -691,7 +760,7 @@ export default function DetailLowonganPage() {
                                   <button
                                     onClick={() => handleSendInvite(applicant.id)}
                                     disabled={invitingId === applicant.id}
-                                    className="p-3 text-emerald-600 hover:text-white border border-slate-100 hover:bg-emerald-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="p-3 text-emerald-600 hover:text-white border border-slate-100 hover:bg-emerald-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                                     title="Loloskan Administrasi (Kirim Undangan Tes)"
                                   >
                                     {invitingId === applicant.id ? (
@@ -706,7 +775,7 @@ export default function DetailLowonganPage() {
                                   <button
                                     onClick={() => handleReject(applicant.id)}
                                     disabled={rejectingId === applicant.id}
-                                    className="p-3 text-rose-500 hover:text-white border border-slate-100 hover:bg-rose-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="p-3 text-rose-500 hover:text-white border border-slate-100 hover:bg-rose-500 rounded-md shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                                     title="Tolak Kandidat (Gagal Administrasi)"
                                   >
                                     {rejectingId === applicant.id ? (
@@ -721,11 +790,16 @@ export default function DetailLowonganPage() {
                                 </>
                               )}
 
-                            {(applicant.status?.toUpperCase() === 'ASSESSMENT' || applicant.status?.toUpperCase() === 'COMPLETED') && (
+                            {(applicant.status?.toUpperCase() === 'ASSESSMENT' ||
+                              applicant.status?.toUpperCase() === 'COMPLETED' ||
+                              applicant.status?.toUpperCase() === 'ACCEPTED' ||
+                              applicant.status?.toUpperCase() === 'REJECTED' ||
+                              applicant.essay_submitted ||
+                              Boolean(applicant.assessment_session_status)) && (
                               <button
                                 onClick={() => handleViewAssessment(applicant.id)}
-                                className="p-3 text-blue-500 hover:text-white border border-slate-100 hover:bg-blue-500 rounded-md shadow-sm transition-all active:scale-95"
-                                title="Lihat Hasil Assessment"
+                                className="p-3 text-blue-500 hover:text-white border border-slate-100 hover:bg-blue-500 rounded-md shadow-sm transition-all active:scale-95 min-h-[44px]"
+                                title="Lihat Hasil Assessment & Evaluasi Essay"
                               >
                                 <ClipboardList size={18} />
                               </button>
@@ -736,7 +810,7 @@ export default function DetailLowonganPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="text-center py-20">
+                      <td colSpan={canManageLowongan ? 8 : 7} className="text-center py-20">
                         <div className="flex flex-col items-center justify-center grayscale opacity-30">
                           <Users className="h-12 w-12 mb-3 text-slate-400" />
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -752,7 +826,10 @@ export default function DetailLowonganPage() {
           </div>
         </>
       ) : (
-        <AssessmentSelector jobOpeningId={slug as string} jobId={job.job_id} />
+        <div className="space-y-8">
+          <AssessmentSelector jobOpeningId={slug as string} jobId={job.job_id} />
+          <EssayBundleSelector jobOpeningId={slug as string} />
+        </div>
       )}
 
       {/* MODAL PROFIL KANDIDAT */}
@@ -1562,6 +1639,46 @@ export default function DetailLowonganPage() {
                     Belum diselesaikan.
                   </p>
                 )}
+              </div>
+
+              {/* Evaluasi Tes Essay Kompetensi */}
+              <div className="col-span-1 md:col-span-2">
+                <EssayReviewPanel
+                  essayResult={(candidateDetail.assessment_results.essay as EssayResultRecord | null) ?? null}
+                  essayRequired={Boolean(candidateDetail.assessment_results.essay_required)}
+                  essayBundleName={candidateDetail.assessment_results.essay_bundle_name ?? null}
+                  canManageLowongan={canManageLowongan}
+                  onSaved={(updated: Partial<EssayResultRecord>) => {
+                    setCandidateDetail((prev: { assessment_results?: { essay?: Partial<EssayResultRecord> } } | null) =>
+                      prev
+                        ? {
+                            ...prev,
+                            assessment_results: {
+                              ...prev.assessment_results,
+                              essay: {
+                                ...(prev.assessment_results?.essay ?? {}),
+                                ...updated,
+                              },
+                            },
+                          }
+                        : prev,
+                    );
+                    setApplicants((prev) =>
+                      prev.map((applicant) =>
+                        applicant.id === selectedAssessmentId
+                          ? {
+                              ...applicant,
+                              essay_submitted: true,
+                              essay_review_decision:
+                                updated.review_decision ?? applicant.essay_review_decision ?? null,
+                              essay_reviewed_by_name:
+                                updated.reviewed_by_name ?? applicant.essay_reviewed_by_name ?? null,
+                            }
+                          : applicant,
+                      ),
+                    );
+                  }}
+                />
               </div>
             </div>
             <div className="pt-2 flex justify-end">
