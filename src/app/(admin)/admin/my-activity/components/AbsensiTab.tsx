@@ -18,6 +18,13 @@ import {
 } from "lucide-react";
 import { useGpsGate } from "@/app/lib/useGpsGate";
 import GpsGatePanel from "@/app/components/absensi/GpsGatePanel";
+import {
+  CAMERA_VIDEO_CONSTRAINTS,
+  ensureFaceModelsLoaded,
+  FACE_DETECTION_INPUT_SIZE,
+  preloadFaceModels,
+} from "@/app/lib/faceRecognition";
+import { usePreExtractedFace } from "@/app/lib/usePreExtractedFace";
 
 interface AttendanceRecord {
   readonly date: string;
@@ -82,11 +89,22 @@ export default function AbsensiTab() {
   const [cachedDescriptor, setCachedDescriptor] = useState<number[] | null>(null);
   const [scanResultMsg, setScanResultMsg] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
-  const faceapiRef = useRef<any>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
 
   const gps = useGpsGate(isLiveAbsenOpen);
   const gpsUnlocked = gps.isReady && gps.inArea;
+
+  const {
+    isFaceLocked,
+    consumeFreshDescriptor,
+    extractLiveDescriptor,
+    clearPreExtractedFace,
+  } = usePreExtractedFace({
+    videoRef,
+    enabled: isLiveAbsenOpen && gpsUnlocked && isCameraReady && scanStatus === "idle",
+    inputSize: FACE_DETECTION_INPUT_SIZE.MOBILE,
+  });
+
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   // Waktu absensi di database diselaraskan +7 jam ke zona waktu WIB (Asia/Jakarta)
@@ -203,6 +221,11 @@ export default function AbsensiTab() {
     }
   }, [selectedMonth, selectedYear]);
 
+  // Preload model AI & kompilasi shader WebGL lebih awal agar kamera langsung siap pakai
+  useEffect(() => {
+    preloadFaceModels(FACE_DETECTION_INPUT_SIZE.MOBILE);
+  }, []);
+
   // Load Models & Kamera saat Live Absen Aktif
   useEffect(() => {
     if (!isLiveAbsenOpen || !gpsUnlocked) return;
@@ -212,23 +235,26 @@ export default function AbsensiTab() {
 
     const setupCamera = async () => {
       try {
-        const fa = await import("@vladmandic/face-api");
-        if (isMounted) faceapiRef.current = fa;
-
-        await Promise.all([
-          fa.nets.tinyFaceDetector.loadFromUri("/models"),
-          fa.nets.faceLandmark68Net.loadFromUri("/models"),
-          fa.nets.faceRecognitionNet.loadFromUri("/models"),
+        const [, stream] = await Promise.all([
+          ensureFaceModelsLoaded(FACE_DETECTION_INPUT_SIZE.MOBILE),
+          navigator.mediaDevices?.getUserMedia
+            ? navigator.mediaDevices.getUserMedia({ video: CAMERA_VIDEO_CONSTRAINTS })
+            : Promise.resolve(null),
         ]);
 
-        if (navigator.mediaDevices?.getUserMedia && isMounted) {
-          activeStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "user" },
-          });
-          if (videoRef.current) {
-            videoRef.current.srcObject = activeStream;
+        if (!isMounted) {
+          stream?.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        activeStream = stream;
+        if (videoRef.current && stream) {
+          videoRef.current.srcObject = stream;
+          if (videoRef.current.readyState >= 2) {
             setIsCameraReady(true);
           }
+        } else {
+          setScanResultMsg("Kamera tidak dapat diakses.");
         }
       } catch (err) {
         console.error("Gagal setup kamera/model:", err);
@@ -243,12 +269,13 @@ export default function AbsensiTab() {
       if (activeStream) {
         activeStream.getTracks().forEach((track) => track.stop());
       }
+      clearPreExtractedFace();
       setIsCameraReady(false);
       setScanStatus("idle");
       setScanResultMsg("");
       setCachedDescriptor(null);
     };
-  }, [isLiveAbsenOpen, gpsUnlocked]);
+  }, [isLiveAbsenOpen, gpsUnlocked, clearPreExtractedFace]);
 
   const handleScanAbsen = async (
     type: "in" | "out",
@@ -256,129 +283,122 @@ export default function AbsensiTab() {
     forceNewCheckIn = false
   ) => {
     if (scanStatus === "scanning") return;
-    if (!videoRef.current && !cachedDescriptor) return;
     if (!karyawanId) return;
+
+    const preExtracted = cachedDescriptor ?? consumeFreshDescriptor();
+    if (!videoRef.current && !preExtracted) return;
 
     setScanStatus("scanning");
     setScanResultMsg("Memverifikasi biometrik wajah...");
 
-    setTimeout(async () => {
-      try {
-        let faceDescriptor = cachedDescriptor;
+    try {
+      let faceDescriptor = preExtracted;
+      if (!faceDescriptor) {
+        // Beri 1 frame agar overlay scanning tergambar sebelum ekstraksi live dijalankan
+        await new Promise<void>((resolve) => setTimeout(resolve, 20));
+        faceDescriptor = await extractLiveDescriptor();
+
         if (!faceDescriptor) {
-          const faceapi = faceapiRef.current;
-          if (!faceapi) return;
-
-          const detection = await faceapi
-            .detectSingleFace(
-              videoRef.current,
-              new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 })
-            )
-            .withFaceLandmarks()
-            .withFaceDescriptor();
-
-          if (!detection) {
-            setScanStatus("error");
-            setScanResultMsg("Wajah tidak terdeteksi. Posisikan wajah Anda tegak ke arah kamera.");
-            setTimeout(() => {
-              setScanStatus("idle");
-              setScanResultMsg("");
-            }, 3000);
-            return;
-          }
-          faceDescriptor = Array.from(detection.descriptor);
+          setScanStatus("error");
+          setScanResultMsg("Wajah tidak terdeteksi. Posisikan wajah Anda tegak ke arah kamera.");
+          setTimeout(() => {
+            setScanStatus("idle");
+            setScanResultMsg("");
+          }, 3000);
+          return;
         }
+      }
 
-        const loc = gps.getLatestPosition();
-        if (!loc) {
+      const loc = gps.getLatestPosition();
+      if (!loc) {
+        setScanStatus("error");
+        setCachedDescriptor(null);
+        setScanResultMsg("GPS tidak aktif. Nyalakan lokasi perangkat Anda.");
+        setTimeout(() => {
+          setScanStatus("idle");
+          setScanResultMsg("");
+        }, 4000);
+        return;
+      }
+
+      const response = await fetch("/api/absensi/verify-face", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          descriptor: faceDescriptor,
+          type,
+          forceEarlyOut,
+          forceNewCheckIn,
+          karyawan_id: karyawanId,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          accuracy: loc.accuracy,
+        }),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok) {
+        if (resData.isEarly) {
+          setCachedDescriptor(faceDescriptor);
+          setScanStatus("early");
+          setScanResultMsg(resData.message);
+          return;
+        }
+        if (resData.isUnresolvedCheckout) {
+          setCachedDescriptor(faceDescriptor);
+          setScanStatus("unresolved_checkout");
+          setScanResultMsg(resData.message);
+          return;
+        }
+        if (resData.isOutOfArea) {
           setScanStatus("error");
           setCachedDescriptor(null);
-          setScanResultMsg("GPS tidak aktif. Nyalakan lokasi perangkat Anda.");
+          setScanResultMsg(resData.message);
+          setTimeout(() => {
+            setScanStatus("idle");
+            setScanResultMsg("");
+          }, 5000);
+          return;
+        }
+        if (response.status === 409 || response.status === 403) {
+          setScanStatus("info");
+          setCachedDescriptor(null);
+          setScanResultMsg(resData.message);
           setTimeout(() => {
             setScanStatus("idle");
             setScanResultMsg("");
           }, 4000);
           return;
         }
-
-        const response = await fetch("/api/absensi/verify-face", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            descriptor: faceDescriptor,
-            type,
-            forceEarlyOut,
-            forceNewCheckIn,
-            karyawan_id: karyawanId,
-            latitude: loc.latitude,
-            longitude: loc.longitude,
-            accuracy: loc.accuracy,
-          }),
-        });
-
-        const resData = await response.json();
-
-        if (!response.ok) {
-          if (resData.isEarly) {
-            setCachedDescriptor(faceDescriptor);
-            setScanStatus("early");
-            setScanResultMsg(resData.message);
-            return;
-          }
-          if (resData.isUnresolvedCheckout) {
-            setCachedDescriptor(faceDescriptor);
-            setScanStatus("unresolved_checkout");
-            setScanResultMsg(resData.message);
-            return;
-          }
-          if (resData.isOutOfArea) {
-            setScanStatus("error");
-            setCachedDescriptor(null);
-            setScanResultMsg(resData.message);
-            setTimeout(() => {
-              setScanStatus("idle");
-              setScanResultMsg("");
-            }, 5000);
-            return;
-          }
-          if (response.status === 409 || response.status === 403) {
-            setScanStatus("info");
-            setCachedDescriptor(null);
-            setScanResultMsg(resData.message);
-            setTimeout(() => {
-              setScanStatus("idle");
-              setScanResultMsg("");
-            }, 4000);
-            return;
-          }
-          setScanStatus("error");
-          setCachedDescriptor(null);
-          setScanResultMsg(resData.message || "Wajah tidak cocok dengan data terdaftar.");
-          setTimeout(() => {
-            setScanStatus("idle");
-            setScanResultMsg("");
-          }, 4000);
-        } else {
-          setScanStatus("success");
-          setCachedDescriptor(null);
-          setScanResultMsg(resData.message || "Presensi berhasil dicatat.");
-          setTimeout(() => {
-            setIsLiveAbsenOpen(false);
-            if (karyawanId) {
-              fetchAbsensi(karyawanId, selectedMonth, selectedYear);
-            }
-          }, 1800);
-        }
-      } catch (error) {
-        console.error(error);
         setScanStatus("error");
-        setScanResultMsg("Terjadi gangguan koneksi sistem.");
+        setCachedDescriptor(null);
+        setScanResultMsg(resData.message || "Wajah tidak cocok dengan data terdaftar.");
         setTimeout(() => {
           setScanStatus("idle");
           setScanResultMsg("");
-        }, 3000);
+        }, 4000);
+      } else {
+        setScanStatus("success");
+        setCachedDescriptor(null);
+        setScanResultMsg(resData.message || "Presensi berhasil dicatat.");
+        setTimeout(() => {
+          setIsLiveAbsenOpen(false);
+          if (karyawanId) {
+            fetchAbsensi(karyawanId, selectedMonth, selectedYear);
+          }
+        }, 1800);
       }
-    }, 400);
+    } catch (error) {
+      console.error(error);
+      setScanStatus("error");
+      setCachedDescriptor(null);
+      setScanResultMsg("Terjadi gangguan koneksi sistem.");
+      setTimeout(() => {
+        setScanStatus("idle");
+        setScanResultMsg("");
+      }, 3000);
+    }
   };
 
   function logDateOnly(fullDate: string) {
@@ -741,18 +761,57 @@ export default function AbsensiTab() {
                     autoPlay
                     playsInline
                     muted
+                    onLoadedData={() => {
+                      if (videoRef.current && videoRef.current.readyState >= 2) {
+                        setIsCameraReady(true);
+                      }
+                    }}
+                    onPlaying={() => setIsCameraReady(true)}
                     className={`w-full h-full object-cover ${!isCameraReady ? "opacity-0" : "opacity-100"} transition-opacity duration-300`}
                     style={{ transform: "scaleX(-1)" }}
                   />
 
                   {/* Frame Guideline */}
                   {isCameraReady && scanStatus === "idle" && (
-                    <div className="absolute inset-0 border-[3px] border-white/20 m-8 rounded-[36px] pointer-events-none">
-                      <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-[34px]" />
-                      <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-[34px]" />
-                      <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-[34px]" />
-                      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-[34px]" />
-                    </div>
+                    <>
+                      <div
+                        className={`absolute inset-0 border-[3px] m-8 rounded-[36px] pointer-events-none transition-colors duration-300 ${
+                          isFaceLocked ? "border-emerald-400/50" : "border-white/20"
+                        }`}
+                      >
+                        <div
+                          className={`absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 rounded-tl-[34px] transition-colors duration-300 ${
+                            isFaceLocked ? "border-emerald-400" : "border-primary"
+                          }`}
+                        />
+                        <div
+                          className={`absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 rounded-tr-[34px] transition-colors duration-300 ${
+                            isFaceLocked ? "border-emerald-400" : "border-primary"
+                          }`}
+                        />
+                        <div
+                          className={`absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 rounded-bl-[34px] transition-colors duration-300 ${
+                            isFaceLocked ? "border-emerald-400" : "border-primary"
+                          }`}
+                        />
+                        <div
+                          className={`absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 rounded-br-[34px] transition-colors duration-300 ${
+                            isFaceLocked ? "border-emerald-400" : "border-primary"
+                          }`}
+                        />
+                      </div>
+                      <div className="absolute bottom-3 inset-x-0 flex justify-center pointer-events-none">
+                        <span
+                          className={`px-3.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border transition-all duration-300 ${
+                            isFaceLocked
+                              ? "bg-emerald-500/90 text-white border-emerald-300/60 shadow-lg"
+                              : "bg-slate-900/65 text-white/85 border-white/15"
+                          }`}
+                        >
+                          {isFaceLocked ? "Wajah Terdeteksi • Siap Absen" : "Mendeteksi Wajah..."}
+                        </span>
+                      </div>
+                    </>
                   )}
 
                   {/* Status Overlays */}
@@ -778,6 +837,14 @@ export default function AbsensiTab() {
                       </p>
                     </div>
                   )}
+                  {scanStatus === "info" && (
+                    <div className="absolute inset-0 bg-[#0173b6]/95 backdrop-blur-xs flex flex-col items-center justify-center z-20 text-white p-6">
+                      <AlertCircle className="w-16 h-16 mb-3" />
+                      <p className="text-xs font-bold text-center leading-relaxed">
+                        {scanResultMsg}
+                      </p>
+                    </div>
+                  )}
                   {scanStatus === "early" && (
                     <div className="absolute inset-0 bg-amber-600/95 backdrop-blur-xs flex flex-col items-center justify-center z-20 text-white p-6 text-center">
                       <AlertCircle className="w-14 h-14 mb-3" />
@@ -786,8 +853,11 @@ export default function AbsensiTab() {
                       </p>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setScanStatus("idle")}
-                          className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all"
+                          onClick={() => {
+                            setScanStatus("idle");
+                            setCachedDescriptor(null);
+                          }}
+                          className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all min-h-[44px]"
                         >
                           Batal
                         </button>

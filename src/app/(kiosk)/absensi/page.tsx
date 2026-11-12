@@ -5,6 +5,12 @@ import { Camera, Clock, CheckCircle2, AlertCircle, ScanFace, MapPin, Wifi, Loade
 import { ABSENSI_GEOFENCE, formatDistance } from "@/app/lib/geofence";
 import { useGpsGate } from "@/app/lib/useGpsGate";
 import GpsGatePanel from "@/app/components/absensi/GpsGatePanel";
+import {
+  CAMERA_VIDEO_CONSTRAINTS,
+  ensureFaceModelsLoaded,
+  FACE_DETECTION_INPUT_SIZE,
+} from "@/app/lib/faceRecognition";
+import { usePreExtractedFace } from "@/app/lib/usePreExtractedFace";
 
 export default function KioskAbsensiPage() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -13,7 +19,7 @@ export default function KioskAbsensiPage() {
   const [cachedDescriptor, setCachedDescriptor] = useState<number[] | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mockUser, setMockUser] = useState<any>(null);
-  const faceapiRef = useRef<any>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   // GPS wajib aktif selama halaman absensi dibuka (dipantau terus-menerus)
   const gps = useGpsGate();
@@ -25,6 +31,17 @@ export default function KioskAbsensiPage() {
   const [karyawanInfo, setKaryawanInfo] = useState<{id: string, nama_lengkap: string} | null>(null);
   const [nipError, setNipError] = useState("");
   const [isCheckingNip, setIsCheckingNip] = useState(false);
+
+  const {
+    isFaceLocked,
+    consumeFreshDescriptor,
+    extractLiveDescriptor,
+    clearPreExtractedFace,
+  } = usePreExtractedFace({
+    videoRef,
+    enabled: isClient && step === "camera" && gpsUnlocked && isCameraReady && scanStatus === "idle",
+    inputSize: FACE_DETECTION_INPUT_SIZE.KIOSK,
+  });
 
   const handleCheckNip = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -60,159 +77,147 @@ export default function KioskAbsensiPage() {
     setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    // Load AI Models dynamically to avoid SSR TextEncoder error
-    const loadModels = async () => {
-      try {
-        const fa = await import("@vladmandic/face-api");
-        faceapiRef.current = fa;
-        const MODEL_URL = "/models";
-        await Promise.all([
-          fa.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          fa.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          fa.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        ]);
+    // Preload model AI & kompilasi shader WebGL saat user masih mengisi NIP
+    ensureFaceModelsLoaded(FACE_DETECTION_INPUT_SIZE.KIOSK)
+      .then(() => {
         console.log("Model Kiosk AI Loaded");
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error("Gagal memuat model:", err);
-      }
-    };
-    loadModels();
+      });
 
     return () => clearInterval(timer);
   }, []);
 
-  // Membuka akses kamera (Visualisasi)
+  // Membuka akses kamera dengan resolusi optimal 640x480 untuk deteksi wajah cepat
   useEffect(() => {
     if (isClient && step === "camera" && gpsUnlocked && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       let activeStream: MediaStream | null = null;
+      let isMounted = true;
+
       navigator.mediaDevices
-        .getUserMedia({ 
-          video: { 
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 },
-            facingMode: "user"
-          } 
-        })
+        .getUserMedia({ video: CAMERA_VIDEO_CONSTRAINTS })
         .then((stream) => {
+          if (!isMounted) {
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+          }
           activeStream = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
+            if (videoRef.current.readyState >= 2) {
+              setIsCameraReady(true);
+            }
           }
         })
         .catch((err) => {
           console.error("Akses kamera ditolak atau tidak tersedia:", err);
         });
 
-      // Cleanup stream when component unmounts or step changes
       return () => {
+        isMounted = false;
         if (activeStream) {
-          activeStream.getTracks().forEach(track => track.stop());
+          activeStream.getTracks().forEach((track) => track.stop());
         }
+        clearPreExtractedFace();
+        setIsCameraReady(false);
       };
     }
-  }, [isClient, step, gpsUnlocked]);
+  }, [isClient, step, gpsUnlocked, clearPreExtractedFace]);
 
-  // Proses absensi (AI Scan)
+  // Proses absensi (AI Scan): gunakan descriptor pre-extracted bila tersedia agar verifikasi instan
   const handleScanAbsen = async (type: "in" | "out", forceEarlyOut: boolean = false, forceNewCheckIn: boolean = false) => {
     if (scanStatus === "scanning") return;
-    if (!videoRef.current && !cachedDescriptor) return;
-    
+
+    const preExtracted = cachedDescriptor ?? consumeFreshDescriptor();
+    if (!videoRef.current && !preExtracted) return;
+
     setScanStatus("scanning");
-    
-    // Trik UI Unblocking: Beri jeda 100ms agar browser bisa menggambar layar biru dulu sebelum AI membajak Main Thread
-    setTimeout(async () => {
-      try {
-        let faceDescriptor = cachedDescriptor;
+
+    try {
+      let faceDescriptor = preExtracted;
+      if (!faceDescriptor) {
+        // Beri 1 frame agar HUD scanning tergambar dulu sebelum AI mengekstrak wajah live
+        await new Promise<void>((resolve) => setTimeout(resolve, 20));
+        faceDescriptor = await extractLiveDescriptor();
+
         if (!faceDescriptor) {
-            const faceapi = faceapiRef.current;
-            if (!faceapi) return;
-
-            // 1. Deteksi Wajah dari Kiosk
-            const detection = await faceapi
-              .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 }))
-              .withFaceLandmarks()
-              .withFaceDescriptor();
-
-            if (!detection) {
-              setScanStatus("error");
-              setMockUser({ errorMessage: "Wajah tidak terdeteksi. Silakan coba lagi." });
-              setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 4000);
-              return;
-            }
-            faceDescriptor = Array.from(detection.descriptor);
+          setScanStatus("error");
+          setMockUser({ errorMessage: "Wajah tidak terdeteksi. Silakan coba lagi." });
+          setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 4000);
+          return;
         }
+      }
 
-        // 1.5 Ambil lokasi GPS terbaru (dipantau terus oleh useGpsGate)
-        const loc = gps.getLatestPosition();
-        if (!loc) {
+      // 1.5 Ambil lokasi GPS terbaru (dipantau terus oleh useGpsGate)
+      const loc = gps.getLatestPosition();
+      if (!loc) {
+        setScanStatus("error");
+        setCachedDescriptor(null);
+        setMockUser({ errorTitle: "Lokasi Tidak Terdeteksi", errorMessage: "GPS tidak aktif. Nyalakan GPS (Lokasi) perangkat Anda lalu coba lagi." });
+        setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+        return;
+      }
+
+      // 2. Kirim descriptor ke API Backend untuk pencocokan & absensi
+      const response = await fetch("/api/absensi/verify-face", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id: karyawanInfo?.id, latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy }),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok) {
+        if (resData.isEarly) {
+          setCachedDescriptor(faceDescriptor);
+          setScanStatus("early");
+          setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
+          return;
+        }
+        if (resData.isUnresolvedCheckout) {
+          setCachedDescriptor(faceDescriptor);
+          setScanStatus("unresolved_checkout");
+          setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
+          return;
+        }
+        if (resData.isOutOfArea) {
           setScanStatus("error");
           setCachedDescriptor(null);
-          setMockUser({ errorTitle: "Lokasi Tidak Terdeteksi", errorMessage: "GPS tidak aktif. Nyalakan GPS (Lokasi) perangkat Anda lalu coba lagi." });
+          setMockUser({ errorTitle: "Di Luar Area Absensi", errorMessage: resData.message });
+          setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 6000);
+          return;
+        }
+        if (response.status === 409 || response.status === 403) {
+          setScanStatus("info");
+          setCachedDescriptor(null);
+          setMockUser({ nama: resData.user?.nama, errorMessage: resData.message });
           setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
           return;
         }
-
-        // 2. Kirim descriptor ke API Backend untuk pencocokan & absensi
-        const response = await fetch("/api/absensi/verify-face", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descriptor: faceDescriptor, type, forceEarlyOut, forceNewCheckIn, karyawan_id: karyawanInfo?.id, latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy }),
-        });
-
-        const resData = await response.json();
-
-        if (!response.ok) {
-          if (resData.isEarly) {
-             setCachedDescriptor(faceDescriptor);
-             setScanStatus("early");
-             setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
-             return; // Jangan di-reset otomatis
-          }
-          if (resData.isUnresolvedCheckout) {
-             setCachedDescriptor(faceDescriptor);
-             setScanStatus("unresolved_checkout");
-             setMockUser({ nama: resData.user.nama, errorMessage: resData.message });
-             return; // Jangan di-reset otomatis
-          }
-          if (resData.isOutOfArea) {
-             setScanStatus("error");
-             setCachedDescriptor(null);
-             setMockUser({ errorTitle: "Di Luar Area Absensi", errorMessage: resData.message });
-             setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 6000);
-             return;
-          }
-          if (response.status === 409 || response.status === 403) {
-             setScanStatus("info");
-             setCachedDescriptor(null);
-             setMockUser({ nama: resData.user?.nama, errorMessage: resData.message });
-             setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
-             return;
-          }
-          setScanStatus("error");
-          setCachedDescriptor(null);
-          setMockUser({ errorMessage: resData.message || "Wajah tidak dikenali." });
-          setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
-        } else {
-          setScanStatus("success");
-          setCachedDescriptor(null);
-          setMockUser({
-            nama: resData.user.nama,
-            jabatan: resData.user.jabatan,
-            waktu: resData.user.waktu,
-            status: resData.user.status,
-            type: resData.type
-          });
-          setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
-        }
-
-      } catch (error) {
-        console.error(error);
         setScanStatus("error");
         setCachedDescriptor(null);
-        setMockUser({ errorMessage: "Terjadi kesalahan sistem." });
+        setMockUser({ errorMessage: resData.message || "Wajah tidak dikenali." });
+        setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+      } else {
+        setScanStatus("success");
+        setCachedDescriptor(null);
+        setMockUser({
+          nama: resData.user.nama,
+          jabatan: resData.user.jabatan,
+          waktu: resData.user.waktu,
+          status: resData.user.status,
+          type: resData.type
+        });
         setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
       }
-    }, 100);
+    } catch (error) {
+      console.error(error);
+      setScanStatus("error");
+      setCachedDescriptor(null);
+      setMockUser({ errorMessage: "Terjadi kesalahan sistem." });
+      setTimeout(() => { setScanStatus("idle"); setMockUser(null); }, 5000);
+    }
   };
 
   if (!isClient || !currentTime) return (
@@ -322,17 +327,33 @@ export default function KioskAbsensiPage() {
             <div className="mb-6 flex items-center justify-center gap-3 bg-white/5 px-6 py-3 rounded-full border border-white/10 backdrop-blur-md">
                <User size={16} className="text-emerald-400" />
                <span className="text-sm font-bold">Halo, {karyawanInfo?.nama_lengkap}</span>
-               <button onClick={() => { setStep("input-nip"); setNipInput(""); }} className="ml-2 text-[10px] bg-white/10 px-3 py-1 rounded-full uppercase tracking-wider hover:bg-white/20 transition-colors">Ganti</button>
+               <button
+                 onClick={() => {
+                   clearPreExtractedFace();
+                   setCachedDescriptor(null);
+                   setIsCameraReady(false);
+                   setStep("input-nip");
+                   setNipInput("");
+                 }}
+                 className="ml-2 text-[10px] bg-white/10 px-3 py-1 rounded-full uppercase tracking-wider hover:bg-white/20 transition-colors"
+               >
+                 Ganti
+               </button>
             </div>
 
         {/* Camera Container */}
         <div className="relative group mx-auto w-fit">
           {/* Border Frame for Camera */}
           <div className={`absolute -inset-2 rounded-[40px] blur-xl transition-all duration-700 ${
-            scanStatus === "idle" ? "bg-blue-600/20 group-hover:bg-blue-500/40" :
-            scanStatus === "scanning" ? "bg-blue-500/60 animate-pulse" :
-            scanStatus === "success" ? "bg-emerald-500/60" :
-            "bg-rose-500/60"
+            scanStatus === "idle"
+              ? isFaceLocked
+                ? "bg-emerald-500/35"
+                : "bg-blue-600/20 group-hover:bg-blue-500/40"
+              : scanStatus === "scanning"
+                ? "bg-blue-500/60 animate-pulse"
+                : scanStatus === "success"
+                  ? "bg-emerald-500/60"
+                  : "bg-rose-500/60"
           }`}></div>
           
           <div className="relative w-[300px] h-[400px] lg:w-[400px] lg:h-[500px] bg-black/50 rounded-[32px] overflow-hidden border-2 border-white/10 shadow-2xl flex items-center justify-center backdrop-blur-md cursor-pointer">
@@ -342,15 +363,21 @@ export default function KioskAbsensiPage() {
               ref={videoRef}
               autoPlay 
               playsInline 
-              muted 
+              muted
+              onLoadedData={() => {
+                if (videoRef.current && videoRef.current.readyState >= 2) {
+                  setIsCameraReady(true);
+                }
+              }}
+              onPlaying={() => setIsCameraReady(true)}
               className="w-full h-full object-cover transform scale-x-[-1] opacity-80" 
             />
 
-            {/* Placeholder jika tidak ada video */}
-            {!videoRef.current?.srcObject && scanStatus !== "error" && scanStatus !== "success" && scanStatus !== "early" && (
+            {/* Placeholder jika kamera belum aktif */}
+            {!isCameraReady && scanStatus !== "error" && scanStatus !== "success" && scanStatus !== "early" && (
                <div className="absolute inset-0 flex flex-col items-center justify-center text-white/20">
                  <Camera size={80} className="mb-6 opacity-30" />
-                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-center px-10">Kamera tidak terdeteksi.<br/><span className="text-[10px] text-white/30">Klik untuk simulasi absensi.</span></p>
+                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-center px-10">Kamera belum siap.<br/><span className="text-[10px] text-white/30">Menunggu stream kamera perangkat...</span></p>
                </div>
             )}
 
@@ -358,10 +385,22 @@ export default function KioskAbsensiPage() {
             {scanStatus === "idle" && (
                 <div className="absolute inset-0 pointer-events-none">
                     {/* Face Guide Bracket */}
-                    <div className="absolute top-[20%] bottom-[20%] left-[15%] right-[15%] border-2 border-dashed border-white/20 rounded-[100px] transition-all"></div>
+                    <div
+                      className={`absolute top-[20%] bottom-[20%] left-[15%] right-[15%] border-2 rounded-[100px] transition-all duration-300 ${
+                        isFaceLocked
+                          ? "border-emerald-400/80 shadow-[inset_0_0_24px_rgba(16,185,129,0.25)]"
+                          : "border-dashed border-white/20"
+                      }`}
+                    ></div>
                     <div className="absolute bottom-10 w-full text-center">
-                        <span className="bg-black/50 text-white/80 backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-white/10 shadow-xl">
-                            Posisikan Wajah Di Tengah
+                        <span
+                          className={`backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border shadow-xl transition-all duration-300 ${
+                            isFaceLocked
+                              ? "bg-emerald-500/85 text-white border-emerald-300/60"
+                              : "bg-black/50 text-white/80 border-white/10"
+                          }`}
+                        >
+                            {isFaceLocked ? "Wajah Terdeteksi • Siap Check-In/Out" : "Posisikan Wajah Di Tengah"}
                         </span>
                     </div>
                 </div>
