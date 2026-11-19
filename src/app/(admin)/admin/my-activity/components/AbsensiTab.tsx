@@ -46,6 +46,9 @@ interface RawAttendanceApiItem {
   readonly jam_masuk?: string | null;
   readonly jam_keluar?: string | null;
   readonly menit_terlambat?: number | null;
+  readonly is_late?: boolean | null;
+  readonly is_pulang_cepat?: boolean | null;
+  readonly menit_pulang_cepat?: number | null;
 }
 
 type ScanStatus =
@@ -107,37 +110,25 @@ export default function AbsensiTab() {
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
-  // Waktu absensi di database diselaraskan +7 jam ke zona waktu WIB (Asia/Jakarta)
-  const toWibDate = (timeStr?: string | null): Date | null => {
-    if (!timeStr) return null;
-    const d = new Date(timeStr);
-    if (isNaN(d.getTime())) return null;
-    return new Date(d.getTime() + 7 * 60 * 60 * 1000);
-  };
-
   const extractTime = (timeStr?: string | null): string => {
     if (!timeStr) return "-";
     try {
-      const timePart = timeStr.includes("T")
-        ? timeStr.substring(11, 16)
-        : timeStr.includes(" ")
+      const timePart = timeStr.includes(" ")
         ? timeStr.split(" ")[1]?.substring(0, 5)
+        : timeStr.includes("T")
+        ? timeStr.split("T")[1]?.substring(0, 5)
         : timeStr.substring(0, 5);
 
       if (timePart && timePart.includes(":")) {
-        const [rawH, rawM] = timePart.split(":").map(Number);
-        if (!isNaN(rawH) && !isNaN(rawM)) {
-          const adjustedHour = String((rawH + 7) % 24).padStart(2, "0");
-          const adjustedMinute = String(rawM).padStart(2, "0");
-          return `${adjustedHour}:${adjustedMinute}`;
+        const [rawH, rawM] = timePart.split(":");
+        if (
+          rawH !== undefined &&
+          rawM !== undefined &&
+          !isNaN(Number(rawH)) &&
+          !isNaN(Number(rawM))
+        ) {
+          return `${rawH.padStart(2, "0")}:${rawM.padStart(2, "0")}`;
         }
-      }
-
-      const wibDate = toWibDate(timeStr);
-      if (wibDate) {
-        const hours = String(wibDate.getUTCHours()).padStart(2, "0");
-        const minutes = String(wibDate.getUTCMinutes()).padStart(2, "0");
-        return `${hours}:${minutes}`;
       }
 
       return "-";
@@ -156,26 +147,29 @@ export default function AbsensiTab() {
         let terlambatCount = 0;
 
         const formattedLogs: AttendanceRecord[] = rawData.map((item) => {
-          const dateObj = new Date(item.tanggal);
-          const dateStr = dateObj.toLocaleDateString("id-ID", {
-            weekday: "long",
-            day: "2-digit",
-            month: "short",
-          });
+          let dateStr = "-";
+          if (item.tanggal) {
+            const dateOnly = item.tanggal.split("T")[0];
+            const [y, m, d] = dateOnly.split("-").map(Number);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+              const dateObj = new Date(y, m - 1, d);
+              dateStr = dateObj.toLocaleDateString("id-ID", {
+                weekday: "long",
+                day: "2-digit",
+                month: "short",
+              });
+            }
+          }
 
           const inTime = extractTime(item.jam_masuk);
           const outTime = extractTime(item.jam_keluar);
-          const jamKeluarWib = toWibDate(item.jam_keluar);
-          const jamMasukWib = toWibDate(item.jam_masuk);
 
           let status: AttendanceRecord["status"] = "Tepat Waktu";
           if (item.menit_terlambat && item.menit_terlambat > 0) {
             status = "Terlambat";
             terlambatCount++;
-          } else if (item.jam_keluar && jamKeluarWib && jamMasukWib) {
-            if (jamKeluarWib.getUTCHours() < 17) {
-              status = "Pulang Cepat";
-            }
+          } else if (item.is_pulang_cepat) {
+            status = "Pulang Cepat";
           }
           hadirCount++;
 

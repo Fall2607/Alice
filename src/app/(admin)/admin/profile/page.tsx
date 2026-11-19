@@ -111,12 +111,24 @@ function calculateAge(tanggalLahir?: string | null) {
 
 function formatWibTime(timeStr?: string | null) {
   if (!timeStr) return "-";
-  if (timeStr.includes("T")) {
-    const d = new Date(timeStr);
-    d.setTime(d.getTime() + 7 * 60 * 60 * 1000);
-    return `${d.toISOString().substring(11, 16)} WIB`;
+  const timePart = timeStr.includes(" ")
+    ? timeStr.split(" ")[1]?.substring(0, 5)
+    : timeStr.includes("T")
+    ? timeStr.split("T")[1]?.substring(0, 5)
+    : timeStr.substring(0, 5);
+
+  if (timePart && timePart.includes(":")) {
+    const [rawH, rawM] = timePart.split(":");
+    if (
+      rawH !== undefined &&
+      rawM !== undefined &&
+      !isNaN(Number(rawH)) &&
+      !isNaN(Number(rawM))
+    ) {
+      return `${rawH.padStart(2, "0")}:${rawM.padStart(2, "0")} WIB`;
+    }
   }
-  return `${timeStr.substring(0, 5)} WIB`;
+  return "-";
 }
 
 function BarcodeVisual({ code }: { readonly code: string }) {
@@ -225,7 +237,10 @@ export default function ProfilePage() {
 
     const currentCutOffRecords = absensiList.filter((item) => {
       if (!item.tanggal) return false;
-      const itemDate = new Date(item.tanggal);
+      const dateOnly = item.tanggal.split("T")[0];
+      const [y, m, d] = dateOnly.split("-").map(Number);
+      if (isNaN(y) || isNaN(m) || isNaN(d)) return false;
+      const itemDate = new Date(y, m - 1, d);
       return itemDate >= start && itemDate <= end;
     });
 
@@ -582,10 +597,18 @@ export default function ProfilePage() {
               <div className="text-[11px] text-blue-100/90 pt-1 border-t border-white/10 flex items-center justify-between">
                 <span>Absensi Terakhir:</span>
                 <span className="font-mono tabular-nums font-bold text-white">
-                  {new Date(attendanceStats.lastRecord.tanggal).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                  })}{" "}
+                  {(() => {
+                    const dateOnly = attendanceStats.lastRecord.tanggal.split("T")[0];
+                    const [y, m, d] = dateOnly.split("-").map(Number);
+                    const dt =
+                      !isNaN(y) && !isNaN(m) && !isNaN(d)
+                        ? new Date(y, m - 1, d)
+                        : new Date(attendanceStats.lastRecord.tanggal);
+                    return dt.toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                    });
+                  })()}{" "}
                   ({formatWibTime(attendanceStats.lastRecord.jam_masuk)})
                 </span>
               </div>

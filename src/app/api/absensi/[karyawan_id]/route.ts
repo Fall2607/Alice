@@ -17,10 +17,13 @@ export async function GET(
     let query = `
        SELECT 
          a.id, 
-         a.tanggal, 
-         a.jam_masuk, 
-         a.jam_keluar, 
+         TO_CHAR(a.tanggal, 'YYYY-MM-DD') as tanggal, 
+         TO_CHAR(a.jam_masuk, 'HH24:MI:SS') as jam_masuk, 
+         TO_CHAR(a.jam_keluar, 'HH24:MI:SS') as jam_keluar, 
          a.menit_terlambat,
+         a.is_late,
+         a.is_pulang_cepat,
+         a.menit_pulang_cepat,
          s.nama_shift
        FROM absensi a
        LEFT JOIN shift s ON a.shift_id = s.id
