@@ -9,11 +9,9 @@ import {
   CheckCircle2,
   Clock,
   Send,
-  UserCheck,
   Building2,
   Calendar,
   Eye,
-  Award,
   ChevronRight,
   Sparkles,
   Users,
@@ -24,16 +22,20 @@ import {
   UserPlus,
   UserMinus,
   X,
-  Filter,
   Brain,
+  ShieldCheck,
+  RotateCcw,
+  LayoutGrid,
+  Table as TableIcon,
+  Layers,
+  ArrowRight,
+  UserCheck,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import Modal from "@/app/components/modal";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
-import PAPIRadarChart from "@/app/components/admin/PAPIRadarChart";
 import PAPIResultView from "@/app/components/admin/PAPIResultView";
 import CFITResultView from "@/app/components/admin/CFITResultView";
-import { getPAPIInterpretation } from "@/app/data/tests/papiInterpretations";
 import { getDISCProfileDetail } from "@/app/utils/discUtils";
 import { getMBTIProfileDetail } from "@/app/utils/mbtiUtils";
 
@@ -94,10 +96,11 @@ export default function KaryawanTestPage() {
   const [batches, setBatches] = useState<BatchSummary[]>([]);
   const [employees, setEmployees] = useState<Karyawan[]>([]);
 
-  // Filtering states
+  // View & Filtering states
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBatchFilter, setSelectedBatchFilter] = useState("all");
   const [activeTab, setActiveTab] = useState<"batches" | "assessments">("batches");
+  const [batchViewMode, setBatchViewMode] = useState<"table" | "grid">("table");
 
   // Modal State: Create Batch
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -453,6 +456,21 @@ export default function KaryawanTestPage() {
     }
   };
 
+  // Filtered Batches View
+  const filteredBatches = useMemo(() => {
+    if (!searchTerm.trim()) return batches;
+    const term = searchTerm.toLowerCase();
+    return batches.filter(
+      (b) =>
+        b.batch_name.toLowerCase().includes(term) ||
+        b.karyawan_list.some(
+          (k) =>
+            k.nama_lengkap.toLowerCase().includes(term) ||
+            k.nip.toLowerCase().includes(term)
+        )
+    );
+  }, [batches, searchTerm]);
+
   // Filtered Assessments View
   const filteredAssessments = useMemo(() => {
     return assessmentData.filter((item) => {
@@ -470,6 +488,12 @@ export default function KaryawanTestPage() {
     });
   }, [assessmentData, searchTerm, selectedBatchFilter]);
 
+  // Active Batch Name (if filtered)
+  const activeBatchObj = useMemo(() => {
+    if (selectedBatchFilter === "all") return null;
+    return batches.find((b) => b.id === selectedBatchFilter || b.batch_name === selectedBatchFilter) || null;
+  }, [batches, selectedBatchFilter]);
+
   // Overall Statistics
   const stats = useMemo(() => {
     const totalAssigned = assessmentData.length;
@@ -484,267 +508,499 @@ export default function KaryawanTestPage() {
       completedCount,
       ongoingCount,
       invitedCount,
-      completionRate
+      completionRate,
     };
   }, [batches, assessmentData]);
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-500">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-[#0173b6] via-blue-700 to-indigo-800 rounded-xl p-6 md:p-8 text-white shadow-xl shadow-blue-900/10 relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 opacity-10 pointer-events-none">
-          <ClipboardCheck size={320} />
-        </div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-blue-100 text-xs font-bold uppercase tracking-wider mb-3">
-              <Sparkles size={14} className="text-yellow-300" />
-              Modul Evaluasi Karyawan Tetap
-            </div>
-            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white leading-tight">
-              Assesmen & Evaluasi Karyawan
-            </h1>
-            <p className="text-blue-100 text-xs md:text-sm mt-1 max-w-xl font-medium leading-relaxed">
-              Fasilitas penugasan tes psikometri & kemampuan kognitif (MBTI, DISC, PAPI Kostick, CFIT) secara terstruktur via Magic Link Email untuk pertimbangan penetapan status Karyawan Tetap.
-            </p>
+    <div className="w-full space-y-4 pb-12 animate-in fade-in duration-300">
+      {/* 1. Header Toolbar (Executive & Compact) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="badge badge-primary badge-outline text-[10px] font-bold uppercase tracking-wider py-1 px-2.5">
+              RSU Avisena • SDM &amp; Kepegawaian
+            </span>
+            <span className="text-slate-300 text-xs">•</span>
+            <span className="text-[11px] font-semibold text-slate-500">
+              Evaluasi Karyawan Tetap
+            </span>
           </div>
+          <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
+            Asesmen &amp; Evaluasi Psikometri
+          </h1>
+          <p className="text-xs text-slate-500 max-w-xl font-medium leading-relaxed">
+            Pengelolaan batch jadwal tes kognitif dan kepribadian (MBTI, DISC, PAPI Kostick, CFIT) melalui Magic Link.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={fetchData}
+            title="Segarkan Data"
+            className="btn btn-ghost btn-sm btn-square text-slate-500 hover:text-slate-800 rounded-xl"
+          >
+            <RotateCcw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
 
           <button
             onClick={() => {
               setIsCreateModalOpen(true);
-              setBatchNameInput(`Evaluasi Karyawan Tetap - ${new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })}`);
+              setBatchNameInput(
+                `Evaluasi Karyawan Tetap - ${new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })}`
+              );
             }}
-            className="px-6 py-3.5 bg-white text-[#0173b6] hover:bg-blue-50 font-black rounded-lg text-xs uppercase tracking-wider transition-all duration-300 shadow-lg flex items-center justify-center gap-2 active:scale-95 shrink-0"
+            className="btn btn-primary btn-sm gap-2 font-bold text-xs uppercase tracking-wider rounded-xl shadow-xs active:scale-[0.98] transition-all px-4"
           >
-            <PlusCircle size={18} />
-            Buat Batch Test Baru
+            <PlusCircle size={16} />
+            Buat Batch Baru
           </button>
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 text-[#0173b6] flex items-center justify-center font-bold">
-            <ClipboardCheck size={22} />
-          </div>
+      {/* 2. Compact Inline KPI Ribbon (Clean & Data-Dense) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Batch Ujian</p>
-            <h3 className="text-2xl font-black text-slate-800">{stats.totalBatches}</h3>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Batch</p>
+            <p className="text-xl font-black text-slate-800 font-mono tabular-nums mt-0.5">
+              {stats.totalBatches} <span className="text-xs font-semibold text-slate-400 font-sans">Batch</span>
+            </p>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#0173b6] flex items-center justify-center font-bold">
+            <Layers size={18} />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
-            <Users size={24} />
-          </div>
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Karyawan Diikutsertakan</p>
-            <h3 className="text-2xl font-black text-slate-800">{stats.totalAssigned}</h3>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Peserta</p>
+            <p className="text-xl font-black text-slate-800 font-mono tabular-nums mt-0.5">
+              {stats.totalAssigned} <span className="text-xs font-semibold text-slate-400 font-sans">Orang</span>
+            </p>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+            <Users size={18} />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-            <CheckCircle2 size={24} />
-          </div>
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tes Selesai Dikerjakan</p>
-            <div className="flex items-center gap-2">
-              <h3 className="text-2xl font-black text-emerald-600">{stats.completedCount}</h3>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selesai Ujian</p>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-xl font-black text-emerald-600 font-mono tabular-nums">
+                {stats.completedCount}
+              </span>
+              <span className="badge badge-success badge-xs font-bold text-white font-mono tabular-nums">
                 {stats.completionRate}%
               </span>
             </div>
           </div>
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <CheckCircle2 size={18} />
+          </div>
         </div>
 
-        <div className="bg-white p-5 rounded-lg border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-            <Clock size={24} />
-          </div>
+        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Menunggu / Sedang Tes</p>
-            <h3 className="text-2xl font-black text-amber-600">{stats.invitedCount + stats.ongoingCount}</h3>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Menunggu / Tes</p>
+            <p className="text-xl font-black text-amber-600 font-mono tabular-nums mt-0.5">
+              {stats.invitedCount + stats.ongoingCount}{" "}
+              <span className="text-xs font-semibold text-slate-400 font-sans">
+                ({stats.ongoingCount} jalan)
+              </span>
+            </p>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+            <Clock size={18} />
           </div>
         </div>
       </div>
 
-      {/* Action Bar & Tabs */}
-      <div className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          {/* Tab Selection */}
-          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-md w-full sm:w-auto">
+      {/* 3. Main Workspace with Compact Controls */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 space-y-4">
+        {/* Navigation & Controls Bar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          {/* DaisyUI Tabs */}
+          <div role="tablist" className="tabs tabs-box bg-slate-100/90 p-1 rounded-xl w-full sm:w-auto inline-flex">
             <button
+              role="tab"
               onClick={() => setActiveTab("batches")}
-              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all ${activeTab === "batches"
-                  ? "bg-white text-[#0173b6] shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-                }`}
+              className={`tab text-xs font-bold gap-2 transition-all rounded-lg ${
+                activeTab === "batches"
+                  ? "tab-active !bg-white !text-[#0173b6] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
             >
-              Ringkasan Batch ({batches.length})
+              <ClipboardCheck size={14} />
+              Daftar Batch Ujian
+              <span
+                className={`badge badge-sm font-mono tabular-nums ${
+                  activeTab === "batches" ? "badge-primary" : "badge-ghost"
+                }`}
+              >
+                {batches.length}
+              </span>
             </button>
             <button
+              role="tab"
               onClick={() => setActiveTab("assessments")}
-              className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-md transition-all ${activeTab === "assessments"
-                  ? "bg-white text-[#0173b6] shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-                }`}
+              className={`tab text-xs font-bold gap-2 transition-all rounded-lg ${
+                activeTab === "assessments"
+                  ? "tab-active !bg-white !text-[#0173b6] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
             >
-              Daftar Karyawan ({assessmentData.length})
+              <Users size={14} />
+              Daftar Peserta
+              <span
+                className={`badge badge-sm font-mono tabular-nums ${
+                  activeTab === "assessments" ? "badge-primary" : "badge-ghost"
+                }`}
+              >
+                {selectedBatchFilter !== "all" ? filteredAssessments.length : assessmentData.length}
+              </span>
             </button>
           </div>
 
-          {/* Search & Filters */}
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Search, Filter & Layout Toggles */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto">
+            {/* Search Input */}
             <div className="relative flex-1 sm:w-64">
               <input
                 type="text"
-                placeholder="Cari karyawan / batch..."
+                placeholder={activeTab === "batches" ? "Cari nama batch..." : "Cari karyawan / NIP..."}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6] transition-all"
+                className="input input-bordered input-sm w-full pl-8 pr-3 bg-slate-50 focus:border-[#0173b6] rounded-xl text-xs font-medium"
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             </div>
 
-            {batches.length > 0 && (
-              <div className="flex items-center gap-1.5">
+            {/* Batch Dropdown Filter (Visible for Assessments tab or when batch filter active) */}
+            {batches.length > 0 && activeTab === "assessments" && (
+              <div className="flex items-center gap-1">
                 <select
                   value={selectedBatchFilter}
                   onChange={(e) => setSelectedBatchFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-md px-3 py-2 font-medium focus:outline-none focus:border-[#0173b6]"
+                  className="select select-bordered select-sm bg-slate-50 text-slate-700 text-xs rounded-xl font-medium focus:border-[#0173b6] max-w-[190px]"
                 >
                   <option value="all">Semua Batch ({batches.length})</option>
                   {batches.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.batch_name} ({new Date(b.scheduled_date).toLocaleDateString("id-ID", { day: "numeric", month: "short" })})
+                      {b.batch_name}
                     </option>
                   ))}
                 </select>
+
                 {selectedBatchFilter !== "all" && (
                   <button
                     onClick={() => setSelectedBatchFilter("all")}
-                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-md transition-colors"
                     title="Reset Filter Batch"
+                    className="btn btn-ghost btn-xs btn-square text-slate-400 hover:text-error rounded-lg"
                   >
                     <X size={14} />
                   </button>
                 )}
               </div>
             )}
+
+            {/* View Mode Toggle (Only in Batches Tab) */}
+            {activeTab === "batches" && (
+              <div className="join border border-slate-200 rounded-xl p-0.5 bg-slate-50">
+                <button
+                  type="button"
+                  onClick={() => setBatchViewMode("table")}
+                  title="Tampilan Tabel (Rapi & Kompak)"
+                  className={`btn btn-xs join-item rounded-lg border-none ${
+                    batchViewMode === "table"
+                      ? "bg-white text-[#0173b6] shadow-xs font-bold"
+                      : "bg-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <TableIcon size={14} />
+                  <span className="hidden sm:inline">Tabel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchViewMode("grid")}
+                  title="Tampilan Grid Kompak"
+                  className={`btn btn-xs join-item rounded-lg border-none ${
+                    batchViewMode === "grid"
+                      ? "bg-white text-[#0173b6] shadow-xs font-bold"
+                      : "bg-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <LayoutGrid size={14} />
+                  <span className="hidden sm:inline">Grid</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* TAB 1: BATCHES OVERVIEW */}
+        {/* Active Filter Notification Bar (If filtering participants by a batch) */}
+        {activeTab === "assessments" && activeBatchObj && (
+          <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-3 flex items-center justify-between gap-3 text-xs text-blue-900">
+            <div className="flex items-center gap-2">
+              <span className="badge badge-primary badge-sm font-bold">Filter Aktif</span>
+              <span>
+                Menampilkan peserta untuk batch: <strong>{activeBatchObj.batch_name}</strong> ({activeBatchObj.total_karyawan} karyawan)
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedBatchFilter("all")}
+              className="btn btn-ghost btn-xs text-[#0173b6] hover:bg-blue-100 rounded-lg font-bold gap-1"
+            >
+              <X size={13} />
+              Tampilkan Semua Batch
+            </button>
+          </div>
+        )}
+
+        {/* TAB 1: BATCHES - SLEEK TABLE OR COMPACT GRID */}
         {activeTab === "batches" && (
           <div>
             {loading ? (
-              <div className="py-12 flex justify-center items-center text-slate-400">
-                <Loader2 size={32} className="animate-spin text-[#0173b6]" />
+              <div className="py-16 flex flex-col items-center justify-center text-slate-400 space-y-3">
+                <Loader2 size={36} className="animate-spin text-[#0173b6]" />
+                <p className="text-xs font-bold text-slate-500">Memuat data batch tes...</p>
               </div>
-            ) : batches.length === 0 ? (
-              <div className="py-16 text-center text-slate-400 space-y-3">
-                <ClipboardCheck size={48} className="mx-auto text-slate-300" />
-                <p className="text-sm font-bold text-slate-600">Belum Ada Batch Tes Karyawan</p>
-                <p className="text-xs max-w-sm mx-auto">
-                  Klik tombol "Buat Batch Test Baru" di atas untuk mengirimkan undangan tes psikometri kepada karyawan.
+            ) : filteredBatches.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 space-y-2 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                <ClipboardCheck size={40} className="mx-auto text-slate-300" />
+                <p className="text-sm font-bold text-slate-700">Tidak Ada Batch yang Sesuai</p>
+                <p className="text-xs text-slate-500">
+                  {searchTerm ? "Silakan ubah kata kunci pencarian Anda." : "Klik tombol 'Buat Batch Baru' untuk menambahkan batch ujian."}
                 </p>
               </div>
+            ) : batchViewMode === "table" ? (
+              /* SLEEK EXECUTIVE DATA TABLE FOR BATCHES */
+              <div className="w-full overflow-x-auto rounded-xl border border-slate-200/90 shadow-2xs bg-white">
+                <table className="table table-zebra table-sm md:table-md w-full">
+                  <thead>
+                    <tr className="bg-[#05445e] text-white uppercase text-[11px] tracking-wider font-bold">
+                      <th className="py-3 px-4 text-white">Nama Batch Ujian</th>
+                      <th className="py-3 px-4 text-white">Jadwal Ujian</th>
+                      <th className="py-3 px-4 text-center text-white">Peserta</th>
+                      <th className="py-3 px-4 text-white">Progress Evaluasi</th>
+                      <th className="py-3 px-4 text-center text-white">Rincian Status</th>
+                      <th className="py-3 px-4 text-right text-white">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {filteredBatches.map((batch) => {
+                      const percent =
+                        batch.total_karyawan > 0
+                          ? Math.round((batch.total_completed / batch.total_karyawan) * 100)
+                          : 0;
+
+                      return (
+                        <tr key={batch.id} className="hover:bg-slate-50/80 transition-colors">
+                          {/* Nama Batch */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0173b6] flex items-center justify-center font-bold shrink-0">
+                                <ClipboardCheck size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 truncate max-w-xs md:max-w-md" title={batch.batch_name}>
+                                  {batch.batch_name}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-mono tabular-nums">
+                                  Dibuat: {new Date(batch.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Jadwal Pelaksanaan */}
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 font-mono tabular-nums text-slate-700">
+                              <Calendar size={13} className="text-[#0173b6] shrink-0" />
+                              <span className="font-semibold">
+                                {new Date(batch.scheduled_date).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Peserta Count */}
+                          <td className="py-3 px-4 text-center">
+                            <span className="badge badge-ghost font-mono tabular-nums text-xs font-bold">
+                              {batch.total_karyawan} Orang
+                            </span>
+                          </td>
+
+                          {/* Progress Bar & Percentage */}
+                          <td className="py-3 px-4">
+                            <div className="space-y-1 min-w-[140px]">
+                              <div className="flex justify-between text-[11px] font-mono tabular-nums font-semibold text-slate-600">
+                                <span>{batch.total_completed}/{batch.total_karyawan}</span>
+                                <span className="font-bold text-slate-800">{percent}%</span>
+                              </div>
+                              <progress
+                                className="progress progress-primary w-full h-1.5 rounded-full bg-slate-100"
+                                value={percent}
+                                max="100"
+                              ></progress>
+                            </div>
+                          </td>
+
+                          {/* Status Breakdown Pills */}
+                          <td className="py-3 px-4 text-center">
+                            <div className="inline-flex items-center gap-1.5 font-mono tabular-nums text-[11px]">
+                              <span className="badge badge-success badge-sm text-white font-bold" title="Sudah Selesai">
+                                {batch.total_completed} Selesai
+                              </span>
+                              <span className="badge badge-warning badge-sm text-slate-900 font-bold" title="Menunggu / Tes">
+                                {batch.total_invited + batch.total_ongoing} Menunggu
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <button
+                                onClick={() => {
+                                  setSelectedBatchFilter(batch.id);
+                                  setActiveTab("assessments");
+                                }}
+                                className="btn btn-outline btn-primary btn-xs rounded-lg font-bold gap-1 active:scale-[0.98]"
+                                title="Lihat Peserta Batch Ini"
+                              >
+                                <Users size={12} />
+                                <span>Peserta</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenEditModal(batch)}
+                                className="btn btn-ghost btn-xs btn-square text-slate-500 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg"
+                                title="Edit Batch & Kelola Peserta"
+                              >
+                                <Pencil size={13} />
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteBatch(batch)}
+                                className="btn btn-ghost btn-xs btn-square text-slate-400 hover:text-error hover:bg-red-50 rounded-lg"
+                                title="Hapus Batch"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {batches.map((batch) => {
-                  const percent = batch.total_karyawan > 0 ? Math.round((batch.total_completed / batch.total_karyawan) * 100) : 0;
+              /* COMPACT REFINED GRID (TIDAK LAGI CARD BESAR CLUNKY) */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredBatches.map((batch) => {
+                  const percent =
+                    batch.total_karyawan > 0
+                      ? Math.round((batch.total_completed / batch.total_karyawan) * 100)
+                      : 0;
+
                   return (
                     <div
                       key={batch.id}
-                      className="bg-white border border-slate-200/90 rounded-xl p-5 hover:border-[#0173b6] hover:shadow-md transition-all shadow-sm space-y-4 group relative"
+                      className="bg-white border border-slate-200/90 rounded-xl p-4 hover:border-[#0173b6] hover:shadow-xs transition-all shadow-2xs space-y-3 flex flex-col justify-between"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-[#0173b6] bg-blue-50 px-2.5 py-0.5 rounded border border-blue-100">
-                              Batch Evaluasi
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400">
-                              {batch.total_karyawan} Karyawan
+                      <div>
+                        {/* Compact Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="badge badge-primary badge-outline text-[9px] font-bold uppercase py-0.5 px-2">
+                                Batch
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono tabular-nums">
+                                {batch.total_karyawan} Peserta
+                              </span>
+                            </div>
+                            <h3
+                              className="text-sm font-black text-slate-800 mt-1 truncate hover:text-[#0173b6] transition-colors"
+                              title={batch.batch_name}
+                            >
+                              {batch.batch_name}
+                            </h3>
+                          </div>
+
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              onClick={() => handleOpenEditModal(batch)}
+                              className="btn btn-ghost btn-xs btn-square text-slate-400 hover:text-[#0173b6] rounded-md"
+                              title="Edit"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBatch(batch)}
+                              className="btn btn-ghost btn-xs btn-square text-slate-400 hover:text-error rounded-md"
+                              title="Hapus"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Date info */}
+                        <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 font-mono tabular-nums">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar size={12} className="text-[#0173b6]" />
+                            <span>
+                              {new Date(batch.scheduled_date).toLocaleDateString("id-ID", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })}
                             </span>
                           </div>
-                          <h3 className="text-base font-black text-slate-800 mt-2 truncate group-hover:text-[#0173b6] transition-colors" title={batch.batch_name}>
-                            {batch.batch_name}
-                          </h3>
-                        </div>
-
-                        {/* Action buttons header: Edit & Delete */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => handleOpenEditModal(batch)}
-                            title="Edit Batch & Kelola Karyawan"
-                            className="p-1.5 text-slate-400 hover:text-[#0173b6] hover:bg-blue-50 rounded-md transition-colors"
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteBatch(batch)}
-                            title="Hapus Seluruh Batch"
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Scheduled Date Card */}
-                      <div className="flex items-center justify-between text-xs font-medium text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar size={14} className="text-[#0173b6]" />
-                          <span className="font-bold">
-                            {new Date(batch.scheduled_date).toLocaleDateString("id-ID", {
-                              weekday: "long",
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric"
-                            })}
+                          <span className="text-[10px] text-slate-400 uppercase font-sans font-bold">
+                            Jadwal
                           </span>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Jadwal Ujian</span>
-                      </div>
 
-                      {/* Progress Bar */}
-                      <div>
-                        <div className="flex justify-between text-xs font-bold text-slate-600 mb-1.5">
-                          <span>Progress Pengerjaan Karyawan</span>
-                          <span>{batch.total_completed} / {batch.total_karyawan} ({percent}%)</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-[#0173b6] h-full rounded-full transition-all duration-500"
-                            style={{ width: `${percent}%` }}
-                          ></div>
+                        {/* Micro Progress */}
+                        <div className="mt-3 space-y-1">
+                          <div className="flex justify-between text-[10px] font-mono tabular-nums font-bold text-slate-600">
+                            <span>Progress</span>
+                            <span>{batch.total_completed}/{batch.total_karyawan} ({percent}%)</span>
+                          </div>
+                          <progress
+                            className="progress progress-primary w-full h-1.5 rounded-full bg-slate-100"
+                            value={percent}
+                            max="100"
+                          ></progress>
                         </div>
                       </div>
 
-                      {/* Details Footer with Prominent Actions */}
-                      <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2 font-medium text-slate-500">
+                      {/* Compact Footer */}
+                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 font-mono tabular-nums text-[10px]">
                           <span className="text-emerald-600 font-bold">{batch.total_completed} Selesai</span>
-                          <span>•</span>
-                          <span className="text-amber-600 font-bold">{batch.total_invited + batch.total_ongoing} Menunggu</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-amber-600 font-bold">{batch.total_invited + batch.total_ongoing} Belum</span>
                         </div>
 
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={() => {
-                              setSelectedBatchFilter(batch.id);
-                              setActiveTab("assessments");
-                            }}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 active:scale-95"
-                          >
-                            <Users size={13} />
-                            Peserta ({batch.total_karyawan})
-                            <ChevronRight size={13} />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedBatchFilter(batch.id);
+                            setActiveTab("assessments");
+                          }}
+                          className="btn btn-ghost btn-xs text-[#0173b6] hover:bg-blue-50 font-bold gap-1 rounded-lg"
+                        >
+                          <span>Buka Peserta</span>
+                          <ArrowRight size={12} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -754,85 +1010,105 @@ export default function KaryawanTestPage() {
           </div>
         )}
 
-        {/* TAB 2: ASSESSMENTS TABLE */}
+        {/* TAB 2: ASSESSMENTS TABLE (CLEAN DATA-DENSE EXECUTIVE TABLE) */}
         {activeTab === "assessments" && (
           <div>
             {loading ? (
-              <div className="py-12 flex justify-center items-center text-slate-400">
-                <Loader2 size={32} className="animate-spin text-[#0173b6]" />
+              <div className="py-16 flex flex-col items-center justify-center text-slate-400 space-y-3">
+                <Loader2 size={36} className="animate-spin text-[#0173b6]" />
+                <p className="text-xs font-bold text-slate-500">Memuat data peserta...</p>
               </div>
             ) : filteredAssessments.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-xs font-medium">
-                Tidak ada data tes karyawan yang cocok dengan kriteria pencarian.
+              <div className="py-16 text-center text-slate-400 text-xs font-medium bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                Tidak ada data peserta asesmen yang sesuai dengan filter pencarian.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="w-full overflow-x-auto rounded-xl border border-slate-200/90 shadow-2xs bg-white">
+                <table className="table table-zebra table-sm md:table-md w-full">
                   <thead>
-                    <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-100">
-                      <th className="py-3 px-4">Karyawan</th>
-                      <th className="py-3 px-4">Jabatan & Departemen</th>
-                      <th className="py-3 px-4">Status Kepegawaian</th>
-                      <th className="py-3 px-4">Nama Batch</th>
-                      <th className="py-3 px-4">Status Tes</th>
-                      <th className="py-3 px-4 text-center">Hasil Psikometri</th>
-                      <th className="py-3 px-4 text-center">Aksi</th>
+                    <tr className="bg-[#05445e] text-white uppercase text-[11px] tracking-wider font-bold">
+                      <th className="py-3.5 px-4 text-white">Karyawan</th>
+                      <th className="py-3.5 px-4 text-white">Jabatan &amp; Unit Kerja</th>
+                      <th className="py-3.5 px-4 text-white">Status Pegawai</th>
+                      <th className="py-3.5 px-4 text-white">Batch Ujian</th>
+                      <th className="py-3.5 px-4 text-white">Status Pengerjaan</th>
+                      <th className="py-3.5 px-4 text-center text-white">Hasil Psikometri</th>
+                      <th className="py-3.5 px-4 text-center text-white">Aksi</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 text-xs">
                     {filteredAssessments.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <p className="font-bold text-slate-800">{item.nama_lengkap}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">NIP: {item.nip} | {item.email || "No email"}</p>
+                        {/* Karyawan Profile */}
+                        <td className="py-3 px-4">
+                          <p className="font-bold text-slate-900">{item.nama_lengkap}</p>
+                          <div className="text-[11px] text-slate-500 font-mono tabular-nums flex items-center gap-1.5 mt-0.5">
+                            <span>NIP: {item.nip}</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="truncate max-w-[140px]">{item.email || "No email"}</span>
+                          </div>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <p className="font-medium text-slate-700">{item.nama_jabatan || "-"}</p>
-                          <p className="text-[10px] text-slate-400">{item.nama_departemen || "-"}</p>
+
+                        {/* Jabatan & Departemen */}
+                        <td className="py-3 px-4">
+                          <p className="font-semibold text-slate-800">{item.nama_jabatan || "-"}</p>
+                          <p className="text-[11px] text-slate-500">{item.nama_departemen || "-"}</p>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className="inline-block px-2.5 py-1 rounded bg-slate-100 text-slate-700 font-bold text-[10px] uppercase">
+
+                        {/* Status Kepegawaian */}
+                        <td className="py-3 px-4">
+                          <span className="badge badge-ghost badge-sm font-bold uppercase text-[10px]">
                             {item.status_kepegawaian || "Kontrak"}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 font-medium text-slate-600 truncate max-w-[180px]" title={item.batch_name}>
+
+                        {/* Nama Batch */}
+                        <td className="py-3 px-4 font-semibold text-slate-700 truncate max-w-[180px]" title={item.batch_name}>
                           {item.batch_name}
                         </td>
-                        <td className="py-3.5 px-4">
+
+                        {/* Status Pengerjaan Badge */}
+                        <td className="py-3 px-4">
                           {item.status === "COMPLETED" ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-black text-[10px] border border-emerald-200">
+                            <span className="badge badge-success badge-sm gap-1.5 font-bold text-white shadow-2xs">
                               <CheckCircle2 size={12} /> Selesai
                             </span>
                           ) : item.status === "ONGOING" ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-black text-[10px] border border-blue-200">
+                            <span className="badge badge-info badge-sm gap-1.5 font-bold text-white shadow-2xs">
                               <Clock size={12} className="animate-spin" /> Sedang Dikerjakan
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-black text-[10px] border border-amber-200">
+                            <span className="badge badge-warning badge-sm gap-1.5 font-bold text-slate-900 shadow-2xs">
                               <Send size={12} /> Undangan Terkirim
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-center">
+
+                        {/* Hasil Psikometri CTA */}
+                        <td className="py-3 px-4 text-center">
                           {item.status === "COMPLETED" ? (
                             <button
                               onClick={() => handleViewResult(item.id)}
-                              className="px-3 py-1.5 bg-[#0173b6] hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-wider rounded transition-all shadow-sm flex items-center gap-1.5 mx-auto"
+                              className="btn btn-primary btn-xs gap-1.5 font-bold uppercase tracking-wider rounded-lg shadow-2xs active:scale-[0.98] mx-auto"
                             >
-                              <Eye size={13} /> Lihat Hasil
+                              <Eye size={13} />
+                              Lihat Hasil
                             </button>
                           ) : (
-                            <span className="text-[10px] text-slate-400 italic">Belum Selesai</span>
+                            <span className="text-[11px] text-slate-400 italic">Belum Selesai</span>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <button
-                            onClick={() => handleDeleteParticipant(item)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Keluarkan dari Batch"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+
+                        {/* Action - Delete Participant */}
+                        <td className="py-3 px-4 text-center">
+                          <div className="tooltip tooltip-left" data-tip="Keluarkan dari Batch">
+                            <button
+                              onClick={() => handleDeleteParticipant(item)}
+                              className="btn btn-ghost btn-xs btn-square text-slate-400 hover:text-error hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -851,10 +1127,9 @@ export default function KaryawanTestPage() {
         title="Buat Batch Test Karyawan"
         size="2xl"
       >
-        <form onSubmit={handleCreateBatch} className="space-y-5">
-          {/* Input Batch Name */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+        <form onSubmit={handleCreateBatch} className="space-y-4">
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
               Nama Batch Ujian / Evaluasi <span className="text-red-500">*</span>
             </label>
             <input
@@ -863,13 +1138,12 @@ export default function KaryawanTestPage() {
               placeholder="Contoh: Evaluasi Karyawan Tetap Gelombang 1 2026"
               value={batchNameInput}
               onChange={(e) => setBatchNameInput(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6] transition-all"
+              className="input input-bordered w-full bg-slate-50 focus:border-[#0173b6] text-xs font-medium rounded-xl"
             />
           </div>
 
-          {/* Scheduled Date */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
               Tanggal Pelaksanaan Tes <span className="text-red-500">*</span>
             </label>
             <input
@@ -877,35 +1151,37 @@ export default function KaryawanTestPage() {
               required
               value={scheduledDateInput}
               onChange={(e) => setScheduledDateInput(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6] transition-all"
+              className="input input-bordered w-full bg-slate-50 focus:border-[#0173b6] text-xs font-medium rounded-xl font-mono"
             />
           </div>
 
-          {/* Filter & Karyawan Selector */}
-          <div className="space-y-3 pt-2">
+          <div className="space-y-2.5 pt-2">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Pilih Karyawan ({selectedEmployeeIds.length} Dipilih) <span className="text-red-500">*</span>
+                Pilih Karyawan{" "}
+                <span className="badge badge-primary badge-sm font-mono tabular-nums ml-1">
+                  {selectedEmployeeIds.length} Dipilih
+                </span>
+                <span className="text-red-500 ml-1">*</span>
               </label>
 
               <button
                 type="button"
                 onClick={handleSelectAllFiltered}
-                className="text-xs font-bold text-[#0173b6] hover:underline"
+                className="btn btn-ghost btn-xs text-[#0173b6] hover:bg-blue-50 font-bold"
               >
                 Pilih Semua Hasil Filter ({filteredEmployeesForModal.length})
               </button>
             </div>
 
-            {/* Filter controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="relative">
                 <input
                   type="text"
                   placeholder="Cari nama, NIP, email..."
                   value={employeeSearch}
                   onChange={(e) => setEmployeeSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6]"
+                  className="input input-bordered input-sm w-full pl-8 bg-slate-50 focus:border-[#0173b6] text-xs rounded-xl"
                 />
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
               </div>
@@ -913,7 +1189,7 @@ export default function KaryawanTestPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-md px-3 py-2 font-medium focus:outline-none focus:border-[#0173b6]"
+                className="select select-bordered select-sm bg-slate-50 text-slate-700 text-xs rounded-xl font-medium focus:border-[#0173b6]"
               >
                 <option value="all">Semua Status Kepegawaian</option>
                 <option value="Kontrak">Karyawan Kontrak</option>
@@ -922,11 +1198,10 @@ export default function KaryawanTestPage() {
               </select>
             </div>
 
-            {/* Employees List Container */}
-            <div className="border border-slate-200 rounded-md max-h-60 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
+            <div className="border border-slate-200 rounded-xl max-h-56 overflow-y-auto divide-y divide-slate-100 bg-white">
               {filteredEmployeesForModal.length === 0 ? (
                 <div className="p-6 text-center text-slate-400 text-xs italic">
-                  Tidak ada karyawan yang sesuai filter.
+                  Tidak ada karyawan yang sesuai filter pencarian.
                 </div>
               ) : (
                 filteredEmployeesForModal.map((emp) => {
@@ -935,24 +1210,25 @@ export default function KaryawanTestPage() {
                     <div
                       key={emp.id}
                       onClick={() => handleToggleSelectEmployee(emp.id)}
-                      className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-slate-50"
-                        }`}
+                      className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors ${
+                        isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-slate-50"
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => { }}
-                          className="rounded text-[#0173b6] focus:ring-[#0173b6] h-4 w-4"
+                          onChange={() => {}}
+                          className="checkbox checkbox-primary checkbox-sm rounded-md"
                         />
                         <div>
                           <p className="text-xs font-bold text-slate-800">{emp.nama_lengkap}</p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-[10px] text-slate-400 font-mono tabular-nums">
                             NIP: {emp.nip} | {emp.nama_departemen || "Departemen -"} | {emp.email || "No Email"}
                           </p>
                         </div>
                       </div>
-                      <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                      <span className="badge badge-ghost badge-sm text-[9px] font-bold uppercase tracking-wider">
                         {emp.status_kepegawaian || "Kontrak"}
                       </span>
                     </div>
@@ -962,19 +1238,18 @@ export default function KaryawanTestPage() {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(false)}
-              className="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+              className="btn btn-ghost btn-sm text-slate-600 rounded-xl font-bold"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-[#0173b6] hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-md transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+              className="btn btn-primary btn-sm gap-2 font-bold text-xs uppercase tracking-wider rounded-xl shadow-md disabled:opacity-50"
             >
               {submitting ? (
                 <>
@@ -992,7 +1267,7 @@ export default function KaryawanTestPage() {
         </form>
       </Modal>
 
-      {/* MODAL: EDIT BATCH & KELOLA PESERTA */}
+      {/* MODAL 2: EDIT BATCH & KELOLA PESERTA */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => {
@@ -1005,59 +1280,64 @@ export default function KaryawanTestPage() {
         size="3xl"
       >
         {editingBatch && (
-          <form onSubmit={handleUpdateBatch} className="space-y-5">
-            {/* Sub-tab navigation */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          <form onSubmit={handleUpdateBatch} className="space-y-4">
+            <div role="tablist" className="tabs tabs-box bg-slate-100/90 p-1 rounded-xl">
               <button
                 type="button"
+                role="tab"
                 onClick={() => setEditSubTab("info")}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 ${editSubTab === "info"
-                    ? "bg-white text-[#0173b6] shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                  }`}
+                className={`tab text-xs font-bold gap-1.5 transition-all rounded-lg flex-1 ${
+                  editSubTab === "info"
+                    ? "tab-active !bg-white !text-[#0173b6] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
               >
                 <Calendar size={13} />
                 Informasi Batch
               </button>
               <button
                 type="button"
+                role="tab"
                 onClick={() => setEditSubTab("participants")}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 ${editSubTab === "participants"
-                    ? "bg-white text-[#0173b6] shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                  }`}
+                className={`tab text-xs font-bold gap-1.5 transition-all rounded-lg flex-1 ${
+                  editSubTab === "participants"
+                    ? "tab-active !bg-white !text-[#0173b6] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
               >
                 <Users size={13} />
-                Daftar Peserta ({editingBatch.karyawan_list.length})
+                Peserta ({editingBatch.karyawan_list.length})
                 {karyawanToRemove.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-600 rounded text-[10px]">
+                  <span className="badge badge-error badge-xs text-white font-mono tabular-nums">
                     -{karyawanToRemove.length}
                   </span>
                 )}
               </button>
               <button
                 type="button"
+                role="tab"
                 onClick={() => setEditSubTab("add")}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 ${editSubTab === "add"
-                    ? "bg-white text-[#0173b6] shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                  }`}
+                className={`tab text-xs font-bold gap-1.5 transition-all rounded-lg flex-1 ${
+                  editSubTab === "add"
+                    ? "tab-active !bg-white !text-[#0173b6] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
               >
                 <UserPlus size={13} />
                 Tambah Karyawan
                 {karyawanToAdd.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px]">
+                  <span className="badge badge-success badge-xs text-white font-mono tabular-nums">
                     +{karyawanToAdd.length}
                   </span>
                 )}
               </button>
             </div>
 
-            {/* TAB 1: INFORMASI BATCH */}
+            {/* Sub-tab 1: Info */}
             {editSubTab === "info" && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              <div className="space-y-3.5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Nama Batch Ujian / Evaluasi <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1066,15 +1346,12 @@ export default function KaryawanTestPage() {
                     value={editBatchName}
                     onChange={(e) => setEditBatchName(e.target.value)}
                     placeholder="Contoh: Evaluasi Karyawan Tetap Gelombang 2"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6] transition-all"
+                    className="input input-bordered w-full bg-slate-50 focus:border-[#0173b6] text-xs font-medium rounded-xl"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Nama batch ini berdiri sendiri dan dapat diubah tanpa mempengaruhi batch lainnya.
-                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Tanggal Pelaksanaan Tes <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -1082,31 +1359,35 @@ export default function KaryawanTestPage() {
                     required
                     value={editScheduledDate}
                     onChange={(e) => setEditScheduledDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6] transition-all"
+                    className="input input-bordered w-full bg-slate-50 focus:border-[#0173b6] text-xs font-medium rounded-xl font-mono"
                   />
-                  <div className="mt-2.5 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2.5 text-xs text-blue-900">
-                    <Sparkles size={16} className="text-[#0173b6] shrink-0 mt-0.5" />
+                  <div className="mt-2 bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2 text-xs text-blue-900">
+                    <Sparkles size={15} className="text-[#0173b6] shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">Otomatis Memperbarui Validitas Magic Link:</p>
                       <p className="text-[11px] text-blue-700 mt-0.5 leading-relaxed">
-                        Mengubah tanggal tes di sini otomatis memperbarui masa berlaku (valid dari pukul 00:00 s/d 23:59 pada tanggal yang dipilih) untuk magic link & kode akses seluruh karyawan yang terdaftar di batch ini. Karyawan dapat langsung mengakses ujian pada tanggal baru tersebut.
+                        Mengubah tanggal tes di sini otomatis memperbarui masa berlaku magic link bagi seluruh peserta batch ini.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 pt-2">
-                  <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-400">Total Terdaftar</p>
-                    <p className="text-lg font-black text-slate-800 mt-0.5">{editingBatch.total_karyawan}</p>
+                <div className="grid grid-cols-3 gap-2.5 pt-1">
+                  <div className="bg-slate-50 border border-slate-200/80 p-3 rounded-xl text-center">
+                    <p className="text-[10px] uppercase font-bold text-slate-500">Terdaftar</p>
+                    <p className="text-lg font-black text-slate-800 mt-0.5 font-mono tabular-nums">
+                      {editingBatch.total_karyawan}
+                    </p>
                   </div>
-                  <div className="bg-emerald-50/70 border border-emerald-100 p-3 rounded-lg text-center">
-                    <p className="text-[10px] uppercase font-bold text-emerald-700">Selesai Dikerjakan</p>
-                    <p className="text-lg font-black text-emerald-700 mt-0.5">{editingBatch.total_completed}</p>
+                  <div className="bg-emerald-50/70 border border-emerald-100 p-3 rounded-xl text-center">
+                    <p className="text-[10px] uppercase font-bold text-emerald-700">Selesai</p>
+                    <p className="text-lg font-black text-emerald-700 mt-0.5 font-mono tabular-nums">
+                      {editingBatch.total_completed}
+                    </p>
                   </div>
-                  <div className="bg-amber-50/70 border border-amber-100 p-3 rounded-lg text-center">
-                    <p className="text-[10px] uppercase font-bold text-amber-700">Menunggu / Berlangsung</p>
-                    <p className="text-lg font-black text-amber-700 mt-0.5">
+                  <div className="bg-amber-50/70 border border-amber-100 p-3 rounded-xl text-center">
+                    <p className="text-[10px] uppercase font-bold text-amber-700">Menunggu</p>
+                    <p className="text-lg font-black text-amber-700 mt-0.5 font-mono tabular-nums">
                       {editingBatch.total_invited + editingBatch.total_ongoing}
                     </p>
                   </div>
@@ -1114,30 +1395,21 @@ export default function KaryawanTestPage() {
               </div>
             )}
 
-            {/* TAB 2: DAFTAR PESERTA SAAT INI */}
+            {/* Sub-tab 2: Participants List */}
             {editSubTab === "participants" && (
               <div className="space-y-3 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Peserta Dalam Batch ({editingBatch.karyawan_list.length} Orang)
-                  </p>
-                  <span className="text-[11px] text-slate-400">
-                    Klik tombol "Keluarkan" untuk menghapus peserta dari batch ini
-                  </span>
-                </div>
-
                 <div className="relative">
                   <input
                     type="text"
                     placeholder="Cari nama atau NIP peserta..."
                     value={participantSearch}
                     onChange={(e) => setParticipantSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6]"
+                    className="input input-bordered input-sm w-full pl-8 bg-slate-50 focus:border-[#0173b6] text-xs rounded-xl"
                   />
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                 </div>
 
-                <div className="border border-slate-200 rounded-lg max-h-72 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
+                <div className="border border-slate-200 rounded-xl max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white">
                   {editingBatch.karyawan_list
                     .filter(
                       (p) =>
@@ -1149,39 +1421,41 @@ export default function KaryawanTestPage() {
                       return (
                         <div
                           key={item.id}
-                          className={`p-3 flex items-center justify-between gap-3 transition-colors ${isMarkedForRemoval
+                          className={`p-3 flex items-center justify-between gap-3 transition-colors ${
+                            isMarkedForRemoval
                               ? "bg-red-50/80 border-l-4 border-l-red-500"
                               : "hover:bg-slate-50"
-                            }`}
+                          }`}
                         >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <p
-                                className={`text-xs font-bold ${isMarkedForRemoval ? "line-through text-red-600" : "text-slate-800"
-                                  }`}
+                                className={`text-xs font-bold ${
+                                  isMarkedForRemoval ? "line-through text-red-600" : "text-slate-800"
+                                }`}
                               >
                                 {item.nama_lengkap}
                               </p>
                               {item.status === "COMPLETED" ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">
+                                <span className="badge badge-success badge-xs text-white font-bold">
                                   Selesai
                                 </span>
                               ) : item.status === "ONGOING" ? (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold uppercase">
+                                <span className="badge badge-info badge-xs text-white font-bold">
                                   Sedang Tes
                                 </span>
                               ) : (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold uppercase">
+                                <span className="badge badge-warning badge-xs text-slate-900 font-bold">
                                   Diundang
                                 </span>
                               )}
                               {isMarkedForRemoval && (
-                                <span className="text-[9px] font-black uppercase text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+                                <span className="badge badge-error badge-xs text-white font-bold">
                                   Akan Dikeluarkan
                                 </span>
                               )}
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
+                            <p className="text-[10px] text-slate-400 font-mono tabular-nums mt-0.5">
                               NIP: {item.nip} | {item.nama_departemen || "-"} | {item.email || "No Email"}
                             </p>
                           </div>
@@ -1191,7 +1465,7 @@ export default function KaryawanTestPage() {
                               <button
                                 type="button"
                                 onClick={() => handleToggleRemoveKaryawan(item.karyawan_id)}
-                                className="px-2.5 py-1 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-100 transition-colors"
+                                className="btn btn-outline btn-xs rounded-lg font-bold"
                               >
                                 Batal Hapus
                               </button>
@@ -1199,9 +1473,9 @@ export default function KaryawanTestPage() {
                               <button
                                 type="button"
                                 onClick={() => handleToggleRemoveKaryawan(item.karyawan_id)}
-                                className="px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 rounded transition-colors flex items-center gap-1"
+                                className="btn btn-outline btn-error btn-xs rounded-lg font-bold gap-1"
                               >
-                                <UserMinus size={13} />
+                                <UserMinus size={12} />
                                 Keluarkan
                               </button>
                             )}
@@ -1213,7 +1487,7 @@ export default function KaryawanTestPage() {
               </div>
             )}
 
-            {/* TAB 3: TAMBAH KARYAWAN BARU */}
+            {/* Sub-tab 3: Add employee */}
             {editSubTab === "add" && (
               <div className="space-y-3 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between">
@@ -1223,20 +1497,20 @@ export default function KaryawanTestPage() {
                   <button
                     type="button"
                     onClick={handleSelectAllAvailableForEdit}
-                    className="text-xs font-bold text-[#0173b6] hover:underline"
+                    className="btn btn-ghost btn-xs text-[#0173b6] hover:bg-blue-50 font-bold"
                   >
                     Pilih Semua ({availableEmployeesForEdit.length})
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div className="relative">
                     <input
                       type="text"
                       placeholder="Cari nama, NIP, email..."
                       value={editEmployeeSearch}
                       onChange={(e) => setEditEmployeeSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-medium focus:outline-none focus:border-[#0173b6]"
+                      className="input input-bordered input-sm w-full pl-8 bg-slate-50 focus:border-[#0173b6] text-xs rounded-xl"
                     />
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
                   </div>
@@ -1244,7 +1518,7 @@ export default function KaryawanTestPage() {
                   <select
                     value={editStatusFilter}
                     onChange={(e) => setEditStatusFilter(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-md px-3 py-2 font-medium focus:outline-none focus:border-[#0173b6]"
+                    className="select select-bordered select-sm bg-slate-50 text-slate-700 text-xs rounded-xl font-medium focus:border-[#0173b6]"
                   >
                     <option value="all">Semua Status Kepegawaian</option>
                     <option value="Kontrak">Karyawan Kontrak</option>
@@ -1253,7 +1527,7 @@ export default function KaryawanTestPage() {
                   </select>
                 </div>
 
-                <div className="border border-slate-200 rounded-md max-h-60 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
+                <div className="border border-slate-200 rounded-xl max-h-56 overflow-y-auto divide-y divide-slate-100 bg-white">
                   {availableEmployeesForEdit.length === 0 ? (
                     <div className="p-6 text-center text-slate-400 text-xs italic">
                       Tidak ada karyawan yang tersedia untuk ditambahkan.
@@ -1265,24 +1539,25 @@ export default function KaryawanTestPage() {
                         <div
                           key={emp.id}
                           onClick={() => handleToggleAddKaryawan(emp.id)}
-                          className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-slate-50"
-                            }`}
+                          className={`p-2.5 flex items-center justify-between cursor-pointer transition-colors ${
+                            isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-slate-50"
+                          }`}
                         >
                           <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => { }}
-                              className="rounded text-[#0173b6] focus:ring-[#0173b6] h-4 w-4"
+                              onChange={() => {}}
+                              className="checkbox checkbox-primary checkbox-sm rounded-md"
                             />
                             <div>
                               <p className="text-xs font-bold text-slate-800">{emp.nama_lengkap}</p>
-                              <p className="text-[10px] text-slate-400">
+                              <p className="text-[10px] text-slate-400 font-mono tabular-nums">
                                 NIP: {emp.nip} | {emp.nama_departemen || "Departemen -"} | {emp.email || "No Email"}
                               </p>
                             </div>
                           </div>
-                          <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                          <span className="badge badge-ghost badge-sm text-[9px] font-bold uppercase tracking-wider">
                             {emp.status_kepegawaian || "Kontrak"}
                           </span>
                         </div>
@@ -1290,23 +1565,19 @@ export default function KaryawanTestPage() {
                     })
                   )}
                 </div>
-
-                <p className="text-[11px] text-slate-500 italic">
-                  * Karyawan yang baru ditambahkan akan otomatis dikirimkan undangan & token akses melalui email.
-                </p>
               </div>
             )}
 
             {/* Actions Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
               <div className="text-xs text-slate-500 flex items-center gap-2">
                 {karyawanToRemove.length > 0 && (
-                  <span className="text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                  <span className="badge badge-error badge-sm text-white font-bold font-mono tabular-nums">
                     -{karyawanToRemove.length} Dikeluarkan
                   </span>
                 )}
                 {karyawanToAdd.length > 0 && (
-                  <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <span className="badge badge-success badge-sm text-white font-bold font-mono tabular-nums">
                     +{karyawanToAdd.length} Ditambahkan
                   </span>
                 )}
@@ -1315,29 +1586,29 @@ export default function KaryawanTestPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 <button
                   type="button"
                   disabled={submitting}
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                  className="btn btn-ghost btn-sm text-slate-600 rounded-xl font-bold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2.5 bg-[#0173b6] hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-md transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                  className="btn btn-primary btn-sm gap-2 font-bold text-xs uppercase tracking-wider rounded-xl shadow-md disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
-                      <Loader2 size={14} className="animate-spin" />
+                  <Loader2 size={14} className="animate-spin" />
                       Menyimpan...
                     </>
                   ) : (
                     <>
                       <CheckCircle2 size={14} />
-                      Simpan Perubahan Batch
+                      Simpan Perubahan
                     </>
                   )}
                 </button>
@@ -1347,7 +1618,7 @@ export default function KaryawanTestPage() {
         )}
       </Modal>
 
-      {/* MODAL 2: DETAIL HASIL PSIKOMETRI */}
+      {/* MODAL 3: DETAIL HASIL PSIKOMETRI */}
       <Modal
         isOpen={isResultModalOpen}
         onClose={() => setIsResultModalOpen(false)}
@@ -1357,38 +1628,38 @@ export default function KaryawanTestPage() {
         {loadingResult ? (
           <div className="py-16 flex flex-col items-center justify-center space-y-3 text-slate-400">
             <Loader2 size={36} className="animate-spin text-[#0173b6]" />
-            <p className="text-xs font-bold">Memuat data hasil tes psikometri...</p>
+            <p className="text-xs font-bold text-slate-600">Memuat data hasil tes psikometri...</p>
           </div>
         ) : !selectedResultData ? (
           <div className="py-12 text-center text-slate-400 text-xs font-medium">
             Data hasil tes tidak ditemukan.
           </div>
         ) : (
-          <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-            {/* Employee Summary Card */}
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+            {/* Header Profil */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h4 className="text-base font-black text-slate-800">{selectedResultData.assessment.nama_lengkap}</h4>
-                <p className="text-xs text-slate-500 font-medium">
+                <h4 className="text-base font-black text-slate-900">{selectedResultData.assessment.nama_lengkap}</h4>
+                <p className="text-xs text-slate-500 font-medium font-mono tabular-nums mt-0.5">
                   NIP: {selectedResultData.assessment.nip} | {selectedResultData.assessment.nama_jabatan || "-"} ({selectedResultData.assessment.nama_departemen || "-"})
                 </p>
               </div>
               <div className="text-left sm:text-right">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#0173b6] bg-blue-50 px-2.5 py-1 rounded border border-blue-100">
+                <span className="badge badge-primary badge-outline text-[11px] font-bold uppercase tracking-wider py-2 px-3">
                   {selectedResultData.assessment.batch_name}
                 </span>
               </div>
             </div>
 
-            {/* RESULT SECTION 1: MBTI */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm relative overflow-hidden group">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            {/* Section 1: MBTI */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h5 className="font-black text-blue-600 text-xs uppercase tracking-wider flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
                   1. MBTI Personality Indicator
                 </h5>
                 {selectedResultData.results.mbti && (
-                  <span className="px-3 py-1 bg-blue-600 text-white font-black text-xs rounded uppercase tracking-widest shadow-sm">
+                  <span className="badge badge-primary font-black text-xs font-mono tracking-widest px-3 py-2">
                     {selectedResultData.results.mbti.final_result}
                   </span>
                 )}
@@ -1425,7 +1696,7 @@ export default function KaryawanTestPage() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-slate-100 pb-3">
                       <div className="flex items-baseline gap-3">
-                        <h2 className="text-4xl font-black text-slate-800 tracking-tight leading-none">
+                        <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-none font-mono">
                           {mbti.final_result}
                         </h2>
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -1433,105 +1704,98 @@ export default function KaryawanTestPage() {
                         </span>
                       </div>
                       {mbtiProfile?.julukan && (
-                        <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-md self-start sm:self-auto">
+                        <span className="badge badge-outline border-indigo-200 text-indigo-700 font-bold text-xs py-2 px-3">
                           {mbtiProfile.julukan}
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-3">
-                      {/* E vs I */}
+                    <div className="space-y-2.5">
                       <div>
-                        <div className="flex justify-between items-center text-xs mb-1">
-                          <span className={`flex items-center gap-1 ${scoreE >= scoreI ? "font-bold text-indigo-600" : "text-slate-400"}`}>
-                            E (Extraversion) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreE >= scoreI ? "bg-indigo-100 text-indigo-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{ePct}%</span>
+                        <div className="flex justify-between items-center text-xs mb-1 font-mono tabular-nums">
+                          <span className={scoreE >= scoreI ? "font-bold text-indigo-600" : "text-slate-400"}>
+                            E ({ePct}%)
                           </span>
-                          <span className={`flex items-center gap-1 ${scoreI > scoreE ? "font-bold text-indigo-600" : "text-slate-400"}`}>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreI > scoreE ? "bg-indigo-100 text-indigo-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{iPct}%</span> (Introversion) I
+                          <span className={scoreI > scoreE ? "font-bold text-indigo-600" : "text-slate-400"}>
+                            I ({iPct}%)
                           </span>
                         </div>
                         <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
-                          <div className={`h-full transition-all duration-500 ${scoreE >= scoreI ? "bg-indigo-500" : "bg-slate-300"}`} style={{ width: `${ePct}%` }} />
-                          <div className={`h-full transition-all duration-500 ${scoreI > scoreE ? "bg-indigo-500" : "bg-slate-300"}`} style={{ width: `${iPct}%` }} />
+                          <div className={`h-full ${scoreE >= scoreI ? "bg-indigo-500" : "bg-slate-300"}`} style={{ width: `${ePct}%` }} />
+                          <div className={`h-full ${scoreI > scoreE ? "bg-indigo-500" : "bg-slate-300"}`} style={{ width: `${iPct}%` }} />
                         </div>
                       </div>
 
-                      {/* S vs N */}
                       <div>
-                        <div className="flex justify-between items-center text-xs mb-1">
-                          <span className={`flex items-center gap-1 ${scoreS >= scoreN ? "font-bold text-emerald-600" : "text-slate-400"}`}>
-                            S (Sensing) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreS >= scoreN ? "bg-emerald-100 text-emerald-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{sPct}%</span>
+                        <div className="flex justify-between items-center text-xs mb-1 font-mono tabular-nums">
+                          <span className={scoreS >= scoreN ? "font-bold text-emerald-600" : "text-slate-400"}>
+                            S ({sPct}%)
                           </span>
-                          <span className={`flex items-center gap-1 ${scoreN > scoreS ? "font-bold text-emerald-600" : "text-slate-400"}`}>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreN > scoreS ? "bg-emerald-100 text-emerald-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{nPct}%</span> (Intuition) N
+                          <span className={scoreN > scoreS ? "font-bold text-emerald-600" : "text-slate-400"}>
+                            N ({nPct}%)
                           </span>
                         </div>
                         <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
-                          <div className={`h-full transition-all duration-500 ${scoreS >= scoreN ? "bg-emerald-500" : "bg-slate-300"}`} style={{ width: `${sPct}%` }} />
-                          <div className={`h-full transition-all duration-500 ${scoreN > scoreS ? "bg-emerald-500" : "bg-slate-300"}`} style={{ width: `${nPct}%` }} />
+                          <div className={`h-full ${scoreS >= scoreN ? "bg-emerald-500" : "bg-slate-300"}`} style={{ width: `${sPct}%` }} />
+                          <div className={`h-full ${scoreN > scoreS ? "bg-emerald-500" : "bg-slate-300"}`} style={{ width: `${nPct}%` }} />
                         </div>
                       </div>
 
-                      {/* T vs F */}
                       <div>
-                        <div className="flex justify-between items-center text-xs mb-1">
-                          <span className={`flex items-center gap-1 ${scoreT >= scoreF ? "font-bold text-amber-600" : "text-slate-400"}`}>
-                            T (Thinking) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreT >= scoreF ? "bg-amber-100 text-amber-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{tPct}%</span>
+                        <div className="flex justify-between items-center text-xs mb-1 font-mono tabular-nums">
+                          <span className={scoreT >= scoreF ? "font-bold text-amber-600" : "text-slate-400"}>
+                            T ({tPct}%)
                           </span>
-                          <span className={`flex items-center gap-1 ${scoreF > scoreT ? "font-bold text-amber-600" : "text-slate-400"}`}>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreF > scoreT ? "bg-amber-100 text-amber-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{fPct}%</span> (Feeling) F
+                          <span className={scoreF > scoreT ? "font-bold text-amber-600" : "text-slate-400"}>
+                            F ({fPct}%)
                           </span>
                         </div>
                         <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
-                          <div className={`h-full transition-all duration-500 ${scoreT >= scoreF ? "bg-amber-500" : "bg-slate-300"}`} style={{ width: `${tPct}%` }} />
-                          <div className={`h-full transition-all duration-500 ${scoreF > scoreT ? "bg-amber-500" : "bg-slate-300"}`} style={{ width: `${fPct}%` }} />
+                          <div className={`h-full ${scoreT >= scoreF ? "bg-amber-500" : "bg-slate-300"}`} style={{ width: `${tPct}%` }} />
+                          <div className={`h-full ${scoreF > scoreT ? "bg-amber-500" : "bg-slate-300"}`} style={{ width: `${fPct}%` }} />
                         </div>
                       </div>
 
-                      {/* J vs P */}
                       <div>
-                        <div className="flex justify-between items-center text-xs mb-1">
-                          <span className={`flex items-center gap-1 ${scoreJ >= scoreP ? "font-bold text-cyan-600" : "text-slate-400"}`}>
-                            J (Judging) <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreJ >= scoreP ? "bg-cyan-100 text-cyan-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{jPct}%</span>
+                        <div className="flex justify-between items-center text-xs mb-1 font-mono tabular-nums">
+                          <span className={scoreJ >= scoreP ? "font-bold text-cyan-600" : "text-slate-400"}>
+                            J ({jPct}%)
                           </span>
-                          <span className={`flex items-center gap-1 ${scoreP > scoreJ ? "font-bold text-cyan-600" : "text-slate-400"}`}>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${scoreP > scoreJ ? "bg-cyan-100 text-cyan-700 font-bold" : "bg-slate-100 text-slate-500"}`}>{pPct}%</span> (Perceiving) P
+                          <span className={scoreP > scoreJ ? "font-bold text-cyan-600" : "text-slate-400"}>
+                            P ({pPct}%)
                           </span>
                         </div>
                         <div className="w-full bg-slate-200/60 rounded-full h-2 overflow-hidden flex">
-                          <div className={`h-full transition-all duration-500 ${scoreJ >= scoreP ? "bg-cyan-500" : "bg-slate-300"}`} style={{ width: `${jPct}%` }} />
-                          <div className={`h-full transition-all duration-500 ${scoreP > scoreJ ? "bg-cyan-500" : "bg-slate-300"}`} style={{ width: `${pPct}%` }} />
+                          <div className={`h-full ${scoreJ >= scoreP ? "bg-cyan-500" : "bg-slate-300"}`} style={{ width: `${jPct}%` }} />
+                          <div className={`h-full ${scoreP > scoreJ ? "bg-cyan-500" : "bg-slate-300"}`} style={{ width: `${pPct}%` }} />
                         </div>
                       </div>
                     </div>
 
-                    {/* Profil Detail Penjelasan MBTI */}
                     {mbtiProfile && (
-                      <div className="bg-slate-50/80 p-4 rounded-lg border border-slate-200 text-xs space-y-2.5 mt-4">
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 text-xs space-y-2 mt-3">
                         {mbtiProfile.ciri_ciri_umum && (
-                          <div className="bg-indigo-50/60 border border-indigo-100 p-2.5 rounded-md">
-                            <span className="font-bold text-indigo-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                              <Sparkles size={13} className="text-indigo-600 shrink-0" /> Ciri-ciri Umum
+                          <div className="bg-indigo-50/60 border border-indigo-100 p-2.5 rounded-lg">
+                            <span className="font-bold text-indigo-700 text-[10px] uppercase tracking-wider block mb-0.5">
+                              Ciri-ciri Utama
                             </span>
                             <p className="text-slate-700 text-[11px] leading-relaxed">
                               {mbtiProfile.ciri_ciri_umum}
                             </p>
                           </div>
                         )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                          <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-md">
-                            <span className="font-bold text-emerald-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                              <Building2 size={13} className="text-emerald-600 shrink-0" /> Kontribusi pada Organisasi
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-lg">
+                            <span className="font-bold text-emerald-700 text-[10px] uppercase tracking-wider block mb-0.5">
+                              Kontribusi Organisasi
                             </span>
                             <p className="text-slate-700 text-[11px] leading-relaxed">
                               {mbtiProfile.kontribusi_pada_organisasi}
                             </p>
                           </div>
-
-                          <div className="bg-amber-50/60 border border-amber-100 p-2.5 rounded-md">
-                            <span className="font-bold text-amber-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                              <AlertTriangle size={13} className="text-amber-600 shrink-0" /> Kelemahan / Area Pengembangan
+                          <div className="bg-amber-50/60 border border-amber-100 p-2.5 rounded-lg">
+                            <span className="font-bold text-amber-700 text-[10px] uppercase tracking-wider block mb-0.5">
+                              Area Pengembangan
                             </span>
                             <p className="text-slate-700 text-[11px] leading-relaxed">
                               {mbtiProfile.kelemahan}
@@ -1547,12 +1811,12 @@ export default function KaryawanTestPage() {
               )}
             </div>
 
-            {/* RESULT SECTION 2: DISC */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            {/* Section 2: DISC */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h5 className="font-black text-orange-500 text-xs uppercase tracking-wider flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                  2. DISC Profile (Dominance, Influence, Steadiness, Compliance)
+                  2. DISC Profile
                 </h5>
               </div>
 
@@ -1565,122 +1829,76 @@ export default function KaryawanTestPage() {
 
                 const diffMap: Record<string, number> = { D: diffD, I: diffI, S: diffS, C: diffC };
                 const dims: Array<"D" | "I" | "S" | "C"> = ["D", "I", "S", "C"];
-                const positive = dims.filter(d => diffMap[d] >= 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
-                const negative = dims.filter(d => diffMap[d] < 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
+                const positive = dims.filter((d) => diffMap[d] >= 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
+                const negative = dims.filter((d) => diffMap[d] < 0).sort((a, b) => diffMap[b] - diffMap[a]).join("");
                 const pattern = `${positive}/${negative}`;
                 const profileDetail = getDISCProfileDetail({ positive, negative, pattern });
 
                 return (
-                  <div className="space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 bg-orange-50/30 p-3 rounded-lg border border-orange-100">
+                  <div className="space-y-3.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-orange-50/40 p-3 rounded-xl border border-orange-100">
                       <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pola Tipe Profil DISC (Midline 0)</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Pola DISC (Midline 0)
+                        </span>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-2xl font-black text-orange-600 font-mono tracking-widest">{pattern}</span>
+                          <span className="text-xl font-black text-orange-600 font-mono tracking-widest">{pattern}</span>
                           {profileDetail?.karakter_utama && (
-                            <span className="bg-orange-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md shadow-2xs">
+                            <span className="badge badge-warning text-slate-900 font-black text-[10px] uppercase tracking-wider">
                               {profileDetail.karakter_utama}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-[11px] font-medium text-slate-600 bg-white px-3 py-1.5 rounded-md border border-slate-200 inline-block shadow-2xs">
-                          Positif (≥0): <strong className="text-orange-600 font-mono">{positive || "-"}</strong> | Negatif (&lt;0): <strong className="text-slate-700 font-mono">{negative || "-"}</strong>
+                        <span className="text-[11px] font-mono tabular-nums text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 inline-block shadow-2xs">
+                          Positif: <strong className="text-orange-600">{positive || "-"}</strong> | Negatif: <strong className="text-slate-700">{negative || "-"}</strong>
                         </span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                      <div className="bg-orange-50/50 p-3 rounded-lg border border-orange-100 shadow-inner">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                      <div className="bg-orange-50/50 p-2.5 rounded-xl border border-orange-100 shadow-2xs">
                         <p className="text-xs font-black text-orange-600">D (Dominance)</p>
-                        <p className="font-mono text-sm font-black text-slate-800 mt-1">
-                          Diff: {disc.diff_d}
-                        </p>
-                        <div className="text-[9px] text-slate-400 font-medium mt-1">
-                          Most: {disc.most_d} | Least: {disc.least_d}
-                        </div>
+                        <p className="font-mono tabular-nums text-sm font-black text-slate-800 mt-0.5">Diff: {disc.diff_d}</p>
+                        <p className="text-[9px] text-slate-400 font-mono tabular-nums">M: {disc.most_d} | L: {disc.least_d}</p>
                       </div>
-
-                      <div className="bg-[#0173b6]/5 p-3 rounded-lg border border-blue-100 shadow-inner">
+                      <div className="bg-blue-50/50 p-2.5 rounded-xl border border-blue-100 shadow-2xs">
                         <p className="text-xs font-black text-[#0173b6]">I (Influence)</p>
-                        <p className="font-mono text-sm font-black text-slate-800 mt-1">
-                          Diff: {disc.diff_i}
-                        </p>
-                        <div className="text-[9px] text-slate-400 font-medium mt-1">
-                          Most: {disc.most_i} | Least: {disc.least_i}
-                        </div>
+                        <p className="font-mono tabular-nums text-sm font-black text-slate-800 mt-0.5">Diff: {disc.diff_i}</p>
+                        <p className="text-[9px] text-slate-400 font-mono tabular-nums">M: {disc.most_i} | L: {disc.least_i}</p>
                       </div>
-
-                      <div className="bg-emerald-50/50 p-3 rounded-lg border border-emerald-100 shadow-inner">
+                      <div className="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
                         <p className="text-xs font-black text-emerald-600">S (Steadiness)</p>
-                        <p className="font-mono text-sm font-black text-slate-800 mt-1">
-                          Diff: {disc.diff_s}
-                        </p>
-                        <div className="text-[9px] text-slate-400 font-medium mt-1">
-                          Most: {disc.most_s} | Least: {disc.least_s}
-                        </div>
+                        <p className="font-mono tabular-nums text-sm font-black text-slate-800 mt-0.5">Diff: {disc.diff_s}</p>
+                        <p className="text-[9px] text-slate-400 font-mono tabular-nums">M: {disc.most_s} | L: {disc.least_s}</p>
                       </div>
-
-                      <div className="bg-purple-50/50 p-3 rounded-lg border border-purple-100 shadow-inner">
+                      <div className="bg-purple-50/50 p-2.5 rounded-xl border border-purple-100 shadow-2xs">
                         <p className="text-xs font-black text-purple-600">C (Compliance)</p>
-                        <p className="font-mono text-sm font-black text-slate-800 mt-1">
-                          Diff: {disc.diff_c}
-                        </p>
-                        <div className="text-[9px] text-slate-400 font-medium mt-1">
-                          Most: {disc.most_c} | Least: {disc.least_c}
-                        </div>
+                        <p className="font-mono tabular-nums text-sm font-black text-slate-800 mt-0.5">Diff: {disc.diff_c}</p>
+                        <p className="text-[9px] text-slate-400 font-mono tabular-nums">M: {disc.most_c} | L: {disc.least_c}</p>
                       </div>
                     </div>
 
-                    {/* Profil Detail Penjelasan */}
                     {profileDetail && (
-                      <div className="bg-slate-50/80 p-4 rounded-lg border border-slate-200 text-xs space-y-2.5 mt-3">
-                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                          <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
-                            Klasifikasi Profil: <strong className="text-orange-600">{profileDetail.tipe}</strong>
-                          </span>
-                          <span className="text-[10px] font-semibold text-slate-400">
-                            Karakter: <strong className="text-slate-700">{profileDetail.karakter_utama}</strong>
-                          </span>
-                        </div>
-
+                      <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200 text-xs space-y-2 mt-2">
                         {profileDetail.deskripsi && (
-                          <p className="text-slate-600 leading-relaxed">
-                            {profileDetail.deskripsi}
-                          </p>
+                          <p className="text-slate-600 leading-relaxed text-[11px]">{profileDetail.deskripsi}</p>
                         )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                          <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-md">
-                            <span className="font-bold text-emerald-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                              <CheckCircle2 size={13} className="text-emerald-600 shrink-0" /> Kelebihan / Potensi
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-lg">
+                            <span className="font-bold text-emerald-700 text-[10px] uppercase tracking-wider block mb-0.5">
+                              Kelebihan
                             </span>
-                            <p className="text-slate-700 text-[11px] leading-relaxed">
-                              {profileDetail.kelebihan}
-                            </p>
+                            <p className="text-slate-700 text-[11px] leading-relaxed">{profileDetail.kelebihan}</p>
                           </div>
-
-                          <div className="bg-amber-50/60 border border-amber-100 p-2.5 rounded-md">
-                            <span className="font-bold text-amber-700 text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                              <AlertTriangle size={13} className="text-amber-600 shrink-0" /> Area Pengembangan / Kekurangan
+                          <div className="bg-amber-50/60 border border-amber-100 p-2.5 rounded-lg">
+                            <span className="font-bold text-amber-700 text-[10px] uppercase tracking-wider block mb-0.5">
+                              Kekurangan
                             </span>
-                            <p className="text-slate-700 text-[11px] leading-relaxed">
-                              {profileDetail.kekurangan}
-                            </p>
+                            <p className="text-slate-700 text-[11px] leading-relaxed">{profileDetail.kekurangan}</p>
                           </div>
                         </div>
-
-                        {profileDetail.posisi_yang_sesuai && (
-                          <div className="bg-blue-50/60 border border-blue-100 p-2.5 rounded-md">
-                            <span className="font-bold text-[#0173b6] text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                              <Target size={13} className="text-[#0173b6] shrink-0" /> Rekomendasi Bidang / Posisi
-                            </span>
-                            <p className="text-slate-700 text-[11px] leading-relaxed">
-                              {profileDetail.posisi_yang_sesuai}
-                            </p>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1690,12 +1908,12 @@ export default function KaryawanTestPage() {
               )}
             </div>
 
-            {/* RESULT SECTION 3: PAPI KOSTICK */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+            {/* Section 3: PAPI Kostick */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h5 className="font-black text-emerald-600 text-xs uppercase tracking-wider flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  3. PAPI Kostick (Roles &amp; Needs Profile)
+                  3. PAPI Kostick
                 </h5>
               </div>
 
@@ -1706,15 +1924,15 @@ export default function KaryawanTestPage() {
               )}
             </div>
 
-            {/* RESULT SECTION 4: CFIT (CULTURE FAIR INTELLIGENCE TEST) */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+            {/* Section 4: CFIT */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h5 className="font-black text-purple-700 text-xs uppercase tracking-wider flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
-                  4. CFIT (Culture Fair Intelligence Test - Skala 3 Form A)
+                  4. CFIT (Culture Fair Intelligence Test)
                 </h5>
                 {selectedResultData.results.cfit && (
-                  <span className="px-3 py-1 bg-purple-600 text-white font-black text-xs rounded uppercase tracking-widest shadow-xs">
+                  <span className="badge badge-secondary font-black text-xs font-mono tracking-widest px-3 py-2">
                     IQ {selectedResultData.results.cfit.iq_score} — {selectedResultData.results.cfit.category}
                   </span>
                 )}
@@ -1729,10 +1947,10 @@ export default function KaryawanTestPage() {
           </div>
         )}
 
-        <div className="flex justify-end pt-2 border-t border-slate-100">
+        <div className="flex justify-end pt-3 border-t border-slate-100">
           <button
             onClick={() => setIsResultModalOpen(false)}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs uppercase tracking-wider rounded-md transition-all"
+            className="btn btn-neutral btn-sm rounded-xl font-bold uppercase tracking-wider text-xs px-5"
           >
             Tutup
           </button>
