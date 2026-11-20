@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
+
 import {
   INDIKATOR_PENILAIAN_LIST,
   IndikatorPenilaian,
@@ -23,6 +30,13 @@ import {
   Trophy,
   Minus,
   Plus,
+  FileText,
+  Target,
+  Calendar,
+  AlertCircle,
+  ThumbsUp,
+  RotateCcw,
+  BookOpen,
 } from "lucide-react";
 
 export interface FormAssessmentData {
@@ -53,13 +67,21 @@ interface FormPenilaianKinerjaViewProps {
   readonly onCancel?: () => void;
 }
 
-function getPerformanceGrade(val: number) {
+interface PerformanceGrade {
+  readonly code: string;
+  readonly label: string;
+  readonly badgeClass: string;
+  readonly barClass: string;
+  readonly percent: number;
+}
+
+function getPerformanceGrade(val: number): PerformanceGrade {
   if (val >= 41) {
     return {
       code: "BS",
       label: "Baik Sekali",
-      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      barColor: "bg-emerald-500",
+      badgeClass: "badge-success text-white",
+      barClass: "progress-success",
       percent: Math.min(100, Math.round((val / 50) * 100)),
     };
   }
@@ -67,8 +89,8 @@ function getPerformanceGrade(val: number) {
     return {
       code: "B",
       label: "Baik",
-      badgeClass: "bg-blue-50 text-[#0173b6] border-blue-200",
-      barColor: "bg-[#0173b6]",
+      badgeClass: "badge-primary text-white",
+      barClass: "progress-primary",
       percent: Math.min(100, Math.round((val / 50) * 100)),
     };
   }
@@ -76,8 +98,8 @@ function getPerformanceGrade(val: number) {
     return {
       code: "C",
       label: "Cukup",
-      badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
-      barColor: "bg-amber-500",
+      badgeClass: "badge-warning text-slate-900 font-bold",
+      barClass: "progress-warning",
       percent: Math.min(100, Math.round((val / 50) * 100)),
     };
   }
@@ -85,26 +107,26 @@ function getPerformanceGrade(val: number) {
     return {
       code: "K",
       label: "Kurang",
-      badgeClass: "bg-orange-50 text-orange-700 border-orange-200",
-      barColor: "bg-orange-500",
+      badgeClass: "badge-error badge-outline text-orange-700 font-bold",
+      barClass: "progress-error",
       percent: Math.min(100, Math.round((val / 50) * 100)),
     };
   }
   return {
     code: "KS",
     label: "Kurang Sekali",
-    badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
-    barColor: "bg-rose-500",
+    badgeClass: "badge-error text-white font-bold",
+    barClass: "progress-error",
     percent: Math.min(100, Math.round((val / 50) * 100)),
   };
 }
 
 const SCORE_PRESETS = [
-  { value: 10, label: "KS", title: "Kurang Sekali (10)" },
-  { value: 20, label: "K", title: "Kurang (20)" },
-  { value: 30, label: "C", title: "Cukup (30)" },
-  { value: 40, label: "B", title: "Baik (40)" },
-  { value: 50, label: "BS", title: "Baik Sekali (50)" },
+  { value: 10, label: "10", title: "Kurang Sekali (10)" },
+  { value: 20, label: "20", title: "Kurang (20)" },
+  { value: 30, label: "30", title: "Cukup (30)" },
+  { value: 40, label: "40", title: "Baik (40)" },
+  { value: 50, label: "50", title: "Baik Sekali (50)" },
 ] as const;
 
 export default function FormPenilaianKinerjaView({
@@ -113,6 +135,8 @@ export default function FormPenilaianKinerjaView({
   onSave,
   onCancel,
 }: FormPenilaianKinerjaViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const isHigherLevel =
     karyawan.level === "Koordinator" ||
     karyawan.level === "SPV" ||
@@ -193,6 +217,53 @@ export default function FormPenilaianKinerjaView({
     };
   }, [scores, activeIndikators, includeManagerial]);
 
+  // GSAP: Entrance animation for the entire form workspace
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+      tl.from(".eval-sidebar", {
+        x: -16,
+        opacity: 0,
+        duration: 0.45,
+        clearProps: "all",
+      })
+        .from(
+          ".eval-guide-card",
+          {
+            y: 12,
+            opacity: 0,
+            duration: 0.35,
+            clearProps: "all",
+          },
+          "-=0.25"
+        )
+        .from(
+          ".eval-aspek-card",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.05,
+            clearProps: "all",
+          },
+          "-=0.2"
+        )
+        .from(
+          [".eval-kualitatif-card", ".eval-rekomendasi-card", ".eval-submit-bar"],
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.06,
+            clearProps: "all",
+          },
+          "-=0.2"
+        );
+    },
+    { scope: containerRef }
+  );
+
   const handleScoreChange = (id: string, val: number) => {
     if (readOnly) return;
     const clamped = Math.max(0, Math.min(50, val));
@@ -229,89 +300,155 @@ export default function FormPenilaianKinerjaView({
     }
   };
 
+  const scrollToAspek = (aspekNo: number) => {
+    const el = document.getElementById(`aspek-section-${aspekNo}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const initials = useMemo(() => {
+    const parts = karyawan.nama_lengkap.trim().split(" ").filter(Boolean);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }, [karyawan.nama_lengkap]);
+
   return (
-    <div className="w-full max-w-6xl mx-auto font-sans text-slate-800 pb-16">
+    <div ref={containerRef} className="w-full max-w-6xl mx-auto font-sans text-slate-800 pb-16">
       {/* 2-Column Responsive Layout: Sidebar & Assessment Content */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ============================================================== */}
         {/* KOLOM KIRI: STICKY SIDEBAR (PROFIL, SKOR REKAP & NAVIGASI)     */}
         {/* ============================================================== */}
-        <div className="lg:col-span-4 space-y-5 lg:sticky lg:top-4 z-20">
+        <aside className="eval-sidebar lg:col-span-4 space-y-4 lg:sticky lg:top-4 z-20">
           {/* Card 1: Identitas Pegawai & Penilai */}
-          <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-5 space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Profil Pegawai
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Profil Pegawai Dievaluasi
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#0173b6] text-[10px] font-mono font-bold tabular-nums">
+              <span className="badge badge-sm badge-outline font-mono tabular-nums font-bold text-[#0173b6] border-blue-200">
                 NIP: {karyawan.nip}
               </span>
             </div>
 
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-slate-900 leading-tight">
-                {karyawan.gelar_depan ? `${karyawan.gelar_depan} ` : ""}
-                {karyawan.nama_lengkap}
-                {karyawan.gelar_belakang ? `, ${karyawan.gelar_belakang}` : ""}
-              </h2>
-              <p className="text-xs font-semibold text-[#0173b6]">
-                {karyawan.jabatan}
-              </p>
-              <p className="text-xs text-slate-500">
-                {karyawan.unit} &bull; {karyawan.departemen}
-              </p>
+            {/* Avatar & Identitas */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-[#05445e] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <h2 className="text-sm font-black text-slate-900 leading-snug truncate" title={karyawan.nama_lengkap}>
+                  {karyawan.gelar_depan ? `${karyawan.gelar_depan} ` : ""}
+                  {karyawan.nama_lengkap}
+                  {karyawan.gelar_belakang ? `, ${karyawan.gelar_belakang}` : ""}
+                </h2>
+                <p className="text-xs font-semibold text-[#0173b6] truncate">
+                  {karyawan.jabatan}
+                </p>
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                  <Building2 size={11} className="text-slate-400 shrink-0" />
+                  <span className="truncate">{karyawan.unit}</span>
+                </div>
+              </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 text-xs space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                Pimpinan Penilai:
+            {/* Sisa Masa Kontrak Card */}
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs font-mono tabular-nums">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 font-sans block">
+                  Sisa Masa PKWT
+                </span>
+                <span className={`font-black text-xs ${karyawan.sisa_hari <= 30 ? "text-rose-600" : "text-amber-600"}`}>
+                  {karyawan.sisa_hari} Hari Lagi
+                </span>
+              </div>
+              <span className="badge badge-sm font-sans font-bold bg-white text-slate-700 border border-slate-200">
+                {karyawan.level}
               </span>
-              <p className="font-semibold text-slate-800">{karyawan.penilai.nama}</p>
-              <p className="text-[11px] text-slate-500">{karyawan.penilai.jabatan}</p>
             </div>
 
-            {/* Aspek Manajerial Toggle */}
+            {/* Pimpinan Penilai */}
+            <div className="pt-2 border-t border-slate-100 text-xs space-y-1">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span>Pimpinan Penilai</span>
+                <span className="badge badge-xs badge-ghost font-bold">{karyawan.penilai.level}</span>
+              </div>
+              <p className="font-bold text-slate-800 leading-snug">{karyawan.penilai.nama}</p>
+              <p className="text-[11px] text-slate-500 font-medium">{karyawan.penilai.jabatan}</p>
+            </div>
+
+            {/* Aspek Manajerial Toggle (DaisyUI Toggle) */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
               <div>
-                <p className="font-semibold text-slate-800 text-[11px]">
+                <p className="font-bold text-slate-800 text-[11px]">
                   Aspek Manajerial (Ke-10)
                 </p>
                 <p className="text-[10px] text-slate-400">
-                  Pembagi: <b className="font-mono text-slate-700">{calculation.indeksPrestasi}</b>
+                  Pembagi: <b className="font-mono text-slate-700">{calculation.indeksPrestasi}</b> (
+                  {includeManagerial ? "Pimpinan" : "Staf"})
                 </p>
               </div>
 
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeManagerial}
-                  onChange={(e) => setIncludeManagerial(e.target.checked)}
-                  disabled={readOnly}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0173b6]" />
-              </label>
+              <input
+                type="checkbox"
+                checked={includeManagerial}
+                onChange={(e) => setIncludeManagerial(e.target.checked)}
+                disabled={readOnly}
+                className="toggle toggle-primary toggle-sm cursor-pointer"
+                title="Aktifkan aspek kepemimpinan & manajerial"
+              />
             </div>
           </div>
 
-          {/* Card 2: Live Norma Scorecard (High Contrast Enterprise Grade) */}
-          <div className="bg-gradient-to-br from-[#05445e] via-[#0173b6] to-sky-700 text-white rounded-xl shadow-md p-5 space-y-4">
+          {/* Card 2: Live Norma Scorecard (Medical Hospital Palette) */}
+          <div className="bg-gradient-to-br from-[#05445e] via-[#0173b6] to-sky-700 text-white rounded-2xl shadow-md p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-100">
-                Kalkulasi Nilai Norma
-              </span>
-              <span className="px-2.5 py-1 rounded-md bg-white text-[#0173b6] text-xs font-black uppercase tracking-wider shadow-xs">
+              <div className="flex items-center gap-1.5 text-blue-100 text-xs font-bold uppercase tracking-wider">
+                <Trophy size={14} className="text-amber-300" />
+                <span>Kalkulasi Nilai Norma</span>
+              </div>
+              <span className={`badge badge-sm font-black uppercase tracking-wider shadow-xs ${
+                calculation.kategori === "EXCELENT"
+                  ? "bg-emerald-400 text-emerald-950"
+                  : calculation.kategori === "BAIK"
+                  ? "bg-white text-[#0173b6]"
+                  : calculation.kategori === "CUKUP"
+                  ? "bg-amber-300 text-amber-950"
+                  : "bg-rose-400 text-rose-950"
+              }`}>
                 {calculation.kategori}
               </span>
             </div>
 
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black font-mono tabular-nums leading-none">
-                {calculation.norma.toFixed(2)}
-              </span>
-              <span className="text-sm font-mono text-blue-200">/ 4.00</span>
+            {/* Large Prominent Score */}
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl sm:text-5xl font-black font-mono tabular-nums tracking-tight leading-none">
+                  {calculation.norma.toFixed(2)}
+                </span>
+                <span className="text-sm font-mono text-blue-200">/ 4.00 Max</span>
+              </div>
+              <p className="text-[11px] text-blue-100 font-medium">
+                Rumus: Total Skor Tertimbang ÷ Indeks Pembagi
+              </p>
             </div>
 
+            {/* DaisyUI Progress Gauge */}
+            <div className="space-y-1">
+              <progress
+                className="progress progress-warning w-full h-2 rounded-full bg-white/20"
+                value={(calculation.norma / 4.0) * 100}
+                max="100"
+              ></progress>
+              <div className="flex justify-between text-[10px] font-mono tabular-nums text-blue-200">
+                <span>1.00 (Kurang)</span>
+                <span>2.76 (Baik)</span>
+                <span>3.50+ (Excelent)</span>
+              </div>
+            </div>
+
+            {/* Metrics Breakdown */}
             <div className="pt-3 border-t border-white/20 text-xs space-y-1.5 font-medium">
               <div className="flex justify-between text-blue-100">
                 <span>Total Skor Tertimbang:</span>
@@ -320,7 +457,7 @@ export default function FormPenilaianKinerjaView({
                 </span>
               </div>
               <div className="flex justify-between text-blue-100">
-                <span>Pembagi Indeks:</span>
+                <span>Pembagi Indeks Prestasi:</span>
                 <span className="font-mono font-bold text-white tabular-nums">
                   {calculation.indeksPrestasi}
                 </span>
@@ -334,12 +471,32 @@ export default function FormPenilaianKinerjaView({
             </div>
           </div>
 
+          {/* Card 3: Quick Jump Navigation */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 space-y-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Navigasi Cepat Aspek ({groupedAspek.length} Bagian)
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {groupedAspek.map((g) => (
+                <button
+                  key={g.aspekNo}
+                  type="button"
+                  onClick={() => scrollToAspek(g.aspekNo)}
+                  className="btn btn-xs btn-outline border-slate-200 hover:bg-slate-100 text-slate-700 font-bold rounded-lg font-mono tabular-nums"
+                  title={g.aspekNama}
+                >
+                  A{g.aspekNo}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Action Buttons Cetak & Batal */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handlePrint}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors shadow-2xs"
+              className="flex-1 btn btn-sm btn-outline border-slate-200 hover:bg-slate-100 text-slate-700 font-bold rounded-xl gap-2 active:scale-[0.98] transition-all"
             >
               <Printer size={14} className="text-slate-500" />
               <span>Cetak Form</span>
@@ -349,70 +506,76 @@ export default function FormPenilaianKinerjaView({
               <button
                 type="button"
                 onClick={onCancel}
-                className="py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold rounded-lg text-xs transition-colors shadow-2xs"
+                className="btn btn-sm btn-ghost text-slate-600 hover:bg-slate-100 font-bold rounded-xl active:scale-[0.98] transition-all"
               >
                 Tutup
               </button>
             )}
           </div>
-        </div>
+        </aside>
 
         {/* ============================================================== */}
         {/* KOLOM KANAN: FORM EVALUASI, INDIKATOR, KUALITATIF & REKOMENDASI*/}
         {/* ============================================================== */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Panduan Skala Nilai */}
-          <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3">
+        <main className="lg:col-span-8 space-y-5">
+          {/* Panduan Skala Nilai (DaisyUI Cards) */}
+          <div className="eval-guide-card bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                Panduan Skala Penilaian Kinerja (Skala 0 - 50)
-              </h3>
-              <span className="text-[10px] font-bold uppercase text-slate-400">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#0173b6]"></span>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Panduan Skala Penilaian Kinerja (Skala 0 - 50)
+                </h3>
+              </div>
+              <span className="badge badge-sm font-mono tabular-nums font-bold bg-slate-100 text-slate-600">
                 Form/HRD/XI/REV.1
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
-              <div className="p-2 rounded-lg border border-rose-200 bg-rose-50/50">
-                <span className="font-mono font-bold text-rose-700 text-xs block">0 - 10</span>
-                <span className="text-[10px] font-semibold text-rose-800">KS (Kurang Sekali)</span>
+              <div className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/60">
+                <span className="font-mono font-black text-rose-700 text-xs block tabular-nums">0 - 10</span>
+                <span className="text-[10px] font-bold text-rose-800">KS (Kurang Sekali)</span>
               </div>
-              <div className="p-2 rounded-lg border border-orange-200 bg-orange-50/50">
-                <span className="font-mono font-bold text-orange-700 text-xs block">11 - 20</span>
-                <span className="text-[10px] font-semibold text-orange-800">K (Kurang)</span>
+              <div className="p-2.5 rounded-xl border border-orange-200 bg-orange-50/60">
+                <span className="font-mono font-black text-orange-700 text-xs block tabular-nums">11 - 20</span>
+                <span className="text-[10px] font-bold text-orange-800">K (Kurang)</span>
               </div>
-              <div className="p-2 rounded-lg border border-amber-200 bg-amber-50/50">
-                <span className="font-mono font-bold text-amber-700 text-xs block">21 - 30</span>
-                <span className="text-[10px] font-semibold text-amber-800">C (Cukup)</span>
+              <div className="p-2.5 rounded-xl border border-amber-200 bg-amber-50/60">
+                <span className="font-mono font-black text-amber-700 text-xs block tabular-nums">21 - 30</span>
+                <span className="text-[10px] font-bold text-amber-800">C (Cukup)</span>
               </div>
-              <div className="p-2 rounded-lg border border-blue-200 bg-blue-50/50">
-                <span className="font-mono font-bold text-[#0173b6] text-xs block">31 - 40</span>
-                <span className="text-[10px] font-semibold text-blue-800">B (Baik)</span>
+              <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/60">
+                <span className="font-mono font-black text-[#0173b6] text-xs block tabular-nums">31 - 40</span>
+                <span className="text-[10px] font-bold text-blue-800">B (Baik)</span>
               </div>
-              <div className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/50 col-span-2 sm:col-span-1">
-                <span className="font-mono font-bold text-emerald-700 text-xs block">41 - 50</span>
-                <span className="text-[10px] font-semibold text-emerald-800">BS (Baik Sekali)</span>
+              <div className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 col-span-2 sm:col-span-1">
+                <span className="font-mono font-black text-emerald-700 text-xs block tabular-nums">41 - 50</span>
+                <span className="text-[10px] font-bold text-emerald-800">BS (Baik Sekali)</span>
               </div>
             </div>
           </div>
 
           {/* Form Evaluasi Utama */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Loop Aspek & Indikator */}
             {groupedAspek.map((aspek) => (
               <div
+                id={`aspek-section-${aspek.aspekNo}`}
                 key={aspek.aspekNo}
-                className="bg-white rounded-xl border border-slate-200/90 shadow-sm overflow-hidden"
+                className="eval-aspek-card bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden scroll-mt-20"
               >
                 {/* Header Aspek */}
-                <div className="bg-slate-50/80 border-b border-slate-200/80 px-4 sm:px-6 py-3.5 flex items-center justify-between">
+                <div className="bg-slate-50/90 border-b border-slate-200/80 px-4 sm:px-6 py-3.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-4 w-1 bg-[#0173b6] rounded-full" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    <span className="w-6 h-6 rounded-lg bg-[#0173b6] text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs font-mono">
+                      {aspek.aspekNo}
+                    </span>
+                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-800">
                       Aspek {aspek.aspekNo}: {aspek.aspekNama}
                     </h3>
                   </div>
-                  <span className="text-[11px] font-medium text-slate-500">
+                  <span className="badge badge-sm font-mono tabular-nums font-bold bg-white text-slate-700 border border-slate-200">
                     {aspek.items.length} Indikator
                   </span>
                 </div>
@@ -425,55 +588,60 @@ export default function FormPenilaianKinerjaView({
                     const grade = getPerformanceGrade(val);
 
                     return (
-                      <div key={ind.id} className="p-4 sm:p-5 space-y-3 hover:bg-slate-50/30 transition-colors">
+                      <div
+                        key={ind.id}
+                        className="p-4 sm:p-5 space-y-3 hover:bg-slate-50/40 transition-colors"
+                      >
                         {/* Judul & Penjelasan Indikator */}
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                           <div className="space-y-1 flex-1">
-                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                            <h4 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">
                               {ind.nama}
                             </h4>
                             {ind.keterangan && (
-                              <p className="text-xs text-slate-500 leading-relaxed">
+                              <p className="text-xs text-slate-500 leading-relaxed font-medium">
                                 {ind.keterangan}
                               </p>
                             )}
                           </div>
 
-                          {/* Bobot & Subtotal */}
-                          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">
-                            <span>
-                              Bobot: <b className="font-mono text-slate-800">{ind.bobot}</b>
+                          {/* Bobot & Subtotal Badges */}
+                          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 text-xs font-mono tabular-nums bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                            <span className="text-slate-600">
+                              Bobot: <b className="text-slate-900">{ind.bobot}</b>
                             </span>
-                            <span className="text-slate-300">&bull;</span>
-                            <span>
-                              Hasil: <b className="font-mono text-[#0173b6] font-bold">{subtotal}</b>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-slate-600">
+                              Hasil: <b className="text-[#0173b6] font-bold">{subtotal.toFixed(1)}</b>
                             </span>
                           </div>
                         </div>
 
                         {/* Kontrol Input Nilai: Quick Preset Buttons & Precision Stepper */}
                         <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          {/* Quick Score Presets (Satu Klik Mengisi Nilai Standar) */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[11px] font-medium text-slate-400 mr-1">
+                          {/* Quick Score Presets (DaisyUI Join Group) */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-bold text-slate-400">
                               Pilih Cepat:
                             </span>
-                            {SCORE_PRESETS.map((preset) => (
-                              <button
-                                key={preset.value}
-                                type="button"
-                                disabled={readOnly}
-                                onClick={() => handleScoreChange(ind.id, preset.value)}
-                                title={preset.title}
-                                className={`px-2 py-1 text-xs font-semibold rounded border transition-all ${
-                                  val === preset.value
-                                    ? "bg-[#0173b6] text-white border-[#0173b6] shadow-xs"
-                                    : "bg-white hover:bg-slate-50 text-slate-600 border-slate-200"
-                                }`}
-                              >
-                                {preset.value}
-                              </button>
-                            ))}
+                            <div className="join border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+                              {SCORE_PRESETS.map((preset) => (
+                                <button
+                                  key={preset.value}
+                                  type="button"
+                                  disabled={readOnly}
+                                  onClick={() => handleScoreChange(ind.id, preset.value)}
+                                  title={preset.title}
+                                  className={`btn btn-xs join-item font-mono tabular-nums font-bold border-none ${
+                                    val === preset.value
+                                      ? "bg-[#0173b6] text-white shadow-xs"
+                                      : "bg-transparent text-slate-600 hover:text-slate-900"
+                                  }`}
+                                >
+                                  {preset.label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
 
                           {/* Precision Input / Stepper Control */}
@@ -482,10 +650,10 @@ export default function FormPenilaianKinerjaView({
                               type="button"
                               disabled={readOnly || val <= 0}
                               onClick={() => handleAdjustScore(ind.id, -5)}
-                              className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-40"
+                              className="btn btn-xs btn-square btn-outline border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 rounded-lg"
                               title="Kurangi 5 poin"
                             >
-                              <Minus size={13} />
+                              <Minus size={12} />
                             </button>
 
                             <div className="flex items-center gap-1">
@@ -499,7 +667,7 @@ export default function FormPenilaianKinerjaView({
                                   const parsed = parseInt(e.target.value, 10);
                                   handleScoreChange(ind.id, isNaN(parsed) ? 0 : parsed);
                                 }}
-                                className="w-16 h-8 text-center font-mono font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded-md focus:border-[#0173b6] focus:ring-1 focus:ring-[#0173b6] outline-none"
+                                className="w-14 h-8 text-center font-mono font-black text-xs text-slate-900 bg-slate-50/80 border border-slate-200/90 rounded-xl focus:bg-white focus:border-[#0173b6] focus:ring-2 focus:ring-[#0173b6]/20 outline-none tabular-nums"
                               />
                               <span className="text-[11px] font-mono text-slate-400">/ 50</span>
                             </div>
@@ -508,19 +676,28 @@ export default function FormPenilaianKinerjaView({
                               type="button"
                               disabled={readOnly || val >= 50}
                               onClick={() => handleAdjustScore(ind.id, 5)}
-                              className="p-1.5 rounded border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-40"
+                              className="btn btn-xs btn-square btn-outline border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 rounded-lg"
                               title="Tambah 5 poin"
                             >
-                              <Plus size={13} />
+                              <Plus size={12} />
                             </button>
 
-                            {/* Badge Kategori */}
+                            {/* Badge Kategori Status */}
                             <span
-                              className={`px-2 py-0.5 rounded text-xs font-bold border ml-1 whitespace-nowrap ${grade.badgeClass}`}
+                              className={`badge badge-sm font-bold ml-1.5 ${grade.badgeClass}`}
                             >
-                              {grade.code} &bull; {grade.label}
+                              {grade.code} • {grade.label}
                             </span>
                           </div>
+                        </div>
+
+                        {/* Mini Visual Fill Gauge */}
+                        <div className="pt-1">
+                          <progress
+                            className={`progress ${grade.barClass} w-full h-1.5 rounded-full bg-slate-100`}
+                            value={grade.percent}
+                            max="100"
+                          ></progress>
                         </div>
                       </div>
                     );
@@ -530,113 +707,128 @@ export default function FormPenilaianKinerjaView({
             ))}
 
             {/* Evaluasi Kualitatif Section */}
-            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-5 sm:p-6 space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                <div className="h-4 w-1 bg-[#0173b6] rounded-full" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+            <div className="eval-kualitatif-card bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                <span className="w-6 h-6 rounded-lg bg-[#05445e] text-white font-bold flex items-center justify-center text-xs shrink-0">
+                  <FileText size={13} />
+                </span>
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-800">
                   Evaluasi Kualitatif Atasan Penilai
                 </h3>
               </div>
 
               <div className="space-y-4 text-xs">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Kelebihan & Keunggulan Karyawan:
+                  <label className="flex items-center gap-1.5 font-bold text-slate-700 mb-1.5">
+                    <Trophy size={13} className="text-amber-500" />
+                    <span>Kelebihan &amp; Keunggulan Karyawan:</span>
                   </label>
                   <textarea
                     value={kelebihan}
                     onChange={(e) => setKelebihan(e.target.value)}
                     disabled={readOnly}
                     rows={2}
-                    className="w-full text-xs p-3 rounded-lg border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0173b6] focus:ring-1 focus:ring-[#0173b6] outline-none transition-all leading-relaxed"
-                    placeholder="Tuliskan keunggulan dan prestasi kerja pegawai..."
+                    className="w-full text-xs p-3 rounded-xl border border-slate-200/90 bg-slate-50/80 focus:bg-white focus:border-[#0173b6] focus:ring-2 focus:ring-[#0173b6]/20 outline-none transition-all font-medium leading-relaxed"
+                    placeholder="Tuliskan keunggulan, pencapaian, dan sikap kerja positif pegawai..."
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Kekurangan / Hal yang Perlu Diperbaiki:
+                  <label className="flex items-center gap-1.5 font-bold text-slate-700 mb-1.5">
+                    <Target size={13} className="text-rose-500" />
+                    <span>Kekurangan / Hal yang Perlu Diperbaiki:</span>
                   </label>
                   <textarea
                     value={kekurangan}
                     onChange={(e) => setKekurangan(e.target.value)}
                     disabled={readOnly}
                     rows={2}
-                    className="w-full text-xs p-3 rounded-lg border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0173b6] focus:ring-1 focus:ring-[#0173b6] outline-none transition-all leading-relaxed"
-                    placeholder="Tuliskan aspek yang perlu perbaikan atau bimbingan..."
+                    className="w-full text-xs p-3 rounded-xl border border-slate-200/90 bg-slate-50/80 focus:bg-white focus:border-[#0173b6] focus:ring-2 focus:ring-[#0173b6]/20 outline-none transition-all font-medium leading-relaxed"
+                    placeholder="Tuliskan aspek yang perlu peningkatan atau pembinaan lebih lanjut..."
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Pelatihan yang Disarankan:
+                  <label className="flex items-center gap-1.5 font-bold text-slate-700 mb-1.5">
+                    <BookOpen size={13} className="text-[#0173b6]" />
+                    <span>Pelatihan yang Disarankan:</span>
                   </label>
                   <textarea
                     value={pelatihan}
                     onChange={(e) => setPelatihan(e.target.value)}
                     disabled={readOnly}
                     rows={2}
-                    className="w-full text-xs p-3 rounded-lg border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0173b6] focus:ring-1 focus:ring-[#0173b6] outline-none transition-all leading-relaxed"
-                    placeholder="Rekomendasi workshop, seminar, atau pelatihan kompetensi..."
+                    className="w-full text-xs p-3 rounded-xl border border-slate-200/90 bg-slate-50/80 focus:bg-white focus:border-[#0173b6] focus:ring-2 focus:ring-[#0173b6]/20 outline-none transition-all font-medium leading-relaxed"
+                    placeholder="Rekomendasi workshop, seminar klinis, atau pelatihan teknis..."
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Kesimpulan & Saran Penilai:
+                  <label className="flex items-center gap-1.5 font-bold text-slate-700 mb-1.5">
+                    <ThumbsUp size={13} className="text-teal-600" />
+                    <span>Kesimpulan &amp; Catatan Khusus Pimpinan:</span>
                   </label>
                   <textarea
                     value={catatanSaran}
                     onChange={(e) => setCatatanSaran(e.target.value)}
                     disabled={readOnly}
                     rows={2}
-                    className="w-full text-xs p-3 rounded-lg border border-slate-200 bg-slate-50/50 focus:bg-white focus:border-[#0173b6] focus:ring-1 focus:ring-[#0173b6] outline-none transition-all leading-relaxed"
-                    placeholder="Catatan penutup mengenai kelayakan pegawai..."
+                    className="w-full text-xs p-3 rounded-xl border border-slate-200/90 bg-slate-50/80 focus:bg-white focus:border-[#0173b6] focus:ring-2 focus:ring-[#0173b6]/20 outline-none transition-all font-medium leading-relaxed"
+                    placeholder="Catatan penutup mengenai kelayakan dan integritas kerja pegawai..."
                   />
                 </div>
               </div>
             </div>
 
             {/* Rekomendasi Tindak Lanjut Section (Kartu Radio Terstruktur) */}
-            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-5 sm:p-6 space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                <div className="h-4 w-1 bg-[#0173b6] rounded-full" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                  Rekomendasi Tindak Lanjut
+            <div className="eval-rekomendasi-card bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+                <span className="w-6 h-6 rounded-lg bg-[#0173b6] text-white font-bold flex items-center justify-center text-xs shrink-0">
+                  <CheckCircle2 size={13} />
+                </span>
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-800">
+                  Rekomendasi Tindak Lanjut Kepegawaian
                 </h3>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 {/* Opsi 1: Perpanjang Kontrak */}
                 <label
-                  className={`p-3.5 border rounded-lg transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                  className={`p-4 border-2 rounded-2xl transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                     rekomendasiUtama === "KONTRAK"
-                      ? "border-[#0173b6] bg-blue-50/30 ring-1 ring-[#0173b6]"
+                      ? "border-[#0173b6] bg-blue-50/40 shadow-xs"
                       : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-3">
                     <input
                       type="radio"
                       name="rekomendasi"
                       checked={rekomendasiUtama === "KONTRAK"}
                       onChange={() => setRekomendasiUtama("KONTRAK")}
                       disabled={readOnly}
-                      className="text-[#0173b6] focus:ring-[#0173b6]"
+                      className="radio radio-primary radio-sm cursor-pointer"
                     />
-                    <span className="font-bold text-slate-900">Perpanjang Kontrak Kerja</span>
+                    <div>
+                      <span className="font-black text-slate-900 block text-xs">
+                        Perpanjang Kontrak PKWT
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Melanjutkan masa pengabdian perjanjian kerja waktu tertentu
+                      </span>
+                    </div>
                   </div>
 
                   <div
-                    className="flex items-center gap-2 pl-6"
+                    className="flex items-center gap-2 pl-7"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <span className="text-slate-500 text-[11px]">Durasi Kontrak:</span>
+                    <span className="text-slate-500 text-[11px] font-bold">Durasi:</span>
                     <select
                       value={kontrakTahun}
                       onChange={(e) => setKontrakTahun(Number(e.target.value))}
                       disabled={readOnly || rekomendasiUtama !== "KONTRAK"}
-                      className="border border-slate-300 rounded px-2 py-1 text-xs bg-white text-slate-800 font-bold"
+                      className="select select-bordered select-xs rounded-lg font-bold text-slate-800 bg-white"
                     >
                       <option value={1}>1 Tahun</option>
                       <option value={2}>2 Tahun</option>
@@ -647,9 +839,9 @@ export default function FormPenilaianKinerjaView({
 
                 {/* Opsi 2: Karyawan Tetap */}
                 <label
-                  className={`p-3.5 border rounded-lg transition-all cursor-pointer flex items-center gap-2.5 ${
+                  className={`p-4 border-2 rounded-2xl transition-all cursor-pointer flex items-start gap-3 ${
                     rekomendasiUtama === "TETAP"
-                      ? "border-emerald-600 bg-emerald-50/30 ring-1 ring-emerald-600"
+                      ? "border-emerald-600 bg-emerald-50/40 shadow-xs"
                       : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
                 >
@@ -659,23 +851,23 @@ export default function FormPenilaianKinerjaView({
                     checked={rekomendasiUtama === "TETAP"}
                     onChange={() => setRekomendasiUtama("TETAP")}
                     disabled={readOnly}
-                    className="text-emerald-600 focus:ring-emerald-500"
+                    className="radio radio-success radio-sm cursor-pointer mt-0.5"
                   />
                   <div>
-                    <span className="font-bold text-slate-900 block">
-                      Pengangkatan Karyawan Tetap
+                    <span className="font-black text-slate-900 block text-xs">
+                      Pengangkatan Karyawan Tetap (PKWTT)
                     </span>
-                    <span className="text-[11px] text-slate-500">
-                      Direkomendasikan untuk penetapan PKWTT
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Direkomendasikan untuk pengangkatan staf permanen rumah sakit
                     </span>
                   </div>
                 </label>
 
                 {/* Opsi 3: Promosi */}
                 <label
-                  className={`p-3.5 border rounded-lg transition-all cursor-pointer flex items-center gap-2.5 ${
+                  className={`p-4 border-2 rounded-2xl transition-all cursor-pointer flex items-start gap-3 ${
                     rekomendasiUtama === "PROMOSI"
-                      ? "border-indigo-600 bg-indigo-50/30 ring-1 ring-indigo-600"
+                      ? "border-indigo-600 bg-indigo-50/40 shadow-xs"
                       : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
                 >
@@ -685,16 +877,23 @@ export default function FormPenilaianKinerjaView({
                     checked={rekomendasiUtama === "PROMOSI"}
                     onChange={() => setRekomendasiUtama("PROMOSI")}
                     disabled={readOnly}
-                    className="text-indigo-600 focus:ring-indigo-500"
+                    className="radio radio-primary radio-sm cursor-pointer mt-0.5"
                   />
-                  <span className="font-bold text-slate-900">Promosi Tingkat Jabatan</span>
+                  <div>
+                    <span className="font-black text-slate-900 block text-xs">
+                      Promosi Tingkat Jabatan
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Kenaikan jenjang karir ke posisi atau level yang lebih tinggi
+                    </span>
+                  </div>
                 </label>
 
                 {/* Opsi 4: Mutasi */}
                 <label
-                  className={`p-3.5 border rounded-lg transition-all cursor-pointer flex items-center gap-2.5 ${
+                  className={`p-4 border-2 rounded-2xl transition-all cursor-pointer flex items-start gap-3 ${
                     rekomendasiUtama === "MUTASI"
-                      ? "border-purple-600 bg-purple-50/30 ring-1 ring-purple-600"
+                      ? "border-teal-600 bg-teal-50/40 shadow-xs"
                       : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
                 >
@@ -704,16 +903,23 @@ export default function FormPenilaianKinerjaView({
                     checked={rekomendasiUtama === "MUTASI"}
                     onChange={() => setRekomendasiUtama("MUTASI")}
                     disabled={readOnly}
-                    className="text-purple-600 focus:ring-purple-500"
+                    className="radio radio-primary radio-sm cursor-pointer mt-0.5"
                   />
-                  <span className="font-bold text-slate-900">Mutasi / Rotasi ke Unit Lain</span>
+                  <div>
+                    <span className="font-black text-slate-900 block text-xs">
+                      Mutasi / Rotasi Unit Kerja
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Penempatan ke unit atau instalasi rumah sakit yang lain
+                    </span>
+                  </div>
                 </label>
 
                 {/* Opsi 5: Tidak Diperpanjang */}
                 <label
-                  className={`p-3.5 border rounded-lg transition-all cursor-pointer flex items-center gap-2.5 sm:col-span-2 ${
+                  className={`p-4 border-2 rounded-2xl transition-all cursor-pointer flex items-start gap-3 sm:col-span-2 ${
                     rekomendasiUtama === "TIDAK_LANJUT"
-                      ? "border-rose-600 bg-rose-50/30 ring-1 ring-rose-600"
+                      ? "border-rose-600 bg-rose-50/40 shadow-xs"
                       : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
                 >
@@ -723,14 +929,14 @@ export default function FormPenilaianKinerjaView({
                     checked={rekomendasiUtama === "TIDAK_LANJUT"}
                     onChange={() => setRekomendasiUtama("TIDAK_LANJUT")}
                     disabled={readOnly}
-                    className="text-rose-600 focus:ring-rose-500"
+                    className="radio radio-error radio-sm cursor-pointer mt-0.5"
                   />
                   <div>
-                    <span className="font-bold text-rose-700 block">
+                    <span className="font-black text-rose-700 block text-xs">
                       Selesai Kontrak (Tidak Diperpanjang)
                     </span>
-                    <span className="text-[11px] text-slate-500">
-                      Masa kerja berakhir tanpa perpanjangan PKWT
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Masa kerja berakhir tanpa perpanjangan PKWT sesuai ketentuan rumah sakit
                     </span>
                   </div>
                 </label>
@@ -738,12 +944,12 @@ export default function FormPenilaianKinerjaView({
             </div>
 
             {/* Submit Bar */}
-            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="eval-submit-bar bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="text-center sm:text-left text-xs">
                 <p className="font-bold text-slate-800">
                   Verifikasi Penilai: {karyawan.penilai.nama}
                 </p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-400 font-medium">
                   Dokumen Evaluasi Resmi &bull; Human Capital RSU Avisena
                 </p>
               </div>
@@ -754,23 +960,23 @@ export default function FormPenilaianKinerjaView({
                     <button
                       type="button"
                       onClick={onCancel}
-                      className="flex-1 sm:flex-none px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-colors"
+                      className="btn btn-sm btn-outline border-slate-200 hover:bg-slate-100 text-slate-700 font-bold rounded-xl active:scale-[0.98] transition-all flex-1 sm:flex-none"
                     >
                       Batal
                     </button>
                   )}
                   <button
                     type="submit"
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#0173b6] hover:bg-[#015f96] text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-[0.98]"
+                    className="btn btn-sm bg-[#0173b6] hover:bg-[#05445e] text-white font-bold rounded-xl gap-2 active:scale-[0.98] transition-all shadow-xs flex-1 sm:flex-none"
                   >
-                    <span>Simpan & Kirim Evaluasi</span>
+                    <span>Simpan &amp; Kirim Evaluasi</span>
                     <ArrowRight size={14} />
                   </button>
                 </div>
               )}
             </div>
           </form>
-        </div>
+        </main>
       </div>
     </div>
   );

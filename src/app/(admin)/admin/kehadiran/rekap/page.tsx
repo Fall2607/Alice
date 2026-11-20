@@ -1,83 +1,119 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Search, Filter, Download, CalendarDays, Users, Clock, AlertTriangle, TableProperties, Grid, Loader2, Calendar, X } from "lucide-react";
-import Select from "react-select";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  Search,
+  Download,
+  CalendarDays,
+  Users,
+  Clock,
+  AlertTriangle,
+  TableProperties,
+  Grid,
+  Loader2,
+  Calendar,
+  X,
+  RotateCcw,
+  CheckCircle2,
+  ChevronRight,
+  Sparkles,
+  Info,
+} from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
+
+import SearchableSelect from "@/app/components/admin/SearchableSelect";
+import { showSuccessToast, showErrorToast, showInfoToast } from "@/app/components/admin/Alert";
 
 interface KaryawanRekap {
   id: string;
   nama: string;
   jabatan: string;
   rekap: { hadir: number; telat: number; alpha: number; izin: number };
-  harian: Record<string, { 
-    status: string; 
-    jam_masuk?: string; 
-    jam_keluar?: string;
-    is_late?: boolean;
-    menit_terlambat?: number;
-    is_pulang_cepat?: boolean;
-    menit_pulang_cepat?: number;
-    shift?: { nama_shift: string; jam_masuk: string; jam_keluar: string };
-  }>;
+  harian: Record<
+    string,
+    {
+      status: string;
+      jam_masuk?: string;
+      jam_keluar?: string;
+      is_late?: boolean;
+      menit_terlambat?: number;
+      is_pulang_cepat?: boolean;
+      menit_pulang_cepat?: number;
+      shift?: { nama_shift: string; jam_masuk: string; jam_keluar: string };
+    }
+  >;
 }
 
+type FormOption = { value: string | number; label: string };
+
+/**
+ * Menghitung rentang tanggal cut-off 26 - 25 baku RSU Avisena
+ */
+const getCutOffPeriod = (refDate = new Date()): [Date, Date] => {
+  const year = refDate.getFullYear();
+  const month = refDate.getMonth();
+  const day = refDate.getDate();
+
+  if (day >= 26) {
+    const start = new Date(year, month, 26);
+    const end = new Date(year, month + 1, 25);
+    return [start, end];
+  } else {
+    const start = new Date(year, month - 1, 26);
+    const end = new Date(year, month, 25);
+    return [start, end];
+  }
+};
+
 export default function RekapAbsensiPage() {
-  const [selectedUnit, setSelectedUnit] = useState("all");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const [selectedUnit, setSelectedUnit] = useState<FormOption | null>({
+    value: "all",
+    label: "Semua Unit (Seluruh Karyawan)",
+  });
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
   const [startDateObj, endDateObj] = dateRange;
   const [searchQuery, setSearchQuery] = useState("");
   const [viewType, setViewType] = useState<"table" | "heatmap">("table");
-  
-  const [departemenList, setDepartemenList] = useState<{id: string, nama_departemen: string}[]>([]);
+
+  const [departemenList, setDepartemenList] = useState<{ id: string; nama_departemen: string }[]>([]);
   const [data, setData] = useState<KaryawanRekap[]>([]);
   const [dates, setDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [selectedUserDetail, setSelectedUserDetail] = useState<KaryawanRekap | null>(null);
 
-  // Stats
-  const totalKaryawan = data.length;
-
-  // Hitung total kehadiran & total kewajiban hari kerja seluruh karyawan
-  const totalHadirAll = data.reduce((acc, curr) => acc + curr.rekap.hadir, 0);
-  const totalTelat = data.reduce((acc, curr) => acc + curr.rekap.telat, 0);
-  const totalAlpha = data.reduce((acc, curr) => acc + curr.rekap.alpha, 0);
-
-  // Total hari kerja/kewajiban seluruh karyawan (termasuk shift akhir pekan)
-  const totalHariKerjaAll = data.reduce((acc, curr) => {
-    const pDays = Object.values(curr.harian || {}).filter(
-      h => h.status === 'hadir' || h.status === 'telat' || h.status === 'alpha' || h.status === 'izin'
-    ).length;
-    return acc + pDays;
-  }, 0);
-
-  const avgKehadiran = totalHariKerjaAll > 0
-    ? ((totalHadirAll / totalHariKerjaAll) * 100).toFixed(1)
-    : (totalHadirAll > 0 ? "100.0" : "0");
-
+  // Inisialisasi periode cut-off 26 - 25 & Departemen
   useEffect(() => {
-    // Set default date range to current month
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    
-    setDateRange([firstDay, lastDay]);
+    const [cutOffStart, cutOffEnd] = getCutOffPeriod();
+    setDateRange([cutOffStart, cutOffEnd]);
 
-    // Fetch Departemen
-    fetch('/api/departemen')
-      .then(res => res.json())
-      .then(data => setDepartemenList(Array.isArray(data) ? data : []))
-      .catch(console.error);
+    fetch("/api/departemen")
+      .then((res) => res.json())
+      .then((depData) => setDepartemenList(Array.isArray(depData) ? depData : []))
+      .catch((err) => {
+        console.error(err);
+        showErrorToast("Gagal memuat daftar unit departemen.");
+      });
   }, []);
 
+  // Fetch data rekap presensi
   useEffect(() => {
     if (!startDateObj || !endDateObj) return;
-    
+
     const formatYMD = (date: Date) => {
       const d = new Date(date);
       d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-      return d.toISOString().split('T')[0];
+      return d.toISOString().split("T")[0];
     };
 
     const startStr = formatYMD(startDateObj);
@@ -98,84 +134,164 @@ export default function RekapAbsensiPage() {
     }
 
     setIsLoading(true);
-    fetch(`/api/absensi/rekap?startDate=${startStr}&endDate=${endStr}&unit=${selectedUnit}${superiorParam}`)
-      .then(res => res.json())
-      .then(resData => {
+    const unitVal = selectedUnit?.value || "all";
+    fetch(`/api/absensi/rekap?startDate=${startStr}&endDate=${endStr}&unit=${unitVal}${superiorParam}`)
+      .then((res) => res.json())
+      .then((resData) => {
         if (resData.data) {
           setData(resData.data);
           setDates(resData.dates || []);
+        } else {
+          setData([]);
+          setDates([]);
         }
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        showErrorToast("Gagal memuat data rekapitulasi absensi.");
+      })
       .finally(() => setIsLoading(false));
   }, [startDateObj, endDateObj, selectedUnit]);
 
-  const filteredData = data.filter(k => k.nama.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Hitung metrik agregat
+  const totalKaryawan = data.length;
+  const totalHadirAll = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.hadir, 0), [data]);
+  const totalTelat = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.telat, 0), [data]);
+  const totalAlpha = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.alpha, 0), [data]);
 
+  const totalHariKerjaAll = useMemo(() => {
+    return data.reduce((acc, curr) => {
+      const pDays = Object.values(curr.harian || {}).filter(
+        (h) => h.status === "hadir" || h.status === "telat" || h.status === "alpha" || h.status === "izin"
+      ).length;
+      return acc + pDays;
+    }, 0);
+  }, [data]);
+
+  const avgKehadiran = useMemo(() => {
+    if (totalHariKerjaAll > 0) {
+      return ((totalHadirAll / totalHariKerjaAll) * 100).toFixed(1);
+    }
+    return totalHadirAll > 0 ? "100.0" : "0.0";
+  }, [totalHadirAll, totalHariKerjaAll]);
+
+  // Filter data berdasarkan query pencarian
+  const filteredData = useMemo(() => {
+    if (!searchQuery.trim()) return data;
+    const q = searchQuery.toLowerCase();
+    return data.filter(
+      (k) => k.nama.toLowerCase().includes(q) || k.jabatan.toLowerCase().includes(q)
+    );
+  }, [data, searchQuery]);
+
+  // Options unit departemen
+  const unitOptions: FormOption[] = useMemo(() => {
+    return [
+      { value: "all", label: "Semua Unit (Seluruh Karyawan)" },
+      ...departemenList.map((dep) => ({ value: dep.id, label: dep.nama_departemen })),
+    ];
+  }, [departemenList]);
+
+  // Preset filter tanggal cepat
+  const applyPresetCutOff = () => {
+    const [start, end] = getCutOffPeriod();
+    setDateRange([start, end]);
+  };
+
+  const applyPresetCurrentMonth = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setDateRange([firstDay, lastDay]);
+  };
+
+  const applyPresetPreviousMonth = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+    setDateRange([firstDay, lastDay]);
+  };
+
+  const handleResetFilter = () => {
+    setSearchQuery("");
+    setSelectedUnit({ value: "all", label: "Semua Unit (Seluruh Karyawan)" });
+    applyPresetCutOff();
+    showInfoToast("Filter telah direset ke pengaturan standar cut-off 26–25.");
+  };
+
+  const hasActiveFilters = Boolean(
+    searchQuery || (selectedUnit && selectedUnit.value !== "all")
+  );
+
+  // Export Excel menggunakan ExcelJS
   const handleExport = async () => {
     if (filteredData.length === 0) {
-      alert("Tidak ada data untuk diexport");
+      showErrorToast("Tidak ada data untuk diekspor ke Excel.");
       return;
     }
 
     try {
+      setIsExporting(true);
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Rekap Absensi");
 
-      worksheet.mergeCells('A1:I1');
-      const titleCell = worksheet.getCell('A1');
-      titleCell.value = 'LAPORAN REKAPITULASI ABSENSI';
-      titleCell.font = { size: 16, bold: true };
-      titleCell.alignment = { horizontal: 'center' };
+      worksheet.mergeCells("A1:I1");
+      const titleCell = worksheet.getCell("A1");
+      titleCell.value = "LAPORAN REKAPITULASI ABSENSI - RSU AVISENA";
+      titleCell.font = { size: 16, bold: true, color: { argb: "FF05445E" } };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      worksheet.mergeCells('A2:I2');
-      const subtitleCell = worksheet.getCell('A2');
-      const startStr = startDateObj ? startDateObj.toLocaleDateString('id-ID') : '-';
-      const endStr = endDateObj ? endDateObj.toLocaleDateString('id-ID') : '-';
-      subtitleCell.value = `Periode: ${startStr} s/d ${endStr}`;
-      subtitleCell.font = { size: 12, italic: true };
-      subtitleCell.alignment = { horizontal: 'center' };
+      worksheet.mergeCells("A2:I2");
+      const subtitleCell = worksheet.getCell("A2");
+      const startStr = startDateObj ? startDateObj.toLocaleDateString("id-ID") : "-";
+      const endStr = endDateObj ? endDateObj.toLocaleDateString("id-ID") : "-";
+      subtitleCell.value = `Periode Evaluasi: ${startStr} s/d ${endStr} (Unit: ${selectedUnit?.label || "Semua Unit"})`;
+      subtitleCell.font = { size: 11, italic: true };
+      subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
 
       worksheet.addRow([]);
 
       const headerRow = worksheet.addRow([
-        'Nama Karyawan',
-        'Jabatan',
-        'Tanggal',
-        'Jadwal Shift',
-        'Check In',
-        'Check Out',
-        'Terlambat (Mnt)',
-        'Pulang Cepat (Mnt)',
-        'Status'
+        "Nama Karyawan",
+        "Jabatan / Unit",
+        "Tanggal",
+        "Jadwal Shift",
+        "Check In",
+        "Check Out",
+        "Terlambat (Mnt)",
+        "Pulang Cepat (Mnt)",
+        "Status Kehadiran",
       ]);
 
-      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      headerRow.eachCell(cell => {
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.eachCell((cell) => {
         cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF0173B6' }
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF05445E" },
         };
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
         cell.border = {
-          top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
         };
       });
 
-      filteredData.forEach(kar => {
-        dates.forEach(dateStr => {
-          const harian = kar.harian[dateStr] || { status: 'Libur' };
-          const shiftText = harian.shift ? harian.shift.nama_shift : '-';
-          
+      filteredData.forEach((kar) => {
+        dates.forEach((dateStr) => {
+          const harian = kar.harian[dateStr] || { status: "Libur" };
+          const shiftText = harian.shift ? harian.shift.nama_shift : "-";
+
           const formatTime = (timeStr?: string) => {
             if (!timeStr) return "-";
-            if (timeStr.includes('T')) {
+            if (timeStr.includes("T")) {
               const d = new Date(timeStr);
-              return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+              return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
             }
-            return timeStr.substring(0, 5); 
+            return timeStr.substring(0, 5);
           };
 
           const row = worksheet.addRow([
@@ -187,259 +303,560 @@ export default function RekapAbsensiPage() {
             formatTime(harian.jam_keluar),
             harian.menit_terlambat || 0,
             harian.menit_pulang_cepat || 0,
-            harian.status.toUpperCase()
+            harian.status.toUpperCase(),
           ]);
 
-          row.eachCell(cell => {
+          row.eachCell((cell) => {
             cell.border = {
-              top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'}
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
             };
           });
         });
       });
 
       worksheet.columns = [
-        { width: 25 }, { width: 20 }, { width: 15 }, { width: 30 }, 
-        { width: 12 }, { width: 12 }, { width: 18 }, { width: 20 }, { width: 15 }
+        { width: 28 },
+        { width: 24 },
+        { width: 14 },
+        { width: 28 },
+        { width: 12 },
+        { width: 12 },
+        { width: 16 },
+        { width: 18 },
+        { width: 18 },
       ];
 
       const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
+      const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `Rekap_Absensi_${startStr}_sd_${endStr}.xlsx`.replace(/\//g, '-');
+      anchor.download = `Rekap_Absensi_${startStr}_sd_${endStr}.xlsx`.replace(/\//g, "-");
       anchor.click();
       window.URL.revokeObjectURL(url);
 
+      showSuccessToast("Laporan rekap absensi berhasil diunduh.");
     } catch (e) {
       console.error(e);
-      alert("Gagal melakukan export excel");
+      showErrorToast("Gagal melakukan ekspor berkas Excel.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
+  // GSAP: Animasi masuk halaman
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+      tl.from(".rekap-header", {
+        y: -12,
+        opacity: 0,
+        duration: 0.45,
+        clearProps: "all",
+      })
+        .from(
+          ".rekap-kpi-card",
+          {
+            y: 14,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.05,
+            clearProps: "all",
+          },
+          "-=0.2"
+        )
+        .from(
+          ".rekap-filter",
+          {
+            y: 12,
+            opacity: 0,
+            duration: 0.35,
+            clearProps: "all",
+          },
+          "-=0.15"
+        )
+        .from(
+          ".rekap-content",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.4,
+            clearProps: "all",
+          },
+          "-=0.15"
+        );
+    },
+    { scope: containerRef, dependencies: [] }
+  );
+
+  // GSAP: Animasi transisi pergantian mode tampilan
+  useGSAP(
+    () => {
+      if (!tableContainerRef.current) return;
+      gsap.fromTo(
+        tableContainerRef.current,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", clearProps: "all" }
+      );
+    },
+    { scope: containerRef, dependencies: [viewType] }
+  );
+
+  // GSAP: Micro-stagger baris data saat filteredData berganti
+  useGSAP(
+    () => {
+      if (!tableContainerRef.current) return;
+      const rows = tableContainerRef.current.querySelectorAll(".rekap-row");
+      if (rows.length > 0) {
+        gsap.fromTo(
+          rows,
+          { opacity: 0, y: 6 },
+          { opacity: 1, y: 0, duration: 0.25, stagger: 0.02, ease: "power2.out", clearProps: "all" }
+        );
+      }
+    },
+    { scope: containerRef, dependencies: [filteredData, viewType] }
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div ref={containerRef} className="p-8 font-sans min-h-screen space-y-6">
+      {/* LAYER 1: HEADER HALAMAN */}
+      <div className="rekap-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-200/80">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Rekapitulasi Kehadiran</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">
-            Pantau kedisiplinan dan riwayat absensi karyawan per unit.
+          <div className="flex items-center gap-2 mb-1 text-[#0173b6] font-bold uppercase tracking-wider text-xs">
+            <CalendarDays size={16} />
+            <span>Manajemen Absensi &amp; Presensi</span>
+          </div>
+          <h1 className="text-3xl font-bold text-[#05445e] tracking-tight">
+            Rekapitulasi Kehadiran
+          </h1>
+          <p className="text-slate-500 font-medium text-sm mt-1 max-w-2xl">
+            Pantau matriks kedisiplinan, jam kerja, keterlambatan, dan riwayat presensi karyawan per unit kerja.
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg shrink-0">
-          <button 
-            onClick={() => setViewType("table")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all ${viewType === "table" ? "bg-white text-[#0173b6] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* DaisyUI Join: Table vs Heatmap Switcher */}
+          <div className="join border border-slate-200 bg-white shadow-2xs rounded-xl p-0.5">
+            <button
+              onClick={() => setViewType("table")}
+              className={`join-item btn btn-sm border-0 font-bold text-xs gap-1.5 transition-all ${
+                viewType === "table"
+                  ? "bg-[#0173b6] text-white hover:bg-[#005f98] shadow-xs"
+                  : "bg-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <TableProperties size={15} />
+              <span>Tabel Ringkas</span>
+            </button>
+            <button
+              onClick={() => setViewType("heatmap")}
+              className={`join-item btn btn-sm border-0 font-bold text-xs gap-1.5 transition-all ${
+                viewType === "heatmap"
+                  ? "bg-[#0173b6] text-white hover:bg-[#005f98] shadow-xs"
+                  : "bg-transparent text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <Grid size={15} />
+              <span>Heatmap Matriks</span>
+            </button>
+          </div>
+
+          {/* Export Button */}
+          <button
+            onClick={handleExport}
+            disabled={isExporting || isLoading || filteredData.length === 0}
+            className="btn btn-sm min-h-[38px] bg-[#0173b6] hover:bg-[#005f98] text-white font-bold px-4 rounded-xl shadow-xs transition-all active:scale-[0.98] border-0 disabled:bg-slate-200 disabled:text-slate-400 gap-2"
           >
-            <TableProperties size={16} /> Tabel
-          </button>
-          <button 
-            onClick={() => setViewType("heatmap")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all ${viewType === "heatmap" ? "bg-white text-[#0173b6] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            <Grid size={16} /> Heatmap
+            {isExporting ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Download size={15} />
+            )}
+            <span>Export Excel</span>
           </button>
         </div>
       </div>
 
-      {/* Filter Section */}
-      <div className="bg-white p-4 rounded-xl border border-slate-100 flex flex-col xl:flex-row gap-4 items-center justify-between shadow-sm">
-        <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto">
-          <div className="relative w-full md:w-64 shrink-0">
-            <Select 
-              options={[
-                { value: "all", label: "Semua Unit (Seluruh Karyawan)" },
-                ...departemenList.map(dep => ({ value: dep.id, label: dep.nama_departemen }))
-              ]}
-              value={{
-                value: selectedUnit,
-                label: selectedUnit === "all" ? "Semua Unit (Seluruh Karyawan)" : departemenList.find(d => d.id === selectedUnit)?.nama_departemen || "Semua Unit"
-              }}
-              onChange={(selectedOption) => setSelectedUnit(selectedOption?.value || "all")}
-              placeholder="Pilih Unit / Departemen..."
-              className="text-sm font-semibold"
-              classNamePrefix="react-select"
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '0.5rem',
-                  padding: '2px',
-                  boxShadow: 'none',
-                  '&:hover': {
-                    border: '1px solid #cbd5e1'
-                  }
-                })
-              }}
-            />
+      {/* LAYER 2: KPI / SUMMARY RIBBON (4 METRICS) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Karyawan</p>
+            <p className="text-2xl font-black text-slate-800 font-mono tabular-nums mt-0.5">
+              {totalKaryawan} <span className="text-xs font-semibold text-slate-400 font-sans">Pegawai</span>
+            </p>
           </div>
-          
-          <div className="relative w-full md:w-64 shrink-0 z-10">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-20 pointer-events-none">
-              <Calendar size={16} />
-            </div>
-            <DatePicker
-              selectsRange={true}
-              startDate={startDateObj || undefined}
-              endDate={endDateObj || undefined}
-              onChange={(update) => setDateRange(update)}
-              dateFormat="dd MMM yyyy"
-              placeholderText="Pilih Rentang Tanggal"
-              className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2.5 pl-10 pr-4 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6] transition-all"
-              wrapperClassName="w-full"
-            />
+          <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0173b6] flex items-center justify-center font-bold">
+            <Users size={22} />
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full xl:w-auto">
-          <div className="relative w-full xl:w-64">
-            <input 
-              type="text" 
-              placeholder="Cari nama karyawan..." 
+        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Rata-Rata Kehadiran</p>
+              <span className="badge badge-xs badge-success text-[9px] font-bold text-white">Rate</span>
+            </div>
+            <p className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-0.5">
+              {Math.min(Number(avgKehadiran), 100)}%
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <CalendarDays size={22} />
+          </div>
+        </div>
+
+        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Terlambat</p>
+            <p className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-0.5">
+              {totalTelat} <span className="text-xs font-semibold text-slate-400 font-sans">Kali</span>
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+            <Clock size={22} />
+          </div>
+        </div>
+
+        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Alpha</p>
+            <p className="text-2xl font-black text-rose-600 font-mono tabular-nums mt-0.5">
+              {totalAlpha} <span className="text-xs font-semibold text-slate-400 font-sans">Hari</span>
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+            <AlertTriangle size={22} />
+          </div>
+        </div>
+      </div>
+
+      {/* LAYER 3: KONTROL FILTER & PENCARIAN */}
+      <div className="rekap-filter bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Filter &amp; Parameter Periode
+            </span>
+            <span className="badge badge-sm badge-outline text-[10px] font-mono font-bold text-[#0173b6] border-[#0173b6]/30">
+              Cut-off 26–25
+            </span>
+          </div>
+
+          {/* Quick preset buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={applyPresetCutOff}
+              className="btn btn-xs btn-ghost text-[11px] font-bold text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg px-2.5"
+            >
+              Cut-Off 26–25
+            </button>
+            <button
+              onClick={applyPresetCurrentMonth}
+              className="btn btn-xs btn-ghost text-[11px] font-bold text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg px-2.5"
+            >
+              Bulan Berjalan
+            </button>
+            <button
+              onClick={applyPresetPreviousMonth}
+              className="btn btn-xs btn-ghost text-[11px] font-bold text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg px-2.5"
+            >
+              Bulan Lalu
+            </button>
+            {hasActiveFilters && (
+              <button
+                onClick={handleResetFilter}
+                className="btn btn-xs btn-ghost text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-lg px-2 gap-1 ml-1"
+              >
+                <RotateCcw size={12} />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Pencarian Nama / Jabatan */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Cari nama atau jabatan..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 text-slate-700 py-2.5 pl-10 pr-4 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6] transition-all"
+              className="w-full h-[38px] pl-9 pr-8 bg-slate-50/80 border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-[#0173b6] focus:ring-2 focus:ring-[#0173b6]/20 outline-none transition-all placeholder:text-slate-400"
             />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
-          <button onClick={handleExport} className="flex items-center gap-2 bg-[#0173b6] hover:bg-[#005f98] text-white px-4 py-2.5 rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-100 shrink-0">
-            <Download size={16} />
-            <span className="hidden md:inline">Export</span>
-          </button>
+
+          {/* Unit / Departemen Dropdown */}
+          <div>
+            <SearchableSelect
+              options={unitOptions}
+              value={selectedUnit}
+              onChange={(opt) => setSelectedUnit(opt)}
+              placeholder="Pilih Unit / Departemen..."
+              isClearable={false}
+            />
+          </div>
+
+          {/* Date Picker Rentang Tanggal */}
+          <div className="relative lg:col-span-2">
+            <div className="relative w-full">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none">
+                <Calendar size={15} />
+              </div>
+              <DatePicker
+                selectsRange={true}
+                startDate={startDateObj || undefined}
+                endDate={endDateObj || undefined}
+                onChange={(update) => setDateRange(update)}
+                dateFormat="dd MMM yyyy"
+                placeholderText="Pilih Rentang Tanggal Mulai s/d Selesai"
+                className="w-full h-[38px] bg-slate-50/80 border border-slate-200/90 text-slate-800 pl-9 pr-4 rounded-xl text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0173b6]/20 focus:border-[#0173b6] transition-all font-mono tabular-nums"
+                wrapperClassName="w-full"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { title: "Total Karyawan", value: totalKaryawan, icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
-          { title: "Avg Kehadiran", value: `${Math.min(Number(avgKehadiran), 100)}%`, icon: CalendarDays, color: "text-emerald-500", bg: "bg-emerald-50" },
-          { title: "Total Terlambat", value: totalTelat, icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
-          { title: "Total Alpha", value: totalAlpha, icon: AlertTriangle, color: "text-red-500", bg: "bg-red-50" },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-5 rounded-xl border border-slate-100 flex items-center gap-4 shadow-sm">
-            <div className={`w-12 h-12 rounded-full ${stat.bg} ${stat.color} flex items-center justify-center shrink-0`}>
-              <stat.icon size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{stat.title}</p>
-              <h3 className="text-2xl font-black text-slate-800 mt-1">{stat.value}</h3>
-            </div>
-          </div>
-        ))}
+      {/* LAYER 4: BARIS JUDUL DATA & STATUS COUNTER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-xl font-bold text-[#05445e] tracking-tight">
+            {viewType === "table" ? "Matriks Ringkas Presensi" : "Peta Sebaran Kehadiran (Heatmap)"}
+          </h2>
+          <span className="badge badge-sm badge-neutral font-mono tabular-nums text-xs">
+            {filteredData.length} Karyawan
+          </span>
+        </div>
+
+        <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+          <Info size={14} className="text-[#0173b6]" />
+          <span>Klik nama karyawan untuk melihat rincian jam presensi harian</span>
+        </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden min-h-[400px]">
+      {/* LAYER 5: MAIN CONTENT AREA (TABEL vs HEATMAP) */}
+      <div
+        ref={tableContainerRef}
+        className="rekap-content bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden min-h-[420px]"
+      >
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-full py-32">
-            <Loader2 className="w-8 h-8 text-[#0173b6] animate-spin mb-4" />
-            <p className="text-sm font-bold text-slate-500 animate-pulse">Menghitung kalkulasi absensi...</p>
+          <div className="flex flex-col items-center justify-center py-32 space-y-3">
+            <Loader2 className="w-9 h-9 text-[#0173b6] animate-spin" />
+            <p className="text-sm font-bold text-slate-600">Menghitung kalkulasi presensi per unit...</p>
+            <p className="text-xs text-slate-400">Sinkronisasi data jadwal shift dan cut-off 26–25</p>
           </div>
         ) : filteredData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-32">
-            <AlertTriangle className="w-12 h-12 text-slate-300 mb-4" />
-            <p className="text-lg font-bold text-slate-600">Tidak Ada Data</p>
-            <p className="text-sm text-slate-400">Silakan sesuaikan tanggal atau unit yang dipilih.</p>
+          <div className="flex flex-col items-center justify-center py-28 text-center px-4">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-3 text-slate-400">
+              <AlertTriangle size={28} />
+            </div>
+            <h3 className="text-base font-bold text-slate-700">Tidak Ada Data Presensi</h3>
+            <p className="text-xs text-slate-500 max-w-sm mt-1">
+              Tidak ditemukan data absensi untuk parameter unit atau rentang tanggal yang dipilih.
+            </p>
+            {hasActiveFilters && (
+              <button
+                onClick={handleResetFilter}
+                className="mt-4 btn btn-sm btn-ghost text-xs font-bold text-[#0173b6] hover:bg-blue-50"
+              >
+                Reset Filter
+              </button>
+            )}
           </div>
         ) : viewType === "table" ? (
-          /* TABLE VIEW */
+          /* TABEL VIEW EKSEKUTIF */
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase">Karyawan</th>
-                  <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Hadir</th>
-                  <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Terlambat</th>
-                  <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Alpha</th>
-                  <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Izin / Cuti</th>
-                  <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase text-center">Persentase</th>
+                <tr className="bg-[#05445e] text-white text-xs uppercase tracking-wider font-semibold">
+                  <th className="py-3.5 px-6">Karyawan</th>
+                  <th className="py-3.5 px-4 text-center">Hadir</th>
+                  <th className="py-3.5 px-4 text-center">Terlambat</th>
+                  <th className="py-3.5 px-4 text-center">Alpha</th>
+                  <th className="py-3.5 px-4 text-center">Izin / Cuti</th>
+                  <th className="py-3.5 px-6 text-center w-56">Tingkat Kehadiran</th>
+                  <th className="py-3.5 px-4 text-center">Aksi</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredData.map((kar, idx) => {
                   const personalWorkingDays = Object.values(kar.harian || {}).filter(
-                    h => h.status === 'hadir' || h.status === 'telat' || h.status === 'alpha' || h.status === 'izin'
+                    (h) => h.status === "hadir" || h.status === "telat" || h.status === "alpha" || h.status === "izin"
                   ).length;
-                  const personalAvg = personalWorkingDays > 0 
-                    ? ((kar.rekap.hadir / personalWorkingDays) * 100).toFixed(1) 
-                    : (kar.rekap.hadir > 0 ? "100.0" : "0");
+                  const personalAvg =
+                    personalWorkingDays > 0
+                      ? ((kar.rekap.hadir / personalWorkingDays) * 100).toFixed(1)
+                      : kar.rekap.hadir > 0
+                      ? "100.0"
+                      : "0.0";
+
+                  const rateNum = Number(personalAvg);
+
                   return (
-                    <tr key={kar.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}`}>
-                      <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-sm shrink-0">
-                          {kar.nama.charAt(0)}
+                    <tr
+                      key={kar.id}
+                      className={`rekap-row hover:bg-blue-50/40 transition-colors ${
+                        idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
+                      }`}
+                    >
+                      <td className="py-3.5 px-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#0173b6] border border-blue-100 flex items-center justify-center font-black text-xs shrink-0">
+                            {kar.nama.charAt(0)}
+                          </div>
+                          <div
+                            className="cursor-pointer group"
+                            onClick={() => setSelectedUserDetail(kar)}
+                          >
+                            <p className="text-xs font-bold text-slate-800 group-hover:text-[#0173b6] transition-colors">
+                              {kar.nama}
+                            </p>
+                            <p className="text-[11px] font-medium text-slate-400 mt-0.5">{kar.jabatan}</p>
+                          </div>
                         </div>
-                        <div 
-                          className="cursor-pointer group"
-                          onClick={() => setSelectedUserDetail(kar)}
-                        >
-                          <p className="text-sm font-black text-slate-800 group-hover:text-[#0173b6] transition-colors">{kar.nama}</p>
-                          <p className="text-[11px] font-bold text-slate-400 mt-0.5">{kar.jabatan}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 font-bold text-sm">
-                        {kar.rekap.hadir}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${kar.rekap.telat > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400'}`}>
-                        {kar.rekap.telat}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${kar.rekap.alpha > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-400'}`}>
-                        {kar.rekap.alpha}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm">
-                        {kar.rekap.izin}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <div className="flex items-center gap-3">
-                        <div className="w-full bg-slate-200 rounded-full h-2.5">
-                          <div 
-                            className={`h-2.5 rounded-full ${Number(personalAvg) >= 80 ? 'bg-emerald-500' : Number(personalAvg) >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} 
-                            style={{ width: `${Math.min(Number(personalAvg), 100)}%` }}
-                          ></div>
-                        </div>
-                        <span className={`text-xs font-black w-10 text-right ${Number(personalAvg) >= 80 ? 'text-emerald-600' : Number(personalAvg) >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                          {Math.min(Number(personalAvg), 100)}%
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-emerald-50 text-emerald-700 font-bold font-mono tabular-nums border border-emerald-200/60">
+                          {kar.rekap.hadir}
                         </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${
+                            kar.rekap.telat > 0
+                              ? "bg-amber-50 text-amber-700 border-amber-200/60"
+                              : "bg-slate-50 text-slate-400 border-slate-200/50"
+                          }`}
+                        >
+                          {kar.rekap.telat}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${
+                            kar.rekap.alpha > 0
+                              ? "bg-rose-50 text-rose-700 border-rose-200/60"
+                              : "bg-slate-50 text-slate-400 border-slate-200/50"
+                          }`}
+                        >
+                          {kar.rekap.alpha}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-blue-50 text-[#0173b6] font-bold font-mono tabular-nums border border-blue-200/60">
+                          {kar.rekap.izin}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-6">
+                        <div className="flex items-center gap-3">
+                          <progress
+                            className={`progress h-2 w-full ${
+                              rateNum >= 85
+                                ? "progress-success"
+                                : rateNum >= 60
+                                ? "progress-warning"
+                                : "progress-error"
+                            }`}
+                            value={Math.min(rateNum, 100)}
+                            max="100"
+                          ></progress>
+                          <span
+                            className={`text-xs font-mono tabular-nums font-bold w-12 text-right ${
+                              rateNum >= 85
+                                ? "text-emerald-600"
+                                : rateNum >= 60
+                                ? "text-amber-600"
+                                : "text-rose-600"
+                            }`}
+                          >
+                            {Math.min(rateNum, 100)}%
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={() => setSelectedUserDetail(kar)}
+                          className="btn btn-xs btn-ghost text-slate-500 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg font-bold text-[11px]"
+                        >
+                          Detail
+                        </button>
+                      </td>
+                    </tr>
+                  );
                 })}
               </tbody>
             </table>
           </div>
         ) : (
-          /* HEATMAP VIEW */
-          <div className="overflow-x-auto p-6 custom-scrollbar">
-            <div className="flex items-center gap-6 mb-6 px-2">
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-emerald-400"></div><span className="text-xs font-bold text-slate-600">Hadir Tepat Waktu</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-amber-400"></div><span className="text-xs font-bold text-slate-600">Terlambat</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-red-400"></div><span className="text-xs font-bold text-slate-600">Alpha</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-blue-400"></div><span className="text-xs font-bold text-slate-600">Cuti / Izin</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-slate-200"></div><span className="text-xs font-bold text-slate-600">Libur</span></div>
+          /* HEATMAP MATRIKS */
+          <div className="p-6 overflow-x-auto">
+            {/* Legend Status Heatmap */}
+            <div className="flex flex-wrap items-center gap-5 mb-5 pb-4 border-b border-slate-100 text-xs">
+              <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                Keterangan Warna:
+              </span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 rounded bg-emerald-500 shadow-2xs"></div>
+                <span className="font-semibold text-slate-600">Hadir Tepat</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 rounded bg-amber-400 shadow-2xs"></div>
+                <span className="font-semibold text-slate-600">Terlambat</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 rounded bg-rose-500 shadow-2xs"></div>
+                <span className="font-semibold text-slate-600">Alpha</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 rounded bg-sky-500 shadow-2xs"></div>
+                <span className="font-semibold text-slate-600">Izin / Cuti</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 rounded bg-slate-200"></div>
+                <span className="font-semibold text-slate-500">Libur / Off</span>
+              </div>
             </div>
 
+            {/* Matrix View */}
             <div className="inline-block min-w-full">
-              <div className="flex mb-2">
-                <div className="w-64 shrink-0 px-4 text-xs font-bold text-slate-500 uppercase">Karyawan</div>
+              {/* Header Tanggal */}
+              <div className="flex items-center mb-2 pb-2 border-b border-slate-100">
+                <div className="w-64 shrink-0 px-3 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  Karyawan &amp; Jabatan
+                </div>
                 <div className="flex flex-1 gap-1">
-                  {dates.map(dateStr => {
-                    const dayNum = parseInt(dateStr.split('-')[2], 10);
+                  {dates.map((dateStr) => {
+                    const dayNum = parseInt(dateStr.split("-")[2], 10);
                     return (
-                      <div key={dateStr} className="w-8 shrink-0 text-center text-[10px] font-bold text-slate-400" title={dateStr}>
+                      <div
+                        key={dateStr}
+                        className="w-8 shrink-0 text-center text-[10px] font-mono tabular-nums font-bold text-slate-500"
+                        title={dateStr}
+                      >
                         {dayNum}
                       </div>
                     );
@@ -447,32 +864,55 @@ export default function RekapAbsensiPage() {
                 </div>
               </div>
 
+              {/* Baris Karyawan Heatmap */}
               {filteredData.map((kar) => (
-                <div key={kar.id} className="flex items-center mb-1 hover:bg-slate-50 py-1 rounded-md transition-colors">
-                  <div className="w-64 shrink-0 px-4 truncate">
-                    <p className="text-xs font-bold text-slate-700 truncate" title={kar.nama}>{kar.nama}</p>
+                <div
+                  key={kar.id}
+                  className="rekap-row flex items-center mb-1 hover:bg-slate-50/70 py-1.5 px-1 rounded-xl transition-colors"
+                >
+                  <div
+                    className="w-64 shrink-0 px-2 truncate cursor-pointer group"
+                    onClick={() => setSelectedUserDetail(kar)}
+                  >
+                    <p className="text-xs font-bold text-slate-800 truncate group-hover:text-[#0173b6] transition-colors">
+                      {kar.nama}
+                    </p>
                     <p className="text-[10px] text-slate-400 truncate">{kar.jabatan}</p>
                   </div>
+
                   <div className="flex flex-1 gap-1">
-                    {dates.map(dateStr => {
+                    {dates.map((dateStr) => {
                       const statusObj = kar.harian[dateStr];
                       let bgColor = "bg-slate-100";
-                      let tooltip = `${dateStr} - Tidak ada data`;
+                      let tooltip = `${dateStr}: Belum ada data`;
 
                       if (statusObj) {
-                        if (statusObj.status === 'hadir') { bgColor = "bg-emerald-400"; tooltip = `${dateStr}: Hadir (${statusObj.jam_masuk})`; }
-                        else if (statusObj.status === 'telat') { bgColor = "bg-amber-400"; tooltip = `${dateStr}: Terlambat (${statusObj.jam_masuk})`; }
-                        else if (statusObj.status === 'alpha') { bgColor = "bg-red-400"; tooltip = `${dateStr}: Alpha`; }
-                        else if (statusObj.status === 'izin') { bgColor = "bg-blue-400"; tooltip = `${dateStr}: Izin / Cuti`; }
-                        else if (statusObj.status === 'libur') { bgColor = "bg-slate-200"; tooltip = `${dateStr}: Libur Akhir Pekan`; }
-                        else if (statusObj.status === 'belum') { bgColor = "bg-slate-100"; tooltip = `${dateStr}: Belum Waktunya`; }
+                        if (statusObj.status === "hadir") {
+                          bgColor = "bg-emerald-500 hover:bg-emerald-600";
+                          tooltip = `${dateStr}: Hadir (${statusObj.jam_masuk || "-"})`;
+                        } else if (statusObj.status === "telat") {
+                          bgColor = "bg-amber-400 hover:bg-amber-500";
+                          tooltip = `${dateStr}: Terlambat ${statusObj.menit_terlambat || 0} mnt (${statusObj.jam_masuk || "-"})`;
+                        } else if (statusObj.status === "alpha") {
+                          bgColor = "bg-rose-500 hover:bg-rose-600";
+                          tooltip = `${dateStr}: Alpha / Tanpa Keterangan`;
+                        } else if (statusObj.status === "izin") {
+                          bgColor = "bg-sky-500 hover:bg-sky-600";
+                          tooltip = `${dateStr}: Izin / Cuti`;
+                        } else if (statusObj.status === "libur") {
+                          bgColor = "bg-slate-200 hover:bg-slate-300";
+                          tooltip = `${dateStr}: Libur Jadwal Shift`;
+                        } else if (statusObj.status === "belum") {
+                          bgColor = "bg-slate-100";
+                          tooltip = `${dateStr}: Belum Waktunya`;
+                        }
                       }
 
                       return (
-                        <div 
-                          key={dateStr} 
+                        <div
+                          key={dateStr}
                           title={tooltip}
-                          className={`w-8 h-8 rounded-sm shrink-0 cursor-pointer transition-transform hover:scale-110 shadow-sm ${bgColor}`}
+                          className={`w-8 h-7 rounded-md shrink-0 cursor-pointer transition-all hover:scale-110 shadow-2xs ${bgColor}`}
                         />
                       );
                     })}
@@ -484,97 +924,179 @@ export default function RekapAbsensiPage() {
         )}
       </div>
 
-      {/* Detail Modal */}
+      {/* DETAIL MODAL PRESIENSI HARIAN PEGAWAI */}
       {selectedUserDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-100">
-              <div>
-                <h2 className="text-xl font-black text-slate-800">Detail Kehadiran</h2>
-                <p className="text-sm font-semibold text-slate-500 mt-1">
-                  {selectedUserDetail.nama} • {selectedUserDetail.jabatan}
-                </p>
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50/60">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0173b6] border border-blue-100 flex items-center justify-center font-black text-sm">
+                  {selectedUserDetail.nama.charAt(0)}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-[#05445e] tracking-tight">
+                    Detail Presensi Harian
+                  </h2>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                    {selectedUserDetail.nama} • {selectedUserDetail.jabatan}
+                  </p>
+                </div>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedUserDetail(null)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                className="btn btn-sm btn-circle btn-ghost text-slate-400 hover:text-slate-600"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
-            
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
-              <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm">
-                <table className="w-full text-left border-collapse">
+
+            {/* Modal Sub-Ribbon Quick Stats */}
+            <div className="grid grid-cols-4 gap-3 p-4 bg-slate-50 border-b border-slate-200 text-xs">
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Hadir</p>
+                <p className="text-lg font-black text-emerald-600 font-mono tabular-nums mt-0.5">
+                  {selectedUserDetail.rekap.hadir} Hari
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Terlambat</p>
+                <p className="text-lg font-black text-amber-600 font-mono tabular-nums mt-0.5">
+                  {selectedUserDetail.rekap.telat} Kali
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Alpha</p>
+                <p className="text-lg font-black text-rose-600 font-mono tabular-nums mt-0.5">
+                  {selectedUserDetail.rekap.alpha} Hari
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Izin / Cuti</p>
+                <p className="text-lg font-black text-[#0173b6] font-mono tabular-nums mt-0.5">
+                  {selectedUserDetail.rekap.izin} Hari
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Body: Daily List */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+              <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Tanggal</th>
-                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase">Jadwal Shift</th>
-                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Check In</th>
-                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Check Out</th>
-                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Keterlambatan</th>
-                      <th className="py-3 px-4 text-xs font-bold text-slate-500 uppercase text-center">Pulang Cepat</th>
+                    <tr className="bg-[#05445e] text-white uppercase tracking-wider font-semibold">
+                      <th className="py-3 px-4">Tanggal &amp; Hari</th>
+                      <th className="py-3 px-4">Jadwal Shift</th>
+                      <th className="py-3 px-4 text-center">Check In</th>
+                      <th className="py-3 px-4 text-center">Check Out</th>
+                      <th className="py-3 px-4 text-center">Keterlambatan</th>
+                      <th className="py-3 px-4 text-center">Pulang Cepat</th>
+                      <th className="py-3 px-4 text-center">Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100 font-mono tabular-nums">
                     {dates.map((dateStr, idx) => {
-                      const data = selectedUserDetail.harian[dateStr];
-                      const shift = data?.shift;
-                      
+                      const dayData = selectedUserDetail.harian[dateStr];
+                      const shift = dayData?.shift;
+
                       const formatTime = (timeStr?: string) => {
                         if (!timeStr) return "-";
-                        if (timeStr.includes('T')) {
+                        if (timeStr.includes("T")) {
                           const d = new Date(timeStr);
-                          return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                          return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
                         }
-                        return timeStr.substring(0, 5); 
+                        return timeStr.substring(0, 5);
                       };
 
-                      const checkIn = formatTime(data?.jam_masuk);
-                      const checkOut = formatTime(data?.jam_keluar);
+                      const checkIn = formatTime(dayData?.jam_masuk);
+                      const checkOut = formatTime(dayData?.jam_keluar);
                       const shiftIn = shift ? formatTime(shift.jam_masuk) : "-";
                       const shiftOut = shift ? formatTime(shift.jam_keluar) : "-";
-                      const shiftName = shift?.nama_shift || (data?.status === 'libur' ? 'Libur' : '-');
-                      
-                      const lateness = data?.menit_terlambat || 0;
-                      
-                      const earlyLeave = data?.menit_pulang_cepat || 0;
+                      const shiftName = shift?.nama_shift || (dayData?.status === "libur" ? "Libur" : "-");
+
+                      const lateness = dayData?.menit_terlambat || 0;
+                      const earlyLeave = dayData?.menit_pulang_cepat || 0;
 
                       return (
-                        <tr key={dateStr} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
-                          <td className="py-3 px-4 text-sm font-semibold text-slate-700 whitespace-nowrap">
-                            {new Date(dateStr).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                        <tr
+                          key={dateStr}
+                          className={`hover:bg-slate-50 transition-colors ${
+                            idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"
+                          }`}
+                        >
+                          <td className="py-3 px-4 font-sans font-semibold text-slate-700 whitespace-nowrap">
+                            {new Date(dateStr).toLocaleDateString("id-ID", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
                           </td>
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${shiftName.toLowerCase().includes('libur') ? 'bg-slate-100 text-slate-600' : (shiftName.toLowerCase().includes('cuti') ? 'bg-blue-100 text-blue-700' : 'bg-indigo-50 text-indigo-700')}`}>
-                              {shiftName} {shiftIn !== '-' && shiftOut !== '-' ? `(${shiftIn} - ${shiftOut})` : ''}
+                          <td className="py-3 px-4 font-sans">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                shiftName.toLowerCase().includes("libur")
+                                  ? "bg-slate-100 text-slate-600"
+                                  : shiftName.toLowerCase().includes("cuti")
+                                  ? "bg-blue-100 text-[#0173b6]"
+                                  : "bg-blue-50 text-[#0173b6]"
+                              }`}
+                            >
+                              {shiftName} {shiftIn !== "-" && shiftOut !== "-" ? `(${shiftIn} - ${shiftOut})` : ""}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <span className={`text-sm font-bold ${checkIn !== '-' ? 'text-emerald-600' : 'text-slate-400'}`}>{checkIn}</span>
+                            <span
+                              className={`font-bold ${
+                                checkIn !== "-" ? "text-emerald-600" : "text-slate-400"
+                              }`}
+                            >
+                              {checkIn}
+                            </span>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <span className={`text-sm font-bold ${checkOut !== '-' ? 'text-emerald-600' : 'text-slate-400'}`}>{checkOut}</span>
+                            <span
+                              className={`font-bold ${
+                                checkOut !== "-" ? "text-emerald-600" : "text-slate-400"
+                              }`}
+                            >
+                              {checkOut}
+                            </span>
                           </td>
                           <td className="py-3 px-4 text-center">
                             {lateness > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md">
-                                <Clock size={12} /> {lateness} mnt
+                              <span className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/50">
+                                <Clock size={11} /> {lateness} mnt
                               </span>
                             ) : (
-                              <span className="text-sm font-medium text-slate-400">-</span>
+                              <span className="text-slate-400">-</span>
                             )}
                           </td>
                           <td className="py-3 px-4 text-center">
                             {earlyLeave > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-50 px-2.5 py-1 rounded-md">
-                                <Clock size={12} /> {earlyLeave} mnt
+                              <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/50">
+                                <Clock size={11} /> {earlyLeave} mnt
                               </span>
                             ) : (
-                              <span className="text-sm font-medium text-slate-400">-</span>
+                              <span className="text-slate-400">-</span>
                             )}
+                          </td>
+                          <td className="py-3 px-4 text-center font-sans">
+                            <span
+                              className={`badge badge-sm font-bold uppercase text-[10px] ${
+                                dayData?.status === "hadir"
+                                  ? "badge-success text-white"
+                                  : dayData?.status === "telat"
+                                  ? "badge-warning text-slate-900"
+                                  : dayData?.status === "alpha"
+                                  ? "badge-error text-white"
+                                  : dayData?.status === "izin"
+                                  ? "badge-info text-white"
+                                  : "badge-ghost text-slate-500"
+                              }`}
+                            >
+                              {dayData?.status || "Libur"}
+                            </span>
                           </td>
                         </tr>
                       );
@@ -583,10 +1105,19 @@ export default function RekapAbsensiPage() {
                 </table>
               </div>
             </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex justify-end">
+              <button
+                onClick={() => setSelectedUserDetail(null)}
+                className="btn btn-sm btn-ghost text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl px-5"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

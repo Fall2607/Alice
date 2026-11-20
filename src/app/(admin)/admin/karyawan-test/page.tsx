@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 import {
   ClipboardCheck,
   PlusCircle,
@@ -102,6 +108,8 @@ export default function KaryawanTestPage() {
   const [selectedBatchFilter, setSelectedBatchFilter] = useState("all");
   const [activeTab, setActiveTab] = useState<"batches" | "assessments">("batches");
   const [batchViewMode, setBatchViewMode] = useState<"table" | "grid">("table");
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Modal State: Create Batch
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -513,10 +521,94 @@ export default function KaryawanTestPage() {
     };
   }, [batches, assessmentData]);
 
+  // GSAP: Animasi entrance halaman & komponen utama
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+      tl.from(".test-header", {
+        y: -12,
+        opacity: 0,
+        duration: 0.45,
+        clearProps: "all",
+      })
+        .from(
+          ".test-kpi-card",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.05,
+            clearProps: "all",
+          },
+          "-=0.25"
+        )
+        .from(
+          ".test-workspace",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.4,
+            clearProps: "all",
+          },
+          "-=0.2"
+        );
+    },
+    { scope: containerRef }
+  );
+
+  // GSAP: Animasi transisi saat tab atau mode view berganti
+  useGSAP(
+    () => {
+      gsap.from(".test-tab-content", {
+        y: 10,
+        opacity: 0,
+        duration: 0.32,
+        ease: "power2.out",
+        clearProps: "all",
+      });
+
+      if (activeTab === "batches") {
+        if (batchViewMode === "table") {
+          gsap.from(".test-batch-row", {
+            y: 8,
+            opacity: 0,
+            duration: 0.28,
+            stagger: 0.025,
+            ease: "power2.out",
+            clearProps: "all",
+          });
+        } else {
+          gsap.from(".test-batch-grid-item", {
+            y: 10,
+            opacity: 0,
+            duration: 0.28,
+            stagger: 0.03,
+            ease: "power2.out",
+            clearProps: "all",
+          });
+        }
+      } else {
+        gsap.from(".test-assessment-row", {
+          y: 8,
+          opacity: 0,
+          duration: 0.28,
+          stagger: 0.02,
+          ease: "power2.out",
+          clearProps: "all",
+        });
+      }
+    },
+    {
+      scope: containerRef,
+      dependencies: [activeTab, batchViewMode, filteredBatches, filteredAssessments],
+    }
+  );
+
   return (
-    <div className="w-full space-y-4 pb-12 animate-in fade-in duration-300">
+    <div ref={containerRef} className="w-full space-y-4 pb-12">
       {/* 1. Header Toolbar (Executive & Compact) */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="test-header bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="badge badge-primary badge-outline text-[10px] font-bold uppercase tracking-wider py-1 px-2.5">
@@ -561,7 +653,7 @@ export default function KaryawanTestPage() {
 
       {/* 2. Compact Inline KPI Ribbon (Clean & Data-Dense) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
+        <div className="test-kpi-card bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Batch</p>
             <p className="text-xl font-black text-slate-800 font-mono tabular-nums mt-0.5">
@@ -573,7 +665,7 @@ export default function KaryawanTestPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
+        <div className="test-kpi-card bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Peserta</p>
             <p className="text-xl font-black text-slate-800 font-mono tabular-nums mt-0.5">
@@ -585,7 +677,7 @@ export default function KaryawanTestPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
+        <div className="test-kpi-card bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selesai Ujian</p>
             <div className="flex items-baseline gap-2 mt-0.5">
@@ -602,7 +694,7 @@ export default function KaryawanTestPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
+        <div className="test-kpi-card bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Menunggu / Tes</p>
             <p className="text-xl font-black text-amber-600 font-mono tabular-nums mt-0.5">
@@ -619,7 +711,7 @@ export default function KaryawanTestPage() {
       </div>
 
       {/* 3. Main Workspace with Compact Controls */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 space-y-4">
+      <div className="test-workspace bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5 space-y-4">
         {/* Navigation & Controls Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           {/* DaisyUI Tabs */}
@@ -748,7 +840,7 @@ export default function KaryawanTestPage() {
 
         {/* TAB 1: BATCHES - SLEEK TABLE OR COMPACT GRID */}
         {activeTab === "batches" && (
-          <div>
+          <div className="test-tab-content">
             {loading ? (
               <div className="py-16 flex flex-col items-center justify-center text-slate-400 space-y-3">
                 <Loader2 size={36} className="animate-spin text-[#0173b6]" />
@@ -784,7 +876,7 @@ export default function KaryawanTestPage() {
                           : 0;
 
                       return (
-                        <tr key={batch.id} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={batch.id} className="test-batch-row hover:bg-slate-50/80 transition-colors">
                           {/* Nama Batch */}
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2.5">
@@ -900,7 +992,7 @@ export default function KaryawanTestPage() {
                   return (
                     <div
                       key={batch.id}
-                      className="bg-white border border-slate-200/90 rounded-xl p-4 hover:border-[#0173b6] hover:shadow-xs transition-all shadow-2xs space-y-3 flex flex-col justify-between"
+                      className="test-batch-grid-item bg-white border border-slate-200/90 rounded-xl p-4 hover:border-[#0173b6] hover:shadow-xs transition-all shadow-2xs space-y-3 flex flex-col justify-between"
                     >
                       <div>
                         {/* Compact Header */}
@@ -1000,7 +1092,7 @@ export default function KaryawanTestPage() {
 
         {/* TAB 2: ASSESSMENTS TABLE (CLEAN DATA-DENSE EXECUTIVE TABLE) */}
         {activeTab === "assessments" && (
-          <div>
+          <div className="test-tab-content">
             {loading ? (
               <div className="py-16 flex flex-col items-center justify-center text-slate-400 space-y-3">
                 <Loader2 size={36} className="animate-spin text-[#0173b6]" />
@@ -1026,7 +1118,7 @@ export default function KaryawanTestPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {filteredAssessments.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr key={item.id} className="test-assessment-row hover:bg-slate-50/80 transition-colors">
                         {/* Karyawan Profile */}
                         <td className="py-3 px-4">
                           <p className="font-bold text-slate-900">{item.nama_lengkap}</p>

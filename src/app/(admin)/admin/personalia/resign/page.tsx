@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 import {
   UserX,
   Search,
@@ -76,6 +82,8 @@ export default function PegawaiResignPage() {
   // Modal detail state
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [activeEmployee, setActiveEmployee] = useState<KaryawanResign | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -395,10 +403,71 @@ export default function PegawaiResignPage() {
     setIsDetailModalOpen(true);
   };
 
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+      tl.from(".resign-header", {
+        y: -12,
+        opacity: 0,
+        duration: 0.45,
+        clearProps: "all",
+      })
+        .from(
+          ".resign-kpi-card",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.05,
+            clearProps: "all",
+          },
+          "-=0.25"
+        )
+        .from(
+          ".resign-filter",
+          {
+            y: 12,
+            opacity: 0,
+            duration: 0.35,
+            clearProps: "all",
+          },
+          "-=0.2"
+        )
+        .from(
+          ".resign-table-wrap",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.4,
+            clearProps: "all",
+          },
+          "-=0.2"
+        );
+    },
+    { scope: containerRef }
+  );
+
+  useGSAP(
+    () => {
+      if (paginatedEmployees.length > 0) {
+        gsap.from(".resign-row-item", {
+          y: 8,
+          opacity: 0,
+          duration: 0.28,
+          stagger: 0.025,
+          ease: "power2.out",
+          clearProps: "all",
+        });
+      }
+    },
+    { scope: containerRef, dependencies: [currentPage, paginatedEmployees] }
+  );
+
   return (
-    <div className="p-8 font-sans min-h-screen space-y-6">
+    <div ref={containerRef} className="p-8 font-sans min-h-screen space-y-6">
       {/* 1. Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-slate-200/80">
+      <div className="resign-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-slate-200/80">
         <div>
           <div className="flex items-center gap-2 mb-1 text-rose-600 font-bold uppercase tracking-wider text-xs">
             <UserX size={15} />
@@ -437,7 +506,7 @@ export default function PegawaiResignPage() {
       {/* 2. KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Total Alumni */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="resign-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Total Pegawai Resign
@@ -454,7 +523,7 @@ export default function PegawaiResignPage() {
         </div>
 
         {/* Card 2: Resign Tahun Ini */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="resign-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Resign Tahun Ini ({new Date().getFullYear()})
@@ -471,7 +540,7 @@ export default function PegawaiResignPage() {
         </div>
 
         {/* Card 3: Unit Terbanyak */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="resign-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Unit Resign Terbanyak
@@ -489,7 +558,7 @@ export default function PegawaiResignPage() {
         </div>
 
         {/* Card 4: Rata-rata Masa Kerja */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="resign-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Rata-rata Masa Kerja
@@ -506,7 +575,7 @@ export default function PegawaiResignPage() {
       </div>
 
       {/* 3. Filter Toolbar Section */}
-      <div className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3.5">
+      <div className="resign-filter bg-white p-4 md:p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
@@ -648,7 +717,7 @@ export default function PegawaiResignPage() {
       </div>
 
       {/* 4. Table Section */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+      <div className="resign-table-wrap bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="table table-zebra table-sm md:table-md w-full">
             <thead>
@@ -717,7 +786,7 @@ export default function PegawaiResignPage() {
                   const formattedMasuk = formatDate(emp.tanggal_masuk);
 
                   return (
-                    <tr key={emp.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={emp.id} className="resign-row-item hover:bg-slate-50/80 transition-colors">
                       {/* Pegawai & NIP */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">

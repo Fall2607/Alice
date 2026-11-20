@@ -1,6 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useMemo, useCallback, MouseEvent } from "react";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 import {
   Network,
   Search,
@@ -128,7 +134,8 @@ export default function StrukturOrganisasiPage() {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -616,8 +623,88 @@ export default function StrukturOrganisasiPage() {
     );
   };
 
+  // GSAP: Animasi entrance halaman & komponen utama
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+      tl.from(".struktur-header", {
+        y: -12,
+        opacity: 0,
+        duration: 0.45,
+        clearProps: "all",
+      })
+        .from(
+          ".struktur-kpi-card",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.05,
+            clearProps: "all",
+          },
+          "-=0.25"
+        )
+        .from(
+          ".struktur-filter",
+          {
+            y: 12,
+            opacity: 0,
+            duration: 0.35,
+            clearProps: "all",
+          },
+          "-=0.2"
+        )
+        .from(
+          ".struktur-content-wrap",
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.4,
+            clearProps: "all",
+          },
+          "-=0.2"
+        );
+    },
+    { scope: pageRef }
+  );
+
+  // GSAP: Animasi transisi halus saat tab mode visual berganti
+  useGSAP(
+    () => {
+      gsap.from(".struktur-content-view", {
+        y: 12,
+        opacity: 0,
+        duration: 0.35,
+        ease: "power2.out",
+        clearProps: "all",
+      });
+
+      if (viewMode === "levels") {
+        gsap.from(".struktur-level-card", {
+          y: 10,
+          opacity: 0,
+          duration: 0.3,
+          stagger: 0.06,
+          ease: "power2.out",
+          clearProps: "all",
+        });
+      } else if (viewMode === "departments") {
+        gsap.from(".struktur-dept-card", {
+          y: 10,
+          opacity: 0,
+          duration: 0.3,
+          stagger: 0.05,
+          ease: "power2.out",
+          clearProps: "all",
+        });
+      }
+    },
+    { scope: pageRef, dependencies: [viewMode] }
+  );
+
   return (
-    <div className="p-8 font-sans min-h-screen space-y-6">
+    <div ref={pageRef} className="p-8 font-sans min-h-screen space-y-6">
       {/* Styles for Tree CSS Connectors */}
       <style
         dangerouslySetInnerHTML={{
@@ -670,7 +757,7 @@ export default function StrukturOrganisasiPage() {
       />
 
       {/* 1. Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-slate-200/80">
+      <div className="struktur-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-slate-200/80">
         <div>
           <div className="flex items-center gap-2 mb-1 text-[#0173b6] font-bold uppercase tracking-wider text-xs">
             <Network size={15} />
@@ -727,7 +814,7 @@ export default function StrukturOrganisasiPage() {
 
       {/* 2. Executive KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="struktur-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Total Pegawai Aktif
@@ -743,7 +830,7 @@ export default function StrukturOrganisasiPage() {
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="struktur-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Jajaran Pimpinan (T1 - T4)
@@ -759,7 +846,7 @@ export default function StrukturOrganisasiPage() {
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="struktur-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Unit Kerja &amp; Instalasi
@@ -775,7 +862,7 @@ export default function StrukturOrganisasiPage() {
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
+        <div className="struktur-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
               Span of Control Rata-rata
@@ -792,7 +879,7 @@ export default function StrukturOrganisasiPage() {
       </div>
 
       {/* 3. Filter Toolbar Section */}
-      <div className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3.5">
+      <div className="struktur-filter bg-white p-4 md:p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3.5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-black uppercase tracking-wider text-slate-700">
@@ -892,16 +979,17 @@ export default function StrukturOrganisasiPage() {
       </div>
 
       {/* 4. Main Content Area */}
-      {viewMode === "tree" ? (
-        /* MODE 1: INTERACTIVE TREE CANVAS */
-        <div
-          ref={containerRef}
-          className="h-[680px] bg-slate-50/70 rounded-3xl border-2 border-slate-200/90 shadow-inner overflow-hidden relative cursor-grab active:cursor-grabbing select-none"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
+      <div className="struktur-content-wrap">
+        {viewMode === "tree" ? (
+          /* MODE 1: INTERACTIVE TREE CANVAS */
+          <div
+            ref={canvasRef}
+            className="struktur-content-view h-[680px] bg-slate-50/70 rounded-3xl border-2 border-slate-200/90 shadow-inner overflow-hidden relative cursor-grab active:cursor-grabbing select-none"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
           {/* Floating Canvas Navigation Tools */}
           <div className="absolute top-5 right-5 z-20 flex flex-col bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
             <button
@@ -989,16 +1077,16 @@ export default function StrukturOrganisasiPage() {
             </div>
           )}
         </div>
-      ) : viewMode === "levels" ? (
-        /* MODE 2: HIERARCHY BY TIERS (ACCORDION DRILLDOWN) */
-        <div className="space-y-5">
-          {tierGroups.map((group) => {
-            const TierIcon = group.info.icon;
-            return (
-              <div
-                key={group.tier}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden"
-              >
+        ) : viewMode === "levels" ? (
+          /* MODE 2: HIERARCHY BY TIERS (ACCORDION DRILLDOWN) */
+          <div className="struktur-content-view space-y-5">
+            {tierGroups.map((group) => {
+              const TierIcon = group.info.icon;
+              return (
+                <div
+                  key={group.tier}
+                  className="struktur-level-card bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden"
+                >
                 {/* Tier Category Header */}
                 <div className="bg-slate-50/90 border-b border-slate-200/80 px-5 py-3.5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1059,7 +1147,7 @@ export default function StrukturOrganisasiPage() {
         </div>
       ) : (
         /* MODE 3: DEPARTMENT MATRIX VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="struktur-content-view grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {departmentGroups.map(([deptName, members]) => {
             // Find head / manager in this department
             const sortedByTier = [...members].sort(
@@ -1070,7 +1158,7 @@ export default function StrukturOrganisasiPage() {
             return (
               <div
                 key={deptName}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
+                className="struktur-dept-card bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col justify-between"
               >
                 <div>
                   {/* Dept Header */}
@@ -1150,6 +1238,7 @@ export default function StrukturOrganisasiPage() {
           })}
         </div>
       )}
+      </div>
 
       {/* 5. Modal Profil & Detail Relasi Komando */}
       <Modal
