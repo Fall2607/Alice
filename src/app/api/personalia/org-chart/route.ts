@@ -6,9 +6,14 @@ export async function GET(request: Request) {
     const res = await pool.query(`
       SELECT 
         k.id, 
+        k.nip,
         k.nama_lengkap, 
         k.atasan_id,
         k.jenis_kelamin,
+        k.profesi,
+        k.email,
+        k.handphone,
+        d.id AS departemen_id,
         d.nama_departemen,
         lj.nama_level,
         k.jabatan_id

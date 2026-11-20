@@ -38,6 +38,7 @@ import PAPIResultView from "@/app/components/admin/PAPIResultView";
 import CFITResultView from "@/app/components/admin/CFITResultView";
 import { getDISCProfileDetail } from "@/app/utils/discUtils";
 import { getMBTIProfileDetail } from "@/app/utils/mbtiUtils";
+import BatchFilterDropdown from "./components/BatchFilterDropdown";
 
 interface Karyawan {
   id: string;
@@ -677,32 +678,19 @@ export default function KaryawanTestPage() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             </div>
 
-            {/* Batch Dropdown Filter (Visible for Assessments tab or when batch filter active) */}
-            {batches.length > 0 && activeTab === "assessments" && (
-              <div className="flex items-center gap-1">
-                <select
-                  value={selectedBatchFilter}
-                  onChange={(e) => setSelectedBatchFilter(e.target.value)}
-                  className="select select-bordered select-sm bg-slate-50 text-slate-700 text-xs rounded-xl font-medium focus:border-[#0173b6] max-w-[190px]"
-                >
-                  <option value="all">Semua Batch ({batches.length})</option>
-                  {batches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.batch_name}
-                    </option>
-                  ))}
-                </select>
-
-                {selectedBatchFilter !== "all" && (
-                  <button
-                    onClick={() => setSelectedBatchFilter("all")}
-                    title="Reset Filter Batch"
-                    className="btn btn-ghost btn-xs btn-square text-slate-400 hover:text-error rounded-lg"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
+            {/* Batch Dropdown Filter */}
+            {batches.length > 0 && (activeTab === "assessments" || selectedBatchFilter !== "all") && (
+              <BatchFilterDropdown
+                batches={batches}
+                selectedBatchFilter={selectedBatchFilter}
+                onSelectBatch={(batchId) => {
+                  setSelectedBatchFilter(batchId);
+                  if (activeTab === "batches" && batchId !== "all") {
+                    setActiveTab("assessments");
+                  }
+                }}
+                totalParticipants={assessmentData.length}
+              />
             )}
 
             {/* View Mode Toggle (Only in Batches Tab) */}
