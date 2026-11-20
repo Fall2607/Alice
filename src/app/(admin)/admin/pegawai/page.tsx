@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 import {
   PlusCircle,
   Edit,
@@ -132,6 +138,7 @@ export default function EmployeeManagementPage() {
   const [resignReason, setResignReason] = useState("");
   const [isResigning, setIsResigning] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const fetchData = async () => {
@@ -344,10 +351,77 @@ export default function EmployeeManagementPage() {
   );
   const sipTotalPages = Math.ceil(employeesWithSipIssues.length / sipItemsPerPage);
 
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+      tl.from(".pegawai-header", {
+        y: -12,
+        opacity: 0,
+        duration: 0.45,
+        clearProps: "all",
+      })
+        .from(
+          ".pegawai-filter",
+          {
+            y: 12,
+            opacity: 0,
+            duration: 0.35,
+            clearProps: "all",
+          },
+          "-=0.2"
+        )
+        .from(
+          [".pegawai-sip-card", ".pegawai-directory-card"],
+          {
+            y: 16,
+            opacity: 0,
+            duration: 0.4,
+            stagger: 0.08,
+            clearProps: "all",
+          },
+          "-=0.2"
+        );
+    },
+    { scope: containerRef }
+  );
+
+  useGSAP(
+    () => {
+      if (currentItems.length > 0) {
+        gsap.from(".pegawai-row-item", {
+          y: 8,
+          opacity: 0,
+          duration: 0.28,
+          stagger: 0.025,
+          ease: "power2.out",
+          clearProps: "all",
+        });
+      }
+    },
+    { scope: containerRef, dependencies: [currentPage, currentItems] }
+  );
+
+  useGSAP(
+    () => {
+      if (currentSipItems.length > 0) {
+        gsap.from(".pegawai-sip-row", {
+          y: 8,
+          opacity: 0,
+          duration: 0.28,
+          stagger: 0.025,
+          ease: "power2.out",
+          clearProps: "all",
+        });
+      }
+    },
+    { scope: containerRef, dependencies: [sipCurrentPage, currentSipItems] }
+  );
+
   return (
-    <div className="p-8 font-sans min-h-screen space-y-6">
+    <div ref={containerRef} className="p-8 font-sans min-h-screen space-y-6">
       {/* Header Halaman */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-slate-200/80">
+      <div className="pegawai-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 border-b border-slate-200/80">
         <div>
           <div className="flex items-center gap-2 mb-1 text-primary font-bold uppercase tracking-wider text-xs">
             <Users size={15} />
@@ -371,7 +445,7 @@ export default function EmployeeManagementPage() {
       </div>
 
       {/* Filter Section (Langsung di bawah header) */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+      <div className="pegawai-filter bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
             Filter & Pencarian Pegawai
@@ -395,7 +469,7 @@ export default function EmployeeManagementPage() {
               placeholder="Cari NIP atau Nama..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50/80 border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              className="w-full h-[38px] pl-9 pr-8 bg-slate-50/80 border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
             />
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -480,7 +554,7 @@ export default function EmployeeManagementPage() {
 
       {/* SIP Memerlukan Perhatian (Tabel Terpisah Berwarna Merah Standar, Maksimal 10 Baris) */}
       {employeesWithSipIssues.length > 0 && (
-        <div className="space-y-3">
+        <div className="pegawai-sip-card space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-red-600 flex items-center gap-2">
               <AlertTriangle size={20} className="shrink-0" />
@@ -517,7 +591,7 @@ export default function EmployeeManagementPage() {
                     return (
                       <tr
                         key={emp.id}
-                        className={`transition-colors ${
+                        className={`pegawai-sip-row transition-colors ${
                           isExpired
                             ? "bg-red-50 hover:bg-red-100/80 text-red-950"
                             : "bg-yellow-50 hover:bg-yellow-100/80 text-yellow-950"
@@ -628,7 +702,7 @@ export default function EmployeeManagementPage() {
       )}
 
       {/* Main Employee Directory Table */}
-      <div className="space-y-3">
+      <div className="pegawai-directory-card space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-primary-dark">
             {employeesWithSipIssues.length > 0
@@ -681,7 +755,7 @@ export default function EmployeeManagementPage() {
                     return (
                       <tr
                         key={employee.id}
-                        className="hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-b-0"
+                        className="pegawai-row-item hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-b-0"
                       >
                         {/* Kolom Pegawai (Avatar + Nama + NIP) */}
                         <td className="px-6 py-4">
