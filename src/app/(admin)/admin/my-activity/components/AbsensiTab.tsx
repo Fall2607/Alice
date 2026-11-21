@@ -1,21 +1,21 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Calendar,
   LogIn,
   LogOut as LogOutIcon,
   Filter,
-  Camera,
   X,
   Loader2,
   ScanFace,
   CheckCircle2,
   AlertCircle,
-  ChevronDown,
   Clock,
-  Check,
+  RotateCcw,
 } from "lucide-react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { useGpsGate } from "@/app/lib/useGpsGate";
 import GpsGatePanel from "@/app/components/absensi/GpsGatePanel";
 import {
@@ -25,6 +25,11 @@ import {
   preloadFaceModels,
 } from "@/app/lib/faceRecognition";
 import { usePreExtractedFace } from "@/app/lib/usePreExtractedFace";
+import SearchableSelect from "@/app/components/admin/SearchableSelect";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 
 interface AttendanceRecord {
   readonly date: string;
@@ -60,26 +65,35 @@ type ScanStatus =
   | "unresolved_checkout"
   | "info";
 
-const MONTHS = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-] as const;
+const MONTH_OPTIONS = [
+  { value: 1, label: "Januari" },
+  { value: 2, label: "Februari" },
+  { value: 3, label: "Maret" },
+  { value: 4, label: "April" },
+  { value: 5, label: "Mei" },
+  { value: 6, label: "Juni" },
+  { value: 7, label: "Juli" },
+  { value: 8, label: "Agustus" },
+  { value: 9, label: "September" },
+  { value: 10, label: "Oktober" },
+  { value: 11, label: "November" },
+  { value: 12, label: "Desember" },
+];
 
-export default function AbsensiTab() {
+interface AbsensiTabProps {
+  isOpenLiveAbsenFromParent?: boolean;
+  onCloseLiveAbsenParent?: () => void;
+  onStatsUpdated?: () => void;
+}
+
+export default function AbsensiTab({
+  isOpenLiveAbsenFromParent = false,
+  onCloseLiveAbsenParent,
+  onStatsUpdated,
+}: AbsensiTabProps) {
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState<number>(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(currentDate.getFullYear());
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const [attendanceLog, setAttendanceLog] = useState<readonly AttendanceRecord[]>([]);
   const [stats, setStats] = useState<AttendanceStats>({ hadir: 0, terlambat: 0, score: 0 });
@@ -93,6 +107,22 @@ export default function AbsensiTab() {
   const [scanResultMsg, setScanResultMsg] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sync external open trigger
+  useEffect(() => {
+    if (isOpenLiveAbsenFromParent) {
+      setIsLiveAbsenOpen(true);
+    }
+  }, [isOpenLiveAbsenFromParent]);
+
+  const handleCloseModal = () => {
+    setIsLiveAbsenOpen(false);
+    if (onCloseLiveAbsenParent) {
+      onCloseLiveAbsenParent();
+    }
+  };
 
   const gps = useGpsGate(isLiveAbsenOpen);
   const gpsUnlocked = gps.isReady && gps.inArea;
@@ -108,7 +138,7 @@ export default function AbsensiTab() {
     inputSize: FACE_DETECTION_INPUT_SIZE.MOBILE,
   });
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
   const extractTime = (timeStr?: string | null): string => {
     if (!timeStr) return "-";
@@ -137,69 +167,72 @@ export default function AbsensiTab() {
     }
   };
 
-  const fetchAbsensi = async (kId: string, month: number, year: number) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${baseUrl}/absensi/${kId}?month=${month}&year=${year}`);
-      if (response.ok) {
-        const rawData: RawAttendanceApiItem[] = await response.json();
-        let hadirCount = 0;
-        let terlambatCount = 0;
+  const fetchAbsensi = useCallback(
+    async (kId: string, month: number, year: number) => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`${baseUrl}/absensi/${kId}?month=${month}&year=${year}`);
+        if (response.ok) {
+          const rawData: RawAttendanceApiItem[] = await response.json();
+          let hadirCount = 0;
+          let terlambatCount = 0;
 
-        const formattedLogs: AttendanceRecord[] = rawData.map((item) => {
-          let dateStr = "-";
-          if (item.tanggal) {
-            const dateOnly = item.tanggal.split("T")[0];
-            const [y, m, d] = dateOnly.split("-").map(Number);
-            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-              const dateObj = new Date(y, m - 1, d);
-              dateStr = dateObj.toLocaleDateString("id-ID", {
-                weekday: "long",
-                day: "2-digit",
-                month: "short",
-              });
+          const formattedLogs: AttendanceRecord[] = rawData.map((item) => {
+            let dateStr = "-";
+            if (item.tanggal) {
+              const dateOnly = item.tanggal.split("T")[0];
+              const [y, m, d] = dateOnly.split("-").map(Number);
+              if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+                const dateObj = new Date(y, m - 1, d);
+                dateStr = dateObj.toLocaleDateString("id-ID", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "short",
+                });
+              }
             }
-          }
 
-          const inTime = extractTime(item.jam_masuk);
-          const outTime = extractTime(item.jam_keluar);
+            const inTime = extractTime(item.jam_masuk);
+            const outTime = extractTime(item.jam_keluar);
 
-          let status: AttendanceRecord["status"] = "Tepat Waktu";
-          if (item.menit_terlambat && item.menit_terlambat > 0) {
-            status = "Terlambat";
-            terlambatCount++;
-          } else if (item.is_pulang_cepat) {
-            status = "Pulang Cepat";
-          }
-          hadirCount++;
+            let status: AttendanceRecord["status"] = "Tepat Waktu";
+            if (item.menit_terlambat && item.menit_terlambat > 0) {
+              status = "Terlambat";
+              terlambatCount++;
+            } else if (item.is_pulang_cepat) {
+              status = "Pulang Cepat";
+            }
+            hadirCount++;
 
-          return {
-            date: dateStr,
-            shift: item.nama_shift || "Shift Normal",
-            in: inTime,
-            out: outTime,
-            status,
-          };
-        });
+            return {
+              date: dateStr,
+              shift: item.nama_shift || "Shift Normal",
+              in: inTime,
+              out: outTime,
+              status,
+            };
+          });
 
-        const scorePercent =
-          hadirCount === 0
-            ? 0
-            : Math.round(((hadirCount - terlambatCount) / hadirCount) * 100);
+          const scorePercent =
+            hadirCount === 0
+              ? 100
+              : Math.round(((hadirCount - terlambatCount) / hadirCount) * 100);
 
-        setAttendanceLog(formattedLogs);
-        setStats({
-          hadir: hadirCount,
-          terlambat: terlambatCount,
-          score: scorePercent,
-        });
+          setAttendanceLog(formattedLogs);
+          setStats({
+            hadir: hadirCount,
+            terlambat: terlambatCount,
+            score: scorePercent,
+          });
+        }
+      } catch (err) {
+        console.error("Gagal mengambil log absensi:", err);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.error("Gagal mengambil log absensi:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [baseUrl]
+  );
 
   useEffect(() => {
     const userString = localStorage.getItem("user");
@@ -211,11 +244,10 @@ export default function AbsensiTab() {
         fetchAbsensi(user.karyawan_id, selectedMonth, selectedYear);
       }
     } catch (e) {
-      console.error("Gagal membaca user:", e);
+      console.error("Gagal membaca sesi user:", e);
     }
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, fetchAbsensi]);
 
-  // Preload model AI & kompilasi shader WebGL lebih awal agar kamera langsung siap pakai
   useEffect(() => {
     preloadFaceModels(FACE_DETECTION_INPUT_SIZE.MOBILE);
   }, []);
@@ -271,6 +303,23 @@ export default function AbsensiTab() {
     };
   }, [isLiveAbsenOpen, gpsUnlocked, clearPreExtractedFace]);
 
+  useGSAP(
+    () => {
+      gsap.fromTo(
+        ".gsap-absensi-filter",
+        { opacity: 0, y: -10 },
+        { opacity: 1, y: 0, duration: 0.35, ease: "power2.out", clearProps: "all" }
+      );
+
+      gsap.fromTo(
+        ".gsap-absensi-side",
+        { opacity: 0, x: 12 },
+        { opacity: 1, y: 0, duration: 0.35, ease: "power2.out", delay: 0.1, clearProps: "all" }
+      );
+    },
+    { scope: containerRef, dependencies: [] }
+  );
+
   const handleScanAbsen = async (
     type: "in" | "out",
     forceEarlyOut = false,
@@ -288,13 +337,12 @@ export default function AbsensiTab() {
     try {
       let faceDescriptor = preExtracted;
       if (!faceDescriptor) {
-        // Beri 1 frame agar overlay scanning tergambar sebelum ekstraksi live dijalankan
         await new Promise<void>((resolve) => setTimeout(resolve, 20));
         faceDescriptor = await extractLiveDescriptor();
 
         if (!faceDescriptor) {
           setScanStatus("error");
-          setScanResultMsg("Wajah tidak terdeteksi. Posisikan wajah Anda tegak ke arah kamera.");
+          setScanResultMsg("Wajah tidak terdeteksi. Posisikan wajah tegak ke arah kamera.");
           setTimeout(() => {
             setScanStatus("idle");
             setScanResultMsg("");
@@ -365,151 +413,201 @@ export default function AbsensiTab() {
           }, 4000);
           return;
         }
+
         setScanStatus("error");
         setCachedDescriptor(null);
-        setScanResultMsg(resData.message || "Wajah tidak cocok dengan data terdaftar.");
+        setScanResultMsg(resData.message || "Verifikasi biometrik gagal.");
         setTimeout(() => {
           setScanStatus("idle");
           setScanResultMsg("");
         }, 4000);
-      } else {
-        setScanStatus("success");
-        setCachedDescriptor(null);
-        setScanResultMsg(resData.message || "Presensi berhasil dicatat.");
-        setTimeout(() => {
-          setIsLiveAbsenOpen(false);
-          if (karyawanId) {
-            fetchAbsensi(karyawanId, selectedMonth, selectedYear);
-          }
-        }, 1800);
+        return;
       }
-    } catch (error) {
-      console.error(error);
+
+      setScanStatus("success");
+      setScanResultMsg(resData.message || "Presensi berhasil dicatat.");
+      setTimeout(() => {
+        handleCloseModal();
+        if (karyawanId) {
+          fetchAbsensi(karyawanId, selectedMonth, selectedYear);
+        }
+        if (onStatsUpdated) {
+          onStatsUpdated();
+        }
+      }, 2000);
+    } catch (err) {
+      console.error("Kesalahan jaringan proses absensi:", err);
       setScanStatus("error");
       setCachedDescriptor(null);
-      setScanResultMsg("Terjadi gangguan koneksi sistem.");
+      setScanResultMsg("Terjadi gangguan koneksi ke server presensi.");
       setTimeout(() => {
         setScanStatus("idle");
         setScanResultMsg("");
-      }, 3000);
+      }, 4000);
     }
   };
 
-  function logDateOnly(fullDate: string) {
-    if (!fullDate || !fullDate.includes(",")) return fullDate;
-    return fullDate.split(",")[1].trim();
-  }
+  const handleResetFilter = () => {
+    const now = new Date();
+    setSelectedMonth(now.getMonth() + 1);
+    setSelectedYear(now.getFullYear());
+  };
+
+  const isFilterActive =
+    selectedMonth !== currentDate.getMonth() + 1 ||
+    selectedYear !== currentDate.getFullYear();
+
+  const yearOptions = Array.from({ length: 5 }).map((_, i) => {
+    const yr = currentDate.getFullYear() - i;
+    return { value: yr, label: yr.toString() };
+  });
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      {/* Sisi Kiri: Log Kehadiran Utama */}
-      <div className="lg:col-span-8">
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 sm:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-                <div className="h-5 w-1.5 bg-primary rounded-full"></div>
-                Log Kehadiran Bulanan
-              </h2>
-              <p className="text-slate-500 text-xs font-medium mt-1">
-                Catatan jam masuk dan jam keluar berdasarkan biometrik wajah serta geofence RSU Avisena.
-              </p>
-            </div>
+    <div ref={containerRef} className="space-y-6">
+      {/* FILTER & PENCARIAN (Layer 3 Standard) */}
+      <div className="gsap-absensi-filter bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Filter size={15} className="text-primary" />
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Filter Periode Presensi
+            </span>
+          </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
-              {/* Tombol Absen Sekarang */}
+          <div className="flex items-center gap-2">
+            {isFilterActive && (
               <button
-                onClick={() => setIsLiveAbsenOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-xs transition-all active:scale-[0.98] min-h-[40px]"
+                onClick={handleResetFilter}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dark transition-colors"
               >
-                <Camera size={15} />
-                <span>Absen Sekarang</span>
+                <RotateCcw size={13} />
+                <span>Reset Bulan</span>
               </button>
+            )}
+          </div>
+        </div>
 
-              {/* Filter Periode */}
-              <div className="relative">
-                <button
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border transition-all text-xs font-bold min-h-[40px] active:scale-[0.98] ${
-                    isFilterOpen
-                      ? "bg-slate-100 text-slate-900 border-slate-300"
-                      : "bg-slate-50 text-slate-700 border-slate-200/90 hover:text-primary hover:bg-white"
-                  }`}
-                >
-                  <Filter size={14} />
-                  <span>
-                    {MONTHS[selectedMonth - 1]} {selectedYear}
-                  </span>
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform duration-300 ${isFilterOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
+          {/* Kolom 1: Pilih Bulan */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Pilih Bulan
+            </label>
+            <SearchableSelect
+              options={MONTH_OPTIONS}
+              value={MONTH_OPTIONS.find((m) => m.value === selectedMonth) || null}
+              onChange={(opt) => {
+                if (opt) setSelectedMonth(Number(opt.value));
+              }}
+              isClearable={false}
+              placeholder="Pilih Bulan..."
+            />
+          </div>
 
-                {isFilterOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-30 animate-in fade-in zoom-in-95 duration-150">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                      Pilih Periode Presensi
-                    </span>
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <select
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                        className="px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        {MONTHS.map((m, i) => (
-                          <option key={i} value={i + 1}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(Number(e.target.value))}
-                        className="px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <option key={i} value={currentDate.getFullYear() - i}>
-                            {currentDate.getFullYear() - i}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => setIsFilterOpen(false)}
-                      className="w-full py-2 bg-blue-50 text-primary font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-blue-100 transition-all flex items-center justify-center gap-1.5"
-                    >
-                      <Check size={14} />
-                      <span>Terapkan</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+          {/* Kolom 2: Pilih Tahun */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Pilih Tahun
+            </label>
+            <SearchableSelect
+              options={yearOptions}
+              value={yearOptions.find((y) => y.value === selectedYear) || null}
+              onChange={(opt) => {
+                if (opt) setSelectedYear(Number(opt.value));
+              }}
+              isClearable={false}
+              placeholder="Pilih Tahun..."
+            />
+          </div>
+
+          {/* Kolom 3: Shortcut Bulan Cepat */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Periode Cepat
+            </label>
+            <div className="grid grid-cols-2 gap-1.5 h-[38px]">
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  setSelectedMonth(now.getMonth() + 1);
+                  setSelectedYear(now.getFullYear());
+                }}
+                className={`w-full h-full rounded-xl text-xs font-bold transition-all border flex items-center justify-center ${
+                  selectedMonth === currentDate.getMonth() + 1 &&
+                  selectedYear === currentDate.getFullYear()
+                    ? "bg-primary text-white border-primary shadow-xs"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                }`}
+              >
+                Bulan Berjalan
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  now.setMonth(now.getMonth() - 1);
+                  setSelectedMonth(now.getMonth() + 1);
+                  setSelectedYear(now.getFullYear());
+                }}
+                className="w-full h-full bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center"
+              >
+                Bulan Lalu
+              </button>
             </div>
           </div>
 
-          {/* Tabel Log Kehadiran Mengikuti Standar Admin Pegawai */}
-          <div className="overflow-hidden rounded-xl border border-slate-200/80 shadow-xs">
+          {/* Kolom 4: Tombol Absen Sekarang Full di Ujung Kanan */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block mb-1">
+              Presensi Mandiri
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsLiveAbsenOpen(true)}
+              className="w-full h-[38px] inline-flex items-center justify-center gap-2 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-xs active:scale-[0.98]"
+            >
+              <ScanFace size={18} className="shrink-0" />
+              <span className="whitespace-nowrap">Absen Sekarang</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: Tabel Log & Side Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Kolom Kiri: Tabel Data Log Kehadiran */}
+        <div className="lg:col-span-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-primary-dark">
+              Catatan Log Presensi Harian
+            </h2>
+            <span className="text-xs font-semibold text-slate-500 font-mono tabular-nums">
+              Total <strong className="text-slate-800">{attendanceLog.length}</strong> hari tercatat
+            </span>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 shadow-xs bg-white">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs whitespace-nowrap">
                 <thead className="text-xs text-white uppercase bg-primary-dark font-semibold">
                   <tr>
-                    <th scope="col" className="px-6 py-3.5">Tanggal</th>
-                    <th scope="col" className="px-6 py-3.5">Shift Kerja</th>
-                    <th scope="col" className="px-6 py-3.5 text-center">Masuk (WIB)</th>
-                    <th scope="col" className="px-6 py-3.5 text-center">Pulang (WIB)</th>
-                    <th scope="col" className="px-6 py-3.5 text-right">Status</th>
+                    <th scope="col" className="px-6 py-3.5 text-white">Tanggal</th>
+                    <th scope="col" className="px-6 py-3.5 text-white">Shift Dinas</th>
+                    <th scope="col" className="px-6 py-3.5 text-center text-white">Masuk (WIB)</th>
+                    <th scope="col" className="px-6 py-3.5 text-center text-white">Pulang (WIB)</th>
+                    <th scope="col" className="px-6 py-3.5 text-right text-white">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
+                    Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="animate-pulse">
                         <td className="px-6 py-4">
                           <div className="h-4 bg-slate-100 rounded-md w-28" />
                         </td>
                         <td className="px-6 py-4">
-                          <div className="h-4 bg-slate-100 rounded-md w-20" />
+                          <div className="h-4 bg-slate-100 rounded-md w-24" />
                         </td>
                         <td className="px-6 py-4 text-center">
                           <div className="h-6 bg-slate-100 rounded-lg mx-auto w-16" />
@@ -535,15 +633,15 @@ export default function AbsensiTab() {
                     attendanceLog.map((log, idx) => (
                       <tr
                         key={idx}
-                        className="hover:bg-slate-50/80 transition-colors"
+                        className="gsap-absensi-table-row hover:bg-slate-50/80 transition-colors"
                       >
                         <td className="px-6 py-4">
-                          <span className="font-bold text-slate-800 text-xs">
+                          <span className="font-bold text-slate-900 text-xs">
                             {log.date}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md text-xs border border-slate-200/60">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200/70">
                             {log.shift}
                           </span>
                         </td>
@@ -559,12 +657,12 @@ export default function AbsensiTab() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold leading-tight ${
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
                               log.status === "Tepat Waktu"
-                                ? "bg-emerald-100 text-emerald-800"
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                                 : log.status === "Terlambat"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-rose-100 text-rose-800"
+                                ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                : "bg-rose-100 text-rose-800 border border-rose-200"
                             }`}
                           >
                             {log.status}
@@ -578,158 +676,158 @@ export default function AbsensiTab() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Sisi Kanan: Summary Panel & Aktivitas Terakhir */}
-      <div className="lg:col-span-4 space-y-6">
-        {/* Navy Hospital Summary Panel */}
-        <div className="rounded-2xl p-6 text-white shadow-xs relative overflow-hidden bg-primary-dark border border-slate-700/50">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-white/10 rounded-xl text-blue-200">
-                <Calendar size={16} />
-              </div>
-              <h3 className="text-xs font-bold text-blue-100 uppercase tracking-wider">
-                Ringkasan Bulan Ini
-              </h3>
-            </div>
-            <span className="text-[11px] font-mono font-semibold text-blue-200/80">
-              {MONTHS[selectedMonth - 1]} {selectedYear}
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex justify-between items-end border-b border-white/10 pb-3">
-              <div>
-                <p className="text-xs font-semibold text-blue-200">Total Hadir</p>
-                <p className="text-[10px] text-blue-300/70">Presensi tercatat sukses</p>
-              </div>
-              {isLoading ? (
-                <div className="h-8 w-16 bg-white/10 rounded animate-pulse" />
-              ) : (
-                <span className="text-3xl font-bold font-mono leading-none tabular-nums text-white">
-                  {stats.hadir < 10 ? `0${stats.hadir}` : stats.hadir}{" "}
-                  <span className="text-xs text-blue-200 font-semibold">HARI</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex justify-between items-end border-b border-white/10 pb-3">
-              <div>
-                <p className="text-xs font-semibold text-blue-200">Terlambat</p>
-                <p className="text-[10px] text-blue-300/70">Melebihi toleransi shift</p>
-              </div>
-              {isLoading ? (
-                <div className="h-8 w-16 bg-white/10 rounded animate-pulse" />
-              ) : (
-                <span className="text-3xl font-bold font-mono text-amber-300 leading-none tabular-nums">
-                  {stats.terlambat < 10 ? `0${stats.terlambat}` : stats.terlambat}{" "}
-                  <span className="text-xs text-blue-200 font-semibold">HARI</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex justify-between items-end pt-1">
-              <div>
-                <p className="text-xs font-semibold text-blue-200">Tingkat Ketepatan</p>
-                <p className="text-[10px] text-blue-300/70">Skor performa waktu</p>
-              </div>
-              {isLoading ? (
-                <div className="h-8 w-16 bg-white/10 rounded animate-pulse" />
-              ) : (
-                <span className="text-3xl font-bold font-mono text-emerald-300 leading-none tabular-nums">
-                  {stats.score}%
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Mini Activity List */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-2">
-              <Clock size={14} className="text-primary" />
-              <span>Aktivitas Terkini</span>
-            </h3>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              3 Hari Terakhir
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {isLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3.5 bg-slate-50 rounded-xl animate-pulse"
-                >
-                  <div className="h-10 w-10 bg-slate-200 rounded-lg" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-slate-200 rounded w-1/2" />
-                    <div className="h-2 bg-slate-200 rounded w-1/3" />
-                  </div>
+        {/* Kolom Kanan: Summary Panel Eksekutif & 3 Aktivitas Terkini */}
+        <div className="gsap-absensi-side lg:col-span-4 space-y-6">
+          {/* Navy Hospital Summary Panel */}
+          <div className="rounded-2xl p-6 text-white shadow-xs relative overflow-hidden bg-primary-dark border border-slate-700/50">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-white/10 rounded-xl text-blue-200">
+                  <Calendar size={16} />
                 </div>
-              ))
-            ) : attendanceLog.length === 0 ? (
-              <div className="py-6 text-center text-xs font-semibold text-slate-400">
-                Belum ada data presensi terkini.
+                <h3 className="text-xs font-bold text-blue-100 uppercase tracking-wider">
+                  Ringkasan Bulan Ini
+                </h3>
               </div>
-            ) : (
-              attendanceLog.slice(0, 3).map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:bg-white hover:border-primary/40 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-primary shadow-xs">
-                      <Calendar size={16} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800 text-xs">
-                        {logDateOnly(item.date)}
-                      </p>
-                      <p className="text-[11px] font-mono font-semibold text-slate-500 tabular-nums mt-0.5">
-                        {item.in} WIB
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    className={`px-2.5 py-1 text-[11px] font-semibold leading-tight rounded-full ${
-                      item.status === "Tepat Waktu"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {item.status}
+              <span className="text-[11px] font-mono font-semibold text-blue-200/80">
+                {MONTH_OPTIONS.find((m) => m.value === selectedMonth)?.label} {selectedYear}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-end border-b border-white/10 pb-3">
+                <div>
+                  <p className="text-xs font-semibold text-blue-200">Total Hadir</p>
+                  <p className="text-[10px] text-blue-300/70">Presensi tercatat sukses</p>
+                </div>
+                {isLoading ? (
+                  <div className="h-8 w-16 bg-white/10 rounded animate-pulse" />
+                ) : (
+                  <span className="text-3xl font-bold font-mono leading-none tabular-nums text-white">
+                    {stats.hadir < 10 ? `0${stats.hadir}` : stats.hadir}{" "}
+                    <span className="text-xs text-blue-200 font-semibold">HARI</span>
                   </span>
+                )}
+              </div>
+
+              <div className="flex justify-between items-end border-b border-white/10 pb-3">
+                <div>
+                  <p className="text-xs font-semibold text-blue-200">Terlambat</p>
+                  <p className="text-[10px] text-blue-300/70">Melebihi toleransi shift</p>
                 </div>
-              ))
-            )}
+                {isLoading ? (
+                  <div className="h-8 w-16 bg-white/10 rounded animate-pulse" />
+                ) : (
+                  <span className="text-3xl font-bold font-mono text-amber-300 leading-none tabular-nums">
+                    {stats.terlambat < 10 ? `0${stats.terlambat}` : stats.terlambat}{" "}
+                    <span className="text-xs text-blue-200 font-semibold">HARI</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex justify-between items-end pt-1">
+                <div>
+                  <p className="text-xs font-semibold text-blue-200">Tingkat Ketepatan</p>
+                  <p className="text-[10px] text-blue-300/70">Skor performa waktu</p>
+                </div>
+                {isLoading ? (
+                  <div className="h-8 w-16 bg-white/10 rounded animate-pulse" />
+                ) : (
+                  <span className="text-3xl font-bold font-mono text-emerald-300 leading-none tabular-nums">
+                    {stats.score}%
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Mini Activity List */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center gap-2">
+                <Clock size={14} className="text-primary" />
+                <span>Aktivitas Terkini</span>
+              </h3>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                3 Hari Terakhir
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 p-3.5 bg-slate-50 rounded-xl animate-pulse"
+                  >
+                    <div className="h-10 w-10 bg-slate-200 rounded-lg" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 bg-slate-200 rounded w-1/2" />
+                      <div className="h-2 bg-slate-200 rounded w-1/3" />
+                    </div>
+                  </div>
+                ))
+              ) : attendanceLog.length === 0 ? (
+                <div className="py-6 text-center text-xs font-semibold text-slate-400">
+                  Belum ada data presensi terkini.
+                </div>
+              ) : (
+                attendanceLog.slice(0, 3).map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 hover:bg-white hover:border-primary/40 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-primary shadow-xs">
+                        <Calendar size={16} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 text-xs">
+                          {item.date}
+                        </p>
+                        <p className="text-[11px] font-mono font-semibold text-slate-500 tabular-nums mt-0.5">
+                          {item.in} WIB &bull; {item.shift}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 text-[11px] font-semibold leading-tight rounded-full ${
+                        item.status === "Tepat Waktu"
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : "bg-amber-100 text-amber-800 border border-amber-200"
+                      }`}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Modal Live Absen Biometrik Wajah */}
+      {/* Modal Live Absen Biometrik Wajah (Standard Modal Layout) */}
       {isLiveAbsenOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative flex flex-col max-h-[90vh] border border-slate-100">
-            {/* Header Modal */}
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative flex flex-col max-h-[90vh] border border-slate-200">
+            {/* Header Modal Mengikuti Standar Admin #05445e */}
+            <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-primary-dark text-white z-10">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-50 text-primary rounded-xl flex items-center justify-center">
+                <div className="w-9 h-9 bg-white/10 text-white rounded-xl flex items-center justify-center">
                   <ScanFace size={20} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Presensi Mandiri</h3>
-                  <p className="text-[11px] text-slate-500 font-semibold">
-                    Verifikasi Biometrik Wajah & GPS
+                  <h3 className="font-bold text-white text-sm">Presensi Mandiri</h3>
+                  <p className="text-[11px] text-blue-200 font-medium">
+                    Verifikasi Biometrik Wajah &amp; GPS RSU Avisena
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setIsLiveAbsenOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
+                onClick={handleCloseModal}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white hover:bg-rose-500 transition-colors"
                 aria-label="Tutup"
               >
                 <X size={16} />
@@ -746,7 +844,7 @@ export default function AbsensiTab() {
                   {!isCameraReady && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-white">
                       <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
-                      <p className="text-xs text-slate-300">Menghubungkan Kamera...</p>
+                      <p className="text-xs text-slate-300 font-semibold">Menghubungkan Kamera...</p>
                     </div>
                   )}
 
@@ -857,7 +955,7 @@ export default function AbsensiTab() {
                         </button>
                         <button
                           onClick={() => handleScanAbsen("out", true, false)}
-                          className="px-4 py-2 bg-white text-amber-700 rounded-xl text-xs font-bold shadow-lg transition-all"
+                          className="px-4 py-2 bg-white text-amber-700 rounded-xl text-xs font-bold shadow-lg transition-all min-h-[44px]"
                         >
                           Tetap Pulang
                         </button>
@@ -873,13 +971,13 @@ export default function AbsensiTab() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleScanAbsen("out", false, false)}
-                          className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all"
+                          className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-bold transition-all min-h-[44px]"
                         >
                           Keluar Shift Sebelumnya
                         </button>
                         <button
                           onClick={() => handleScanAbsen("in", false, true)}
-                          className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-lg transition-all"
+                          className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-lg transition-all min-h-[44px]"
                         >
                           Masuk Shift Baru
                         </button>
@@ -889,21 +987,23 @@ export default function AbsensiTab() {
                 </div>
 
                 {/* Modal Footer Actions */}
-                <div className="p-5 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                <div className="p-5 bg-slate-50 border-t border-slate-200 flex flex-col gap-3">
                   <div className="flex gap-3 w-full">
                     <button
                       disabled={scanStatus !== "idle" || !isCameraReady}
                       onClick={() => handleScanAbsen("in")}
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-xs transition-all flex items-center justify-center gap-2 active:scale-[0.98] min-h-[44px]"
                     >
-                      <LogIn size={16} /> Absen Masuk
+                      <LogIn size={16} />
+                      <span>Absen Masuk</span>
                     </button>
                     <button
                       disabled={scanStatus !== "idle" || !isCameraReady}
                       onClick={() => handleScanAbsen("out")}
                       className="flex-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-xs transition-all flex items-center justify-center gap-2 active:scale-[0.98] min-h-[44px]"
                     >
-                      <LogOutIcon size={16} /> Absen Pulang
+                      <LogOutIcon size={16} />
+                      <span>Absen Pulang</span>
                     </button>
                   </div>
                   <p className="text-[10px] text-center font-semibold text-slate-400 uppercase tracking-wider">

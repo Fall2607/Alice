@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Clock,
   Send,
@@ -11,6 +11,12 @@ import {
   Loader2,
   Timer,
 } from "lucide-react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
 
 interface LemburItem {
   readonly id?: string;
@@ -28,7 +34,11 @@ interface LemburFormState {
   readonly kegiatan: string;
 }
 
-export default function LemburTab() {
+interface LemburTabProps {
+  onLemburUpdated?: () => void;
+}
+
+export default function LemburTab({ onLemburUpdated }: LemburTabProps) {
   const [lemburHistory, setLemburHistory] = useState<readonly LemburItem[]>([]);
   const [totalJamDisetujui, setTotalJamDisetujui] = useState<number>(0);
   const [lemburForm, setLemburForm] = useState<LemburFormState>({
@@ -44,7 +54,8 @@ export default function LemburTab() {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  const containerRef = useRef<HTMLDivElement>(null);
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
   const calculateHours = (data: readonly LemburItem[]) => {
     let totalHours = 0;
@@ -65,7 +76,7 @@ export default function LemburTab() {
     setTotalJamDisetujui(Math.round(totalHours * 10) / 10);
   };
 
-  const fetchLembur = async () => {
+  const fetchLembur = useCallback(async () => {
     try {
       const userString = localStorage.getItem("user");
       if (!userString) return;
@@ -83,14 +94,31 @@ export default function LemburTab() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [baseUrl]);
 
   useEffect(() => {
     fetchLembur();
-  }, [baseUrl]);
+  }, [fetchLembur]);
+
+  useGSAP(
+    () => {
+      gsap.fromTo(
+        ".gsap-lembur-form",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.35, ease: "power2.out", clearProps: "all" }
+      );
+
+      gsap.fromTo(
+        ".gsap-lembur-side",
+        { opacity: 0, x: 12 },
+        { opacity: 1, y: 0, duration: 0.35, ease: "power2.out", delay: 0.1, clearProps: "all" }
+      );
+    },
+    { scope: containerRef, dependencies: [] }
+  );
 
   // Hitung estimasi jam lembur formulir input
-  const estimatedHours = React.useMemo(() => {
+  const estimatedHours = useMemo(() => {
     if (!lemburForm.jam_mulai || !lemburForm.jam_selesai) return null;
     const [startH, startM] = lemburForm.jam_mulai.split(":").map(Number);
     const [endH, endM] = lemburForm.jam_selesai.split(":").map(Number);
@@ -151,6 +179,9 @@ export default function LemburTab() {
       });
 
       fetchLembur();
+      if (onLemburUpdated) {
+        onLemburUpdated();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan.";
       setFeedbackMsg({ type: "error", text: msg });
@@ -173,17 +204,17 @@ export default function LemburTab() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <div ref={containerRef} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
       {/* Sisi Kiri: Main Content Card */}
       <div className="lg:col-span-8">
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 sm:p-8 space-y-6">
+        <div className="gsap-lembur-form bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 sm:p-8 space-y-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
-              <div className="h-5 w-1.5 bg-primary rounded-full"></div>
-              Formulir Pengajuan Lembur
+            <h2 className="text-xl font-bold text-primary-dark tracking-tight flex items-center gap-2.5">
+              <Clock className="text-primary" size={20} />
+              <span>Formulir Pengajuan Lembur Dinas</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-              Catat tugas dinas lembur di luar jam shift resmi untuk diverifikasi atasan langsung.
+              Catat tugas dinas lembur di luar jam shift resmi untuk diverifikasi oleh atasan langsung Anda.
             </p>
           </div>
 
@@ -207,8 +238,9 @@ export default function LemburTab() {
 
             {/* Tanggal Lembur */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">
-                Tanggal Lembur <span className="text-rose-500">*</span>
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Calendar size={13} className="text-primary" />
+                <span>Tanggal Pelaksanaan Lembur</span> <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -226,8 +258,9 @@ export default function LemburTab() {
             {/* Jam Mulai & Selesai */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">
-                  Jam Mulai (WIB) <span className="text-rose-500">*</span>
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock size={13} className="text-primary" />
+                  <span>Jam Mulai (WIB)</span> <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="time"
@@ -240,8 +273,9 @@ export default function LemburTab() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">
-                  Jam Selesai (WIB) <span className="text-rose-500">*</span>
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock size={13} className="text-primary" />
+                  <span>Jam Selesai (WIB)</span> <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="time"
@@ -280,7 +314,7 @@ export default function LemburTab() {
                 onChange={(e) =>
                   setLemburForm({ ...lemburForm, kegiatan: e.target.value })
                 }
-                placeholder="Tuliskan uraian pekerjaan lembur yang diselesaikan..."
+                placeholder="Tuliskan uraian tugas operasional lembur yang diselesaikan..."
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200/90 rounded-xl font-medium text-slate-700 text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none"
               />
             </div>
@@ -308,7 +342,7 @@ export default function LemburTab() {
       </div>
 
       {/* Sisi Kanan: Summary Card & Riwayat */}
-      <div className="lg:col-span-4 space-y-6">
+      <div className="gsap-lembur-side lg:col-span-4 space-y-6">
         {/* Hospital Navy Total Lembur Card */}
         <div className="rounded-2xl p-6 text-white shadow-xs relative overflow-hidden bg-primary-dark border border-slate-700/50">
           <div className="flex items-center gap-2 mb-4">
@@ -359,7 +393,7 @@ export default function LemburTab() {
               lemburHistory.map((item, idx) => (
                 <div
                   key={idx}
-                  className="p-4 rounded-xl border border-slate-200/80 hover:border-primary/40 hover:shadow-xs transition-all bg-white space-y-2"
+                  className="gsap-lembur-history-item p-4 rounded-xl border border-slate-200/80 hover:border-primary/40 hover:shadow-xs transition-all bg-white space-y-2"
                 >
                   <div className="flex justify-between items-start gap-2">
                     <span className="text-xs font-bold text-slate-900">
@@ -370,12 +404,12 @@ export default function LemburTab() {
                       })}
                     </span>
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                         item.status === "Disetujui"
-                          ? "bg-emerald-100 text-emerald-800"
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
                           : item.status === "Ditolak"
-                          ? "bg-rose-100 text-rose-800"
-                          : "bg-amber-100 text-amber-800"
+                          ? "bg-rose-100 text-rose-800 border-rose-200"
+                          : "bg-amber-100 text-amber-800 border-amber-200"
                       }`}
                     >
                       {item.status || "Menunggu"}
@@ -390,7 +424,7 @@ export default function LemburTab() {
                   </div>
 
                   <p className="text-[11px] text-slate-600 line-clamp-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                    "{item.kegiatan}"
+                    &quot;{item.kegiatan}&quot;
                   </p>
                 </div>
               ))
