@@ -1,12 +1,27 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Lock, ShieldCheck, Loader2, AlertTriangle, CheckCircle2, ArrowLeft, KeyRound, Eye, EyeOff } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import {
+  Lock,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowLeft,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Check,
+} from "lucide-react";
 
-/**
- * Halaman finalisasi registrasi Alice (Set Password)
- */
-export default function App() {
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(useGSAP);
+}
+
+export default function RegisterCompletePage() {
   const [token, setToken] = useState<string | null>(null);
   const [password, setPassword] = useState<string>("");
   const [confirmPassword, setConfirmPassword] = useState<string>("");
@@ -15,38 +30,70 @@ export default function App() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 
-  /**
-   * Mengambil token dari URL secara manual untuk kompatibilitas lingkungan pratinjau
-   */
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+
+      tl.from(".auth-shell", {
+        y: 20,
+        scale: 0.98,
+        opacity: 0,
+        duration: 0.55,
+        clearProps: "all",
+      })
+        .from(
+          ".auth-visual",
+          {
+            opacity: 0,
+            x: -20,
+            duration: 0.5,
+            clearProps: "all",
+          },
+          "-=0.3"
+        )
+        .from(
+          ".auth-form-item",
+          {
+            y: 10,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.05,
+            clearProps: "all",
+          },
+          "-=0.3"
+        );
+    },
+    { scope: containerRef }
+  );
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tokenParam = params.get("token");
-      
+
       if (tokenParam) {
         setToken(tokenParam);
       } else {
-        setStatus({ 
-          type: "error", 
-          msg: "Token aktivasi tidak ditemukan. Pastikan Anda membuka tautan dari email Alice dengan benar." 
+        setStatus({
+          type: "error",
+          msg: "Token aktivasi tidak ditemukan atau sudah kedaluwarsa. Pastikan Anda membuka tautan dari email resmi dengan benar.",
         });
       }
     }
   }, []);
 
-  /**
-   * Menangani finalisasi pembuatan akun
-   */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
-      setStatus({ type: "error", msg: "Konfirmasi password tidak cocok." });
+      setStatus({ type: "error", msg: "Konfirmasi kata sandi tidak cocok." });
       return;
     }
 
     if (password.length < 6) {
-      setStatus({ type: "error", msg: "Password minimal harus 6 karakter." });
+      setStatus({ type: "error", msg: "Kata sandi minimal harus 6 karakter." });
       return;
     }
 
@@ -66,11 +113,14 @@ export default function App() {
         throw new Error(data.message || "Gagal mengaktifkan akun.");
       }
 
-      setStatus({ type: "success", msg: "Akun Alice Anda telah aktif! Mengalihkan ke login..." });
-      
+      setStatus({
+        type: "success",
+        msg: "Akun Alice Anda telah aktif! Mengalihkan ke login...",
+      });
+
       setTimeout(() => {
         window.location.href = "/login";
-      }, 3000);
+      }, 2500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan sistem.";
       setStatus({ type: "error", msg });
@@ -79,140 +129,222 @@ export default function App() {
     }
   };
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = "https://via.placeholder.com/150x43?text=Alice+App";
-  };
+  const isPasswordMatch = confirmPassword.length > 0 && password === confirmPassword;
+  const isPasswordMismatch = confirmPassword.length > 0 && password !== confirmPassword;
+  const isLengthValid = password.length >= 6;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 font-sans p-6 overflow-hidden relative">
-      {/* Ornamen Latar Belakang */}
+    <div
+      ref={containerRef}
+      className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50/70 font-sans p-4 sm:p-6 relative overflow-hidden selection:bg-[#0173b6]/20 selection:text-[#0173b6]"
+    >
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] bg-blue-400/5 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-[-10%] left-[-5%] w-[300px] h-[300px] bg-emerald-400/5 rounded-full blur-3xl"></div>
+        <div className="absolute top-[-10%] right-[-5%] w-[450px] h-[450px] bg-blue-400/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-[-10%] left-[-5%] w-[380px] h-[380px] bg-emerald-400/5 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="w-full max-w-[440px] relative z-10">
-        <div className="bg-white/80 backdrop-blur-xl rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white p-10 transition-all duration-500">
-          <div className="mb-10 text-center">
-            <div className="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mx-auto mt-8 mb-4 rotate-3">
-               <ShieldCheck className="text-blue-600" size={32} />
+      <div className="w-full max-w-[880px] relative z-10">
+        <div className="auth-shell bg-white/95 backdrop-blur-xl rounded-[32px] shadow-[0_20px_60px_rgba(5,68,94,0.08)] border border-slate-200/80 overflow-hidden grid grid-cols-1 lg:grid-cols-12 transition-all duration-300">
+          {/* PANEL KIRI: VISUAL ARTWORK ALICE BLUE */}
+          <div className="auth-visual hidden lg:flex lg:col-span-5 relative bg-gradient-to-br from-[#05445e] to-[#0173b6] text-white p-8 flex-col justify-between overflow-hidden">
+            <Image
+              src="/img/alice-auth-bg.jpg"
+              alt="Alice Medical Technology"
+              fill
+              className="object-cover object-center mix-blend-overlay opacity-90"
+              priority
+              unoptimized
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#05445e] via-[#05445e]/30 to-transparent"></div>
+
+            <div className="relative z-10">
+              <span className="inline-block px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-[11px] font-mono font-bold tracking-wider uppercase text-white">
+                ALICE - HRIS
+              </span>
             </div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              Selesaikan Pendaftaran
-            </h1>
-            <p className="text-slate-500 text-sm mt-2 font-medium">
-              Atur kata sandi untuk akun Alice Anda
-            </p>
+
+            <div className="relative z-10 space-y-1">
+              <h2 className="text-xl font-black text-white tracking-tight">
+                RSU Avisena
+              </h2>
+              <p className="text-xs text-white/80 font-medium">
+                Atur Kata Sandi Baru
+              </p>
+            </div>
           </div>
 
-          {status && (
-            <div className={`p-4 rounded-2xl mb-6 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300 ${
-              status.type === "success" 
-                ? "bg-green-50 text-green-700 border border-green-100" 
-                : "bg-red-50 text-red-700 border border-red-100"
-            }`}>
-              {status.type === "success" ? (
-                <CheckCircle2 size={20} className="shrink-0 mt-0.5" />
-              ) : (
-                <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-              )}
-              <span className="text-sm font-bold leading-relaxed">{status.msg}</span>
+          {/* PANEL KANAN: FORMULIR ATUR KATA SANDI */}
+          <div className="lg:col-span-7 p-8 sm:p-10 flex flex-col justify-center">
+            <div className="auth-form-item text-center mb-6">
+              <Link href="/" className="inline-block group mb-3">
+                <div className="relative w-36 h-10 mx-auto transition-transform group-hover:scale-105 duration-300">
+                  <Image
+                    src="/brand-avisena.png"
+                    alt="Logo RSU Avisena"
+                    fill
+                    sizes="160px"
+                    className="object-contain"
+                    priority
+                    unoptimized
+                  />
+                </div>
+              </Link>
+              <div className="lg:hidden inline-block mb-2">
+                <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-[11px] font-black tracking-wider text-[#0173b6] uppercase font-mono">
+                  ALICE - HRIS
+                </span>
+              </div>
+              <h1 className="text-2xl font-black text-[#05445e] tracking-tight">
+                Selesaikan Pendaftaran
+              </h1>
+              <p className="text-slate-500 text-xs mt-1 font-medium">
+                Atur kata sandi untuk akun Alice Anda
+              </p>
             </div>
-          )}
 
-          {token && status?.type !== "success" && (
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-4">
-                  Password Baru
-                </label>
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors">
-                    <Lock size={18} />
-                  </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    disabled={isLoading}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-12 pr-12 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all duration-200 text-sm font-medium text-slate-700"
-                    placeholder="Minimal 6 karakter"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors focus:outline-none"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-4">
-                  Konfirmasi Password
-                </label>
-                <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors">
-                    <Lock size={18} />
-                  </div>
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    required
-                    disabled={isLoading}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`w-full pl-12 pr-12 py-3.5 bg-slate-50/50 border rounded-2xl focus:bg-white outline-none transition-all duration-200 text-sm font-medium text-slate-700 ${
-                      confirmPassword && password !== confirmPassword 
-                        ? "border-red-500 focus:ring-4 focus:ring-red-500/10" 
-                        : "border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                    }`}
-                    placeholder="Ulangi password baru"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors focus:outline-none"
-                  >
-                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="text-[10px] text-red-500 font-bold mt-1 uppercase tracking-tighter ml-4 animate-in fade-in">
-                    Password tidak cocok!
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-3 bg-blue-600 px-6 py-4 rounded-2xl text-sm font-bold text-white shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 active:scale-[0.98] transition-all duration-300 disabled:bg-slate-300 disabled:shadow-none"
+            {status && (
+              <div
+                className={`auth-form-item mb-5 flex items-start gap-2.5 rounded-2xl p-3.5 text-xs font-bold border animate-in fade-in slide-in-from-top-2 ${
+                  status.type === "success"
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                }`}
               >
-                {isLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                {status.type === "success" ? (
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
                 ) : (
-                  <>
-                    <span>Aktifkan Akun</span>
-                    <KeyRound size={18} />
-                  </>
+                  <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
                 )}
-              </button>
-            </form>
-          )}
+                <p className="leading-relaxed">{status.msg}</p>
+              </div>
+            )}
 
-          <div className="mt-10 pt-8 border-t border-slate-100 text-center">
-            <a 
-              href="/login" 
-              className="inline-flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-blue-600 transition-all group"
-            >
-              <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-              Batal & Kembali ke Login
-            </a>
+            {token && status?.type !== "success" && (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Kata Sandi Baru */}
+                <div className="auth-form-item space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">
+                    Kata Sandi Baru
+                  </label>
+                  <div className="relative flex items-center bg-slate-50/80 border border-slate-200/90 rounded-2xl hover:border-slate-300 focus-within:border-[#0173b6] focus-within:bg-white focus-within:ring-4 focus-within:ring-[#0173b6]/10 transition-all">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#0173b6] flex items-center justify-center shrink-0 ml-1.5">
+                      <Lock size={16} />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      disabled={isLoading}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-transparent border-0 outline-none px-3 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-400"
+                      placeholder="Minimal 6 karakter"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-2.5 text-slate-400 hover:text-[#0173b6] transition-colors mr-1 focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {password.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[11px] ml-1 mt-1">
+                      <span
+                        className={`inline-flex items-center gap-1 font-bold ${
+                          isLengthValid ? "text-emerald-600" : "text-amber-600"
+                        }`}
+                      >
+                        {isLengthValid ? <Check size={12} /> : "•"} Minimal 6 karakter
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Konfirmasi Kata Sandi */}
+                <div className="auth-form-item space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">
+                    Konfirmasi Kata Sandi
+                  </label>
+                  <div
+                    className={`relative flex items-center bg-slate-50/80 border rounded-2xl hover:border-slate-300 focus-within:bg-white focus-within:ring-4 transition-all ${
+                      isPasswordMismatch
+                        ? "border-rose-400 focus-within:border-rose-500 focus-within:ring-rose-500/10"
+                        : isPasswordMatch
+                        ? "border-emerald-400 focus-within:border-emerald-500 focus-within:ring-emerald-500/10"
+                        : "border-slate-200/90 focus-within:border-[#0173b6] focus-within:ring-[#0173b6]/10"
+                    }`}
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#0173b6] flex items-center justify-center shrink-0 ml-1.5">
+                      <Lock size={16} />
+                    </div>
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      disabled={isLoading}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full bg-transparent border-0 outline-none px-3 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-400"
+                      placeholder="Ulangi kata sandi"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="p-2.5 text-slate-400 hover:text-[#0173b6] transition-colors mr-1 focus:outline-none"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {isPasswordMismatch && (
+                    <p className="text-[11px] font-bold text-rose-600 ml-1 mt-1">
+                      Kata sandi tidak cocok.
+                    </p>
+                  )}
+                  {isPasswordMatch && (
+                    <p className="text-[11px] font-bold text-emerald-600 ml-1 mt-1 flex items-center gap-1">
+                      <Check size={12} /> Kata sandi cocok!
+                    </p>
+                  )}
+                </div>
+
+                {/* Tombol Simpan */}
+                <div className="auth-form-item pt-2">
+                  <button
+                    type="submit"
+                    disabled={isLoading || !isLengthValid || isPasswordMismatch}
+                    className="w-full min-h-[46px] flex items-center justify-center gap-2 bg-[#0173b6] hover:bg-[#005f98] text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed border-0"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Mengaktifkan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound size={15} />
+                        <span>Aktifkan Akun</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Navigasi Balik ke Login */}
+            <div className="auth-form-item mt-6 pt-5 border-t border-slate-100 text-center">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-[#0173b6] transition-colors"
+              >
+                <ArrowLeft size={14} />
+                <span>Batal &amp; Kembali ke Login</span>
+              </Link>
+            </div>
           </div>
         </div>
-        
+
+        {/* Author Footer */}
         <p className="mt-8 text-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">
           Fallen • {new Date().getFullYear()}
         </p>

@@ -50,6 +50,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Tukar shift hanya bisa dilakukan dengan rekan di unit (atasan) yang sama." }, { status: 400 });
     }
 
+    // 2b. Validasi bahwa tidak ada pihak yang sedang cuti pada tanggal terkait
+    const cutiCheckResult = await pool.query(`
+      SELECT pc.karyawan_id, k.nama_lengkap
+      FROM pengajuan_cuti pc
+      JOIN karyawan k ON k.id = pc.karyawan_id
+      WHERE pc.status IN ('Disetujui', 'Menunggu Atasan', 'Menunggu SPV', 'Menunggu HC')
+        AND (
+          (pc.karyawan_id = $1 AND ((pc.tanggal_mulai::date <= $3::date AND pc.tanggal_selesai::date >= $3::date) OR pc.alasan LIKE '%' || $3 || '%'))
+          OR
+          (pc.karyawan_id = $2 AND ((pc.tanggal_mulai::date <= $4::date AND pc.tanggal_selesai::date >= $4::date) OR pc.alasan LIKE '%' || $4 || '%'))
+        )
+      LIMIT 1
+    `, [karyawan_pengaju_id, karyawan_pengganti_id, tanggal_pengaju, tanggal_pengganti]);
+
+    if (cutiCheckResult.rows.length > 0) {
+      const cutiUser = cutiCheckResult.rows[0];
+      return NextResponse.json({
+        message: `Tidak dapat mengajukan tukar shift: ${cutiUser.nama_lengkap} tercatat memiliki agenda cuti pada tanggal tersebut.`
+      }, { status: 400 });
+    }
+
     if (!info.atasan_email) {
       return NextResponse.json({ message: "Atasan tidak memiliki email yang terdaftar untuk menerima notifikasi." }, { status: 400 });
     }
