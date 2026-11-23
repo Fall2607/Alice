@@ -115,12 +115,23 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year');
     const month = searchParams.get('month');
 
-    // Karena pengajuan_cuti mungkin tidak menyimpan atasan_id (sebagai foreign key pemiliknya), kita bisa filter via JOIN ke karyawan
+    // Ambil data pengajuan cuti beserta info atasan, spv, jabatan, dan departemen
     let query = `
-      SELECT c.*, k.nama_lengkap, lj.nama_level AS nama_jabatan 
+      SELECT 
+        c.*, 
+        k.nama_lengkap, 
+        k.atasan_id,
+        atasan.nama_lengkap AS nama_atasan,
+        atasan.atasan_id AS spv_id,
+        spv.nama_lengkap AS nama_spv,
+        d.nama_departemen,
+        lj.nama_level AS nama_jabatan 
       FROM pengajuan_cuti c
       JOIN karyawan k ON c.karyawan_id = k.id
+      LEFT JOIN karyawan atasan ON k.atasan_id = atasan.id
+      LEFT JOIN karyawan spv ON atasan.atasan_id = spv.id
       LEFT JOIN jabatan j ON k.jabatan_id = j.id
+      LEFT JOIN departemen d ON j.departemen_id = d.id
       LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
       WHERE 1=1
     `;

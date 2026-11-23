@@ -17,7 +17,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-import pool from './src/app/lib/db';
+import pool from '../src/app/lib/db';
 
 async function migrate() {
   const client = await pool.connect();

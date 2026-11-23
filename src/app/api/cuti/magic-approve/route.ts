@@ -19,9 +19,20 @@ export async function GET(request: NextRequest) {
 
     // 1. Cari cuti berdasarkan token di pengajuan_cuti
     const cutiRes = await pool.query(`
-        SELECT c.*, k.nama_lengkap, k.atasan_id
+        SELECT 
+          c.*, 
+          k.nama_lengkap, 
+          k.atasan_id,
+          d.nama_departemen,
+          r.nama_role,
+          lj.nama_level
         FROM pengajuan_cuti c 
         JOIN karyawan k ON c.karyawan_id = k.id 
+        LEFT JOIN jabatan j ON k.jabatan_id = j.id
+        LEFT JOIN departemen d ON j.departemen_id = d.id
+        LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
+        LEFT JOIN users u ON (k.user_id = u.id OR k.email = u.email)
+        LEFT JOIN roles r ON u.role_id = r.id
         WHERE c.magic_token = $1
     `, [token]);
     
@@ -135,6 +146,17 @@ export async function GET(request: NextRequest) {
         }
       };
 
+      // Deteksi apakah pemohon adalah staf / SPV divisi Human Capital (HC)
+      const deptName = (cuti.nama_departemen || "").toUpperCase();
+      const roleName = (cuti.nama_role || "").toUpperCase();
+      const isApplicantHC =
+        deptName.includes("HC") ||
+        deptName.includes("HUMAN CAPITAL") ||
+        deptName.includes("HRD") ||
+        roleName.includes("HRD") ||
+        roleName.includes("HC") ||
+        roleName.includes("HUMAN CAPITAL");
+
       if (cuti.status === 'Menunggu Atasan') {
         // Cek level atasan
         const atasanRes = await pool.query(`
@@ -158,11 +180,18 @@ export async function GET(request: NextRequest) {
         }
 
         if (isSpvOrHigher || !spvInfo) {
-          // Lanjut ke HC
-          query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
-          params = [newMagicToken, cuti.atasan_id, cuti.id];
-          message = `Permohonan cuti ${cuti.nama_lengkap} disetujui oleh Atasan. Diteruskan ke HC.`;
-          await sendEmailToHC(newMagicToken);
+          if (isApplicantHC) {
+            // User HC yang memiliki atasan SPV atau Direksi langsung disetujui tanpa perlu ACC HC ulang
+            query = `UPDATE pengajuan_cuti SET status = 'Disetujui', magic_token = NULL, atasan_approved_by_id = $1 WHERE id = $2 RETURNING *`;
+            params = [cuti.atasan_id, cuti.id];
+            message = `Permohonan cuti ${cuti.nama_lengkap} berhasil DISETUJUI oleh Atasan (Persetujuan Final Divisi HC).`;
+          } else {
+            // Lanjut ke HC
+            query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
+            params = [newMagicToken, cuti.atasan_id, cuti.id];
+            message = `Permohonan cuti ${cuti.nama_lengkap} disetujui oleh Atasan. Diteruskan ke HC.`;
+            await sendEmailToHC(newMagicToken);
+          }
         } else {
           // Lanjut ke SPV
           query = `UPDATE pengajuan_cuti SET status = 'Menunggu SPV', magic_token = $1, atasan_approved_by_id = $2 WHERE id = $3 RETURNING *`;
@@ -180,14 +209,20 @@ export async function GET(request: NextRequest) {
         }
 
       } else if (cuti.status === 'Menunggu SPV') {
-         // SPV Approve -> Naik ke HC
+         // SPV Approve -> Jika HC langsung Disetujui final, jika non-HC naik ke HC
          const spvRes = await pool.query(`SELECT atasan_id FROM karyawan WHERE id = $1`, [cuti.atasan_id]);
          const spvId = spvRes.rows[0]?.atasan_id || null;
 
-         query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, spv_approved_by_id = $2 WHERE id = $3 RETURNING *`;
-         params = [newMagicToken, spvId, cuti.id];
-         message = `Permohonan cuti ${cuti.nama_lengkap} disetujui oleh SPV. Diteruskan ke HC.`;
-         await sendEmailToHC(newMagicToken);
+         if (isApplicantHC) {
+            query = `UPDATE pengajuan_cuti SET status = 'Disetujui', magic_token = NULL, spv_approved_by_id = $1 WHERE id = $2 RETURNING *`;
+            params = [spvId, cuti.id];
+            message = `Permohonan cuti ${cuti.nama_lengkap} berhasil DISETUJUI oleh SPV (Persetujuan Final Divisi HC).`;
+         } else {
+            query = `UPDATE pengajuan_cuti SET status = 'Menunggu HC', magic_token = $1, spv_approved_by_id = $2 WHERE id = $3 RETURNING *`;
+            params = [newMagicToken, spvId, cuti.id];
+            message = `Permohonan cuti ${cuti.nama_lengkap} disetujui oleh SPV. Diteruskan ke HC.`;
+            await sendEmailToHC(newMagicToken);
+         }
 
       } else if (cuti.status === 'Menunggu HC') {
         // HC approve -> Disetujui final

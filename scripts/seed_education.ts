@@ -1,4 +1,4 @@
-import pool from './src/app/lib/db';
+import pool from '../src/app/lib/db';
 
 async function seedEducation() {
   const client = await pool.connect();

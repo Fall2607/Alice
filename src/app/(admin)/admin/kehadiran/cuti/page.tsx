@@ -39,6 +39,8 @@ interface CutiRecord {
   nama_lengkap: string;
   nama_jabatan?: string;
   nama_departemen?: string;
+  nama_atasan?: string;
+  nama_spv?: string;
   jenis_cuti: string;
   jumlah_hari: number;
   tanggal_mulai: string;
@@ -788,7 +790,22 @@ export default function ApprovalCutiPage() {
               ) : (
                 <div className="grid gap-4">
                   {displayPendingLeaves.map((cuti) => {
-                    const canApproveThis = !isHCAdminUser || cuti.status === "Menunggu HC";
+                    const isSelf = Boolean(userInfo?.karyawan_id && cuti.karyawan_id === userInfo.karyawan_id);
+                    const isDirectAtasan = Boolean(userInfo?.karyawan_id && cuti.atasan_id === userInfo.karyawan_id);
+                    const isDirectSPV = Boolean(userInfo?.karyawan_id && cuti.spv_id === userInfo.karyawan_id);
+                    const userRoleLower = (userInfo?.role || "").toLowerCase();
+                    const isSuperAdmin = userRoleLower === "admin" || userRoleLower === "superadmin";
+
+                    // Aturan wewenang persetujuan cuti:
+                    // 1. Pemohon tidak dapat menyetujui pengajuannya sendiri
+                    // 2. Tahap Menunggu HC: User HC atau Admin
+                    // 3. Tahap Menunggu Atasan: Atasan langsung (termasuk SPV HC jika bawahannya staff HC) atau Admin
+                    // 4. Tahap Menunggu SPV: SPV dari atasan pemohon atau Admin
+                    const canApproveThis =
+                      !isSelf &&
+                      ((cuti.status === "Menunggu HC" && isHCAdminUser) ||
+                        (cuti.status === "Menunggu Atasan" && (isDirectAtasan || isSuperAdmin)) ||
+                        (cuti.status === "Menunggu SPV" && (isDirectSPV || isSuperAdmin)));
 
                     return (
                       <div
@@ -881,13 +898,31 @@ export default function ApprovalCutiPage() {
                                 <span>Tolak</span>
                               </button>
                             </>
+                          ) : isSelf ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-3 bg-blue-50/70 text-[#0173b6] rounded-xl border border-blue-200/80 text-xs font-semibold text-center gap-1">
+                              <Clock size={16} className="text-[#0173b6]" />
+                              <span className="text-[11px] font-bold">
+                                Pengajuan Anda Sendiri
+                              </span>
+                              <span className="text-[10px] text-slate-500">
+                                {cuti.status === "Menunggu Atasan" && cuti.nama_atasan
+                                  ? `Menunggu persetujuan atasan: ${cuti.nama_atasan}`
+                                  : `Menunggu persetujuan: ${cuti.status.replace("Menunggu ", "")}`}
+                              </span>
+                            </div>
                           ) : (
                             <div className="flex-1 flex flex-col items-center justify-center p-3 bg-slate-50 text-slate-500 rounded-xl border border-slate-200 text-xs font-semibold text-center gap-1">
                               <Clock size={16} className="text-amber-500" />
                               <span className="text-[11px] font-bold">
                                 Tertahan di {cuti.status.replace("Menunggu ", "")}
                               </span>
-                              <span className="text-[10px] text-slate-400">Menunggu persetujuan tingkat sebelumnya</span>
+                              <span className="text-[10px] text-slate-400">
+                                {cuti.status === "Menunggu Atasan" && cuti.nama_atasan
+                                  ? `Menunggu persetujuan ${cuti.nama_atasan}`
+                                  : cuti.status === "Menunggu SPV" && cuti.nama_spv
+                                  ? `Menunggu persetujuan SPV (${cuti.nama_spv})`
+                                  : "Menunggu persetujuan tingkat sebelumnya"}
+                              </span>
                             </div>
                           )}
                         </div>
