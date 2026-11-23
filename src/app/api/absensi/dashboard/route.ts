@@ -12,24 +12,25 @@ export async function GET(request: NextRequest) {
 
         const superiorId = searchParams.get('superior_id') || searchParams.get('superiorId');
 
-        // Base Karyawan Query
-        let karQuery = `SELECT k.id FROM karyawan k`;
+        // Base Karyawan Query (Hanya karyawan aktif, kecualikan yang sudah resign)
+        let karQuery = `
+            SELECT k.id 
+            FROM karyawan k
+            LEFT JOIN jabatan j ON k.jabatan_id = j.id
+            WHERE k.is_active = true AND k.tanggal_keluar IS NULL
+        `;
         const queryParams: any[] = [];
         
         if (unitParam && unitParam !== 'all' && unitParam !== 'Semua Unit') {
-            karQuery = `
-                SELECT k.id 
-                FROM karyawan k
-                LEFT JOIN jabatan j ON k.jabatan_id = j.id
-                WHERE j.departemen_id = $1
-            `;
+            karQuery += ` AND j.departemen_id = $${queryParams.length + 1}`;
             queryParams.push(unitParam);
         }
 
         if (superiorId) {
+            const paramIdx = queryParams.length + 1;
             const recursiveCte = `
                 WITH RECURSIVE subordinates AS (
-                    SELECT id FROM karyawan WHERE atasan_id = $${queryParams.length + 1}
+                    SELECT id FROM karyawan WHERE atasan_id = $${paramIdx}
                     UNION
                     SELECT k.id FROM karyawan k
                     INNER JOIN subordinates s ON s.id = k.atasan_id
@@ -37,11 +38,7 @@ export async function GET(request: NextRequest) {
             `;
             queryParams.push(superiorId);
             
-            if (karQuery.includes('WHERE')) {
-                karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
-            } else {
-                karQuery = `${recursiveCte} ${karQuery} WHERE k.id IN (SELECT id FROM subordinates)`;
-            }
+            karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
         }
 
         const karyawanRes = await pool.query(karQuery, queryParams);
