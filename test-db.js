@@ -1,1 +1,0 @@
-const pool = require('./src/app/lib/db').default; async function run() { try { const res = await pool.query('SELECT 1 as result'); console.log('DB OK:', res.rows); } catch(e) { console.error('DB ERROR:', e); } finally { process.exit(0); } } run();
