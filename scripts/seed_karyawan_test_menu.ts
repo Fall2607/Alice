@@ -17,7 +17,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-import pool from './src/app/lib/db';
+import pool from '../src/app/lib/db';
 import { randomUUID as uuidv4 } from 'crypto';
 
 async function seedMenu() {

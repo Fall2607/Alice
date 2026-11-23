@@ -1,4 +1,4 @@
-import pool from "./src/app/lib/db";
+import pool from "../src/app/lib/db";
 import crypto from "crypto";
 
 async function seedDummy() {
