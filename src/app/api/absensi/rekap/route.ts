@@ -22,15 +22,15 @@ export async function GET(request: NextRequest) {
 
         const superiorId = searchParams.get('superior_id') || searchParams.get('superiorId');
 
-        // 1. Ambil Karyawan (Filter by Unit if provided, and exclude those who resigned before startDate)
+        // 1. Ambil Karyawan Aktif (Kecualikan semua karyawan yang telah berstatus resign / non-aktif)
         let karQuery = `
             SELECT k.id, k.nama_lengkap as nama, k.jadwal_kerja_id, lj.nama_level as jabatan, k.tanggal_keluar, k.is_active
             FROM karyawan k
             LEFT JOIN jabatan j ON k.jabatan_id = j.id
             LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
-            WHERE (k.is_active = true OR k.status_kepegawaian = 'Aktif' OR (k.tanggal_keluar IS NOT NULL AND k.tanggal_keluar >= $1))
+            WHERE k.is_active = true AND k.tanggal_keluar IS NULL
         `;
-        const queryParams: any[] = [startDateParam];
+        const queryParams: any[] = [];
         
         if (unitParam && unitParam !== 'all' && unitParam !== 'Semua Unit') {
             karQuery += ` AND j.departemen_id = $${queryParams.length + 1}`;
@@ -38,9 +38,10 @@ export async function GET(request: NextRequest) {
         }
 
         if (superiorId) {
+            const paramIdx = queryParams.length + 1;
             const recursiveCte = `
                 WITH RECURSIVE subordinates AS (
-                    SELECT id FROM karyawan WHERE atasan_id = $${queryParams.length + 1}
+                    SELECT id FROM karyawan WHERE atasan_id = $${paramIdx}
                     UNION
                     SELECT k.id FROM karyawan k
                     INNER JOIN subordinates s ON s.id = k.atasan_id
