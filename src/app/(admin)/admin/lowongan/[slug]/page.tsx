@@ -47,6 +47,7 @@ import {
   CheckSquare,
   Square,
   BadgeCheck,
+  Printer,
 } from "lucide-react";
 
 import AssessmentSelector from "@/app/components/admin/AssessmentSelector";
@@ -57,9 +58,10 @@ import CFITResultView from "@/app/components/admin/CFITResultView";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
 import Pagination from "@/app/components/admin/Pagination";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
-import { getAuthHeaders } from "@/app/lib/adminFetch";
+import { getAuthHeaders, getStoredAdminUser } from "@/app/lib/adminFetch";
 import { getDISCProfileDetail } from "@/app/utils/discUtils";
 import { getMBTIProfileDetail } from "@/app/utils/mbtiUtils";
+import { printAssessmentReport } from "@/app/utils/printAssessmentReport";
 import Swal from "sweetalert2";
 
 if (typeof window !== "undefined") {
@@ -1443,22 +1445,39 @@ export default function DetailLowonganPage() {
         ) : candidateDetail && candidateDetail.assessment_results ? (
           <div className="space-y-6">
             {/* Header Sesi */}
-            <div className="bg-slate-50/90 p-4 rounded-xl border border-slate-200/80 flex items-center justify-between">
+            <div className="bg-slate-50/90 p-4 rounded-xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">{candidateDetail.nama}</h3>
                 <p className="text-xs font-mono tabular-nums text-slate-500 mt-0.5">
                   Token: {candidateDetail.assessment_results.session?.token || "-"}
                 </p>
               </div>
-              <span
-                className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full ${
-                  candidateDetail.assessment_results.session?.status === "COMPLETED"
-                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                    : "bg-blue-100 text-blue-800 border border-blue-200"
-                }`}
-              >
-                {candidateDetail.assessment_results.session?.status || "IN_PROGRESS"}
-              </span>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span
+                  className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full ${
+                    candidateDetail.assessment_results.session?.status === "COMPLETED"
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-blue-100 text-blue-800 border border-blue-200"
+                  }`}
+                >
+                  {candidateDetail.assessment_results.session?.status || "IN_PROGRESS"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    printAssessmentReport({
+                      candidate: candidateDetail,
+                      job,
+                      printedBy: getStoredAdminUser()?.name,
+                    })
+                  }
+                  className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-xl shadow-xs transition-all active:scale-[0.98] text-xs uppercase tracking-wider cursor-pointer"
+                  title="Cetak laporan resmi A4 dengan Kop RSU Avisena"
+                >
+                  <Printer size={15} />
+                  <span>Cetak Laporan (A4 / PDF)</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -1710,15 +1729,34 @@ export default function DetailLowonganPage() {
               </div>
             </div>
 
-            {/* Footer Tutup */}
-            <div className="pt-4 border-t border-slate-200 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedAssessmentId(null)}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                Tutup Laporan
-              </button>
+            {/* Footer Tutup & Cetak */}
+            <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[11px] text-slate-400 font-medium">
+                Cetakan menggunakan tata letak dokumen A4 resmi RSU Avisena (terpisah dari tampilan modal).
+              </p>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    printAssessmentReport({
+                      candidate: candidateDetail,
+                      job,
+                      printedBy: getStoredAdminUser()?.name,
+                    })
+                  }
+                  className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white font-bold py-2.5 px-5 rounded-xl shadow-xs transition-all active:scale-[0.98] text-xs uppercase tracking-wider cursor-pointer"
+                >
+                  <Printer size={15} />
+                  <span>Cetak Laporan (A4 / PDF)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAssessmentId(null)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Tutup Laporan
+                </button>
+              </div>
             </div>
           </div>
         ) : (

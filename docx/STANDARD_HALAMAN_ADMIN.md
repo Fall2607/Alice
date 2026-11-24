@@ -433,6 +433,17 @@ Halaman peninjauan detail lowongan, antrean berkas kandidat, dan evaluasi psikom
    - Saat HC menyetujui request (`PATCH /api/employee-requests/[id]` status `Disetujui`), lowongan baru otomatis dipasangi bundle assessment kategori **Umum** milik jabatan terkait (`job_assessments.category = 'Umum'` → `job_opening_assessments`), dalam transaksi yang sama.
    - Bundle **essay tidak dipasang otomatis**. HC menambahkannya manual lewat tab `Konfigurasi Ujian & Bundel Essay` bila posisi membutuhkannya.
    - HC tetap bisa mengganti bundle assessment ke kategori spesialis kapan saja.
+8. **Standar Cetak Laporan Psikometri & Evaluasi Essay (A4 / PDF)**:
+   - Menggunakan generator dokumen cetak mandiri (`src/app/utils/printAssessmentReport.ts`) yang membuka jendela A4 bersih (terpisah dari kontainer modal agar tidak memotong halaman atau mencetak backdrop/sidebar).
+   - Struktur Dokumen A4:
+     - **Kop Surat Resmi RSU Avisena**: Logo `/brand-avisena.png`, identitas Divisi Human Capital, token sesi ujian, dan stempel waktu cetak WIB.
+     - **Bagian I — Identitas Kandidat & Ringkasan Hasil**: Tabel ringkas profil pelamar, posisi dilamar, unit pemohon, dan ringkasan cepat hasil 5 tes.
+     - **Bagian II — Profil MBTI**: Tipe kepribadian, julukan, tabel & bar proporsi 4 dimensi (E/I, S/N, T/F, J/P), ciri umum, kontribusi organisasi, dan area pengembangan.
+     - **Bagian III — Profil Perilaku Kerja DISC**: Pola profil midline 0, karakter utama, tabel skor Most/Least/Diff, deskripsi, kelebihan, area pengembangan, dan rekomendasi posisi.
+     - **Bagian IV — Kapasitas Intelektual CFIT Skala 3**: Skor IQ, klasifikasi inteligensi, total jawaban benar (`/50`), rincian 4 subtes, dan interpretasi kapasitas intelektual.
+     - **Bagian V — Tabel 20 Dimensi PAPI Kostick**: Rekapitulasi lengkap 7 domain aspek dan 20 skala trait (skor `0–9`, kategori Rendah/Sedang/Tinggi, dan interpretasi perilaku kerja).
+     - **Bagian VI — Evaluasi Tes Essay Kompetensi**: Status keputusan (`LOLOS` / `TIDAK LOLOS`), waktu pengerjaan, penilai, kesimpulan akhir, serta rincian seluruh butir pertanyaan, jawaban kandidat, dan catatan penilai per soal.
+     - **Bagian VII — Lembar Pengesahan**: Kolom tanda tangan resmi untuk **Human Capital & Recruitment** serta **Kepala Unit / User Pemohon**.
 
 ---
 
