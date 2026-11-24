@@ -334,7 +334,109 @@ Dashboard utama admin (`src/app/(admin)/admin/page.tsx`) berfungsi sebagai pusat
 
 ---
 
-## 10. Checklist Verifikasi Sebelum Menyelesaikan Halaman
+## 10. Standar Modul Request Pegawai & Rekrutmen Kebutuhan SDM
+
+Modul perencanaan formasi dan permintaan tenaga kerja (`src/app/(admin)/admin/request-pegawai/page.tsx`) menerapkan standar:
+1. **Lebar Margin & Ergonomi**:
+   - Format *full-width padding* `className="p-8 font-sans min-h-screen space-y-6 max-w-full mx-auto"`.
+2. **Anatomi 5-Layer Terpadu (Mode List)**:
+   - **Layer 1: Header Halaman**: Kategori `Perencanaan SDM & Rekrutmen Tenaga Kerja`, H1 Judul, Deskripsi operasional, dan Tombol CTA `Buat Request Baru` (`rounded-xl min-h-[44px]`).
+   - **Layer 2: KPI Ribbon (4 Grid)**: Total Pengajuan, Menunggu Review (Amber), Disetujui / Terbit (Emerald), dan Ditolak (Rose) dengan angka `font-mono tabular-nums`.
+   - **Layer 3: Kontainer Filter & Pencarian**: Grid 5 kolom dengan pencarian teks, Filter Status, Filter Kategori, Filter Urgensi, serta tombol `Reset Filter`.
+   - **Layer 4: Baris Judul Tabel**: Judul daftar dan counter jumlah pengajuan terfilter.
+   - **Layer 5: Tabel Data Eksekutif**: Header gelap `#05445e` teks putih, inisial avatar jabatan, badge kategori, badge urgensi, format tanggal Indonesia, dan aksi cepat (Lihat Detail, Setujui, Tolak). Dilengkapi `Pagination` terintegrasi.
+3. **Form Pembuatan Request Baru (Mode Add 2-Kolom)**:
+   - **Kolom Kiri (Spesifikasi Kebutuhan SDM)**:
+     - Kategori formasi: Toggle `Penambahan Formasi` vs `Pergantian Pegawai`.
+     - Posisi Jabatan: Dropdown terstandar `SearchableSelect` (`react-select`).
+     - Stepper Kuantitas: Input stepper `font-mono tabular-nums` dengan tombol minus dan plus.
+     - Tingkat Urgensi: Pilihan visual 3 level (Rendah, Sedang, Tinggi).
+     - Live Scorecard Benchmark MBTI Top 3: Tampilan gradient navy `#05445e` s/d `#0173b6` dengan trophy icon, persentase kecocokan, dan DaisyUI `progress progress-primary`.
+   - **Kolom Kanan (Psikometri & Karakteristik MBTI)**:
+     - 4 Dimensi Karakteristik: Orientasi Interaksi (E/I), Pemrosesan Informasi (S/N), Pengambilan Keputusan (T/F), dan Pola Kerja (J/P).
+     - Kartu interaktif pilihan chip yang dapat dicentang dengan indikator visual aktif warna Avisena Blue (`#0173b6`).
+4. **Standar Dialog Modal Persetujuan & Penolakan**:
+   - Modal Detail: Preview komprehensif profil formasi dan chip benchmark MBTI.
+   - Modal Setujui: Form persetujuan HC untuk penentuan Judul Posting Lowongan, Batas Akhir Lamaran, dan Status Publikasi (`Published` / `Draft`).
+   - Konfirmasi Tolak: Menggunakan dialog interaktif `Swal.fire` (SweetAlert2) dengan aksi solutif.
+5. **GSAP Motion**:
+   - `useGSAP` dengan scoped `containerRef` dan `dependencies: [view, isLoading]`.
+   - Stagger entrance animasi pada header, kartu KPI, filter bar, dan baris tabel (list view), serta form spesifikasi dan karakteristik MBTI (add view).
+
+---
+
+## 11. Standar Modul Manajemen Lowongan Pekerjaan (Job Openings)
+
+Modul publikasi bursa kerja dan antrean pelamar (`src/app/(admin)/admin/lowongan/page.tsx`) menerapkan standar:
+1. **Lebar Margin & Ergonomi**:
+   - Format *full-width padding* `className="p-8 font-sans min-h-screen space-y-6 max-w-full mx-auto"`.
+2. **Anatomi 5-Layer Terpadu**:
+   - **Layer 1: Header Halaman**: Kategori `Portal Rekrutmen & Bursa Lowongan RS Avisena`, H1 Judul, Deskripsi dinamis berbasis wewenang (HC vs Kepala Unit), dan Tombol CTA `Buka Dari Request SDM` (`rounded-xl min-h-[44px]`).
+   - **Layer 2: KPI Ribbon (5 Grid Horizontal)**:
+     - Total Lowongan (Briefcase, Avisena Blue)
+     - Aktif Tayang / Published (CheckCircle2, Emerald)
+     - Draft Persiapan (FileText, Amber)
+     - Ditutup / Arsip (Clock, Slate)
+     - Total Berkas Pelamar Masuk (Users, Indigo)
+     - Seluruh metrik menggunakan `font-mono tabular-nums`.
+   - **Layer 3: Kontainer Filter & Pencarian**:
+     - Grid 5 kolom: input teks pencarian cepat (judul lowongan, posisi, pemohon, departemen) dengan tombol clear `X`.
+     - Filter Status (`SearchableSelect`): `Semua Status`, `Published`, `Draft`, `Closed`, `Archived`.
+     - Filter Kategori (`SearchableSelect`): `Semua Kategori`, `Medis`, `Non-Medis`.
+     - Filter Departemen (`SearchableSelect`): dinamis berdasarkan departemen/unit yang terdata.
+     - Tombol `Reset Filter` dinamis berikon `RotateCcw`.
+   - **Layer 4: Baris Judul Tabel**: H2 judul daftar lowongan dan counter data terfilter (`tabular-nums font-mono`).
+   - **Layer 5: Tabel Data Eksekutif**:
+     - Header gelap Navy `#05445e` (`bg-primary-dark`) dengan teks putih uppercase tracking-wider.
+     - Kolom Posisi Lowongan dengan avatar inisial box, link judul lowongan, subtitle unit/departemen pemohon, serta tag bundel essay terlampir.
+     - Kolom Kategori Bidang: badge semantik `Medis` (Blue/Cyan) vs `Non-Medis` (Emerald).
+     - Kolom Status Publikasi: badge semantik `Published` (Emerald), `Draft` (Amber), `Closed` (Slate).
+     - Kolom Pelamar: visual indikator jumlah pelamar `font-mono tabular-nums font-black` yang dapat diklik langsung menuju portal antrean berkas pelamar.
+     - Kolom Jadwal & Batas Akhir: tanggal posting dan tanggal deadline dengan indikator masa berlaku.
+     - Kolom Aksi: Tombol Detail Pelamar (`Eye`), Edit Konfigurasi (`Edit`), dan Hapus Lowongan (`Trash2`).
+     - Komponen `Pagination` terintegrasi di bagian bawah kontainer tabel.
+3. **Standar Dialog Modal & Konfirmasi**:
+   - Modal Edit Konfigurasi: backdrop `bg-black/60 backdrop-blur-xs`, kontainer `rounded-2xl`, header navy `#05445e`, input judul lowongan berikon, selector status publikasi, dan datepicker batas akhir penerimaan berkas.
+   - Konfirmasi Hapus: Dialog interaktif `Swal.fire` (SweetAlert2) dengan tema warna RS Avisena dan notifikasi responsif `showSuccessToast` / `showErrorToast`.
+4. **GSAP Motion (Single Entrance)**:
+   - `useGSAP` dengan scoped `containerRef` tanpa mengikat `[jobs, isLoading]` sebagai dependency animasi agar tidak terjadi *double-flash* / animasi berulang saat data selesai dimuat.
+   - Animasi entrance stagger berjalan satu kali secara mulus pada header, 5 kartu KPI, filter bar, dan baris data lowongan.
+
+---
+
+## 12. Standar Modul Detail Lowongan & Seleksi Pelamar (`/admin/lowongan/[slug]`)
+
+Halaman peninjauan detail lowongan, antrean berkas kandidat, dan evaluasi psikometri (`src/app/(admin)/admin/lowongan/[slug]/page.tsx`) menerapkan standar:
+1. **Lebar Margin & Navigasi**:
+   - Format *full-width padding* `className="p-8 font-sans min-h-screen space-y-6 max-w-full mx-auto"`.
+   - Tombol navigasi kembali yang tegas dengan efek hover interaktif.
+2. **Hero Banner Informasi Formasi**:
+   - Header terstruktur: status publikasi, kategori bidang (Medis vs Non-Medis), unit kerja pemohon, tanggal posting, dan batas akhir lamaran.
+   - Counter blok pelamar dengan gradien `#05445e` s/d `#0173b6` dan total berkas kandidat `font-mono tabular-nums`.
+   - Deskripsi Pekerjaan & Kualifikasi Formasi dalam kontainer 2-kolom rapi.
+3. **KPI Ribbon Antrean Pelamar (4 Grid)**:
+   - Total Pelamar, Menunggu Seleksi (Pending/Submitted), Tahap Assessment (Ujian), dan Lolos/Diterima.
+4. **Navigasi Tab Segmented Control**:
+   - Menggunakan segmented button tab untuk beralih antara `Antrean Berkas & Seleksi Pelamar` dan `Konfigurasi Ujian & Bundel Essay` (khusus HC).
+5. **Tabel Antrean Kandidat Eksekutif**:
+   - Checkbox seleksi massal dengan tombol aksi cepat `Undang Massal`.
+   - Filter pencarian nama/email/wa, filter status pipeline, dan filter status essay.
+   - Visual avatar inisial box, nomor telepon WhatsApp langsung aktif (`wa.me`), status pipeline badge, status essay badge, dan mini progress bar kecocokan skor.
+   - Aksi baris: Lihat Profil Lengkap (`Eye`), Kirim Undangan Ujian (`Send`), Tolak Berkas (`XCircle` dengan `Swal.fire`), dan Lihat Laporan Psikometri (`ClipboardList`).
+   - Komponen `Pagination` terintegrasi di bagian bawah tabel.
+6. **Modal Dialog Terstandar**:
+   - Modal Profil Lengkap: Foto pas foto, kontak, timeline pengalaman kerja, riwayat pendidikan, data keluarga, dan berkas lampiran unduh.
+   - Modal Laporan Psikometri: Visualisasi MBTI, DISC (formula midline 0), PAPI Kostick, CFIT Skala 3, dan panel evaluasi essay.
+   - Modal Rincian Skor: Pembobotan butir pertanyaan dan jawaban kandidat.
+   - Modal Penjadwalan Tes: Datepicker tanggal aktif ujian untuk undangan tunggal atau massal.
+7. **Default Bundle saat Lowongan Dibuat dari Request Pegawai**:
+   - Saat HC menyetujui request (`PATCH /api/employee-requests/[id]` status `Disetujui`), lowongan baru otomatis dipasangi bundle assessment kategori **Umum** milik jabatan terkait (`job_assessments.category = 'Umum'` → `job_opening_assessments`), dalam transaksi yang sama.
+   - Bundle **essay tidak dipasang otomatis**. HC menambahkannya manual lewat tab `Konfigurasi Ujian & Bundel Essay` bila posisi membutuhkannya.
+   - HC tetap bisa mengganti bundle assessment ke kategori spesialis kapan saja.
+
+---
+
+## 13. Checklist Verifikasi Sebelum Menyelesaikan Halaman
 
 - [ ] Header menggunakan Tag Kategori, Judul H1 `text-primary-dark`, dan Tombol Tambah `rounded-xl min-h-[44px]`.
 - [ ] Kontainer Filter menggunakan `rounded-2xl border-slate-200/80` dengan reset filter `RotateCcw`.

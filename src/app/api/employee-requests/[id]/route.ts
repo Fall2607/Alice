@@ -166,9 +166,10 @@ export async function PATCH(
       const approvedRequest = updateResult.rows[0];
 
       // 2. Buat entri lowongan di job_openings (Menggunakan UUID)
-      await client.query(
+      const openingResult = await client.query(
         `INSERT INTO job_openings (request_id, job_id, title, status, closing_date, posted_date)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
         [
           id,
           approvedRequest.job_id,
@@ -178,6 +179,23 @@ export async function PATCH(
           postedDate,
         ]
       );
+      const newOpeningId: string = openingResult.rows[0].id;
+
+      // Bundle assessment default: kategori "Umum" milik jabatan terkait.
+      // Bundle essay sengaja tidak dipasang otomatis; HC menambahkannya manual bila perlu.
+      const defaultBundle = await client.query(
+        `INSERT INTO job_opening_assessments (job_opening_id, job_assessment_id, is_active)
+         SELECT $1, ja.id, true
+         FROM job_assessments ja
+         WHERE ja.job_id = $2
+           AND COALESCE(NULLIF(TRIM(ja.category), ''), 'Umum') = 'Umum'`,
+        [newOpeningId, approvedRequest.job_id]
+      );
+      if (defaultBundle.rowCount === 0) {
+        console.warn(
+          `Lowongan ${newOpeningId} dibuat tanpa bundle assessment: jabatan ${approvedRequest.job_id} belum punya soal kategori Umum.`
+        );
+      }
 
       await client.query("COMMIT");
       return NextResponse.json(approvedRequest);
