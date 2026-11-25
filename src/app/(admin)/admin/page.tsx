@@ -516,8 +516,8 @@ export default function DashboardAdminPage() {
               {isHCAdmin
                 ? "Pusat Komando Operasional & HRIS RS"
                 : isLeader
-                ? `Portal Koordinasi Tim • ${karyawanProfile?.nama_departemen || user?.role || "Unit Kerja"}`
-                : `Asisten Kerja Mandiri • ${karyawanProfile?.nama_departemen || "RSU Avisena"}`}
+                  ? `Portal Koordinasi Tim • ${karyawanProfile?.nama_departemen || user?.role || "Unit Kerja"}`
+                  : `Asisten Kerja Mandiri • ${karyawanProfile?.nama_departemen || "RSU Avisena"}`}
             </span>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -549,8 +549,8 @@ export default function DashboardAdminPage() {
             {isHCAdmin
               ? "Pantau kehadiran real-time seluruh unit RSU Avisena, kelola persetujuan cuti berjenjang, jadwal dinas, dan evaluasi berkala pegawai."
               : isLeader
-              ? `Pantau kehadiran tim kerja Anda di ${karyawanProfile?.nama_departemen || "RSU Avisena"}, absensi harian, dan tindak lanjuti persetujuan bawahan.`
-              : "Pantau jadwal dinas harian, status presensi kehadiran cut-off 26–25, sisa hak cuti, dan penugasan unit kerja Anda."}
+                ? `Pantau kehadiran tim kerja Anda di ${karyawanProfile?.nama_departemen || "RSU Avisena"}, absensi harian, dan tindak lanjuti persetujuan bawahan.`
+                : "Pantau jadwal dinas harian, status presensi kehadiran cut-off 26–25, sisa hak cuti, dan penugasan unit kerja Anda."}
           </p>
         </div>
 
@@ -610,11 +610,10 @@ export default function DashboardAdminPage() {
               </p>
             </div>
             <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                todayShiftInfo.isOff
+              className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 ${todayShiftInfo.isOff
                   ? "bg-slate-100 text-slate-600"
                   : "bg-blue-50 text-[#0173b6]"
-              }`}
+                }`}
             >
               {todayShiftInfo.isOff ? <Coffee size={22} /> : <Sunrise size={22} />}
             </div>
@@ -629,9 +628,8 @@ export default function DashboardAdminPage() {
                 </p>
                 {todayAbsensiItem ? (
                   <span
-                    className={`badge badge-xs text-[9px] font-bold text-white ${
-                      todayAbsensiItem.is_late ? "badge-warning" : "badge-success"
-                    }`}
+                    className={`badge badge-xs text-[9px] font-bold text-white ${todayAbsensiItem.is_late ? "badge-warning" : "badge-success"
+                      }`}
                   >
                     {todayAbsensiItem.is_late ? "Terlambat" : "Tepat Waktu"}
                   </span>
@@ -659,14 +657,13 @@ export default function DashboardAdminPage() {
                 {todayAbsensiItem?.jam_keluar
                   ? `Pulang: ${todayAbsensiItem.jam_keluar.slice(0, 5)} WIB`
                   : todayAbsensiItem?.jam_masuk
-                  ? "Belum Absen Pulang"
-                  : "Silakan Presensi Masuk"}
+                    ? "Belum Absen Pulang"
+                    : "Silakan Presensi Masuk"}
               </p>
             </div>
             <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 ${
-                todayAbsensiItem ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
-              }`}
+              className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold shrink-0 ${todayAbsensiItem ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                }`}
             >
               <UserCheck size={22} />
             </div>
@@ -812,11 +809,10 @@ export default function DashboardAdminPage() {
         <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200/80 gap-1">
           <button
             onClick={() => setActiveTab("OVERVIEW")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === "OVERVIEW"
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "OVERVIEW"
                 ? "bg-[#0173b6] text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
-            }`}
+              }`}
           >
             <Activity size={14} />
             <span>{isStaff ? "Aktivitas Kerja Mandiri" : "Ringkasan Utama"}</span>
@@ -824,11 +820,10 @@ export default function DashboardAdminPage() {
 
           <button
             onClick={() => setActiveTab("SCHEDULE")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === "SCHEDULE"
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "SCHEDULE"
                 ? "bg-[#0173b6] text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
-            }`}
+              }`}
           >
             <CalendarDays size={14} />
             <span>Jadwal Dinas Saya</span>
@@ -837,11 +832,10 @@ export default function DashboardAdminPage() {
           {!isStaff && (
             <button
               onClick={() => setActiveTab("ALERTS")}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "ALERTS"
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "ALERTS"
                   ? "bg-[#0173b6] text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
-              }`}
+                }`}
             >
               <AlertTriangle size={14} />
               <span>Peringatan &amp; Kontrak</span>
@@ -927,28 +921,26 @@ export default function DashboardAdminPage() {
                         const shiftTheme = shiftInfo
                           ? getShiftTheme(shiftInfo.nama_shift)
                           : {
-                              bg: "bg-slate-50",
-                              text: "text-slate-400",
-                              border: "border-slate-200",
-                              icon: Coffee,
-                            };
+                            bg: "bg-slate-50",
+                            text: "text-slate-400",
+                            border: "border-slate-200",
+                            icon: Coffee,
+                          };
                         const ShiftIcon = shiftTheme.icon;
 
                         return (
                           <div
                             key={dayItem.date}
-                            className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${
-                              isDayToday
+                            className={`p-3 rounded-xl border flex flex-col justify-between transition-all ${isDayToday
                                 ? "bg-blue-50/70 border-[#0173b6] ring-2 ring-[#0173b6]/20 shadow-xs"
                                 : "bg-white border-slate-200/90 hover:border-slate-300"
-                            }`}
+                              }`}
                           >
                             <div>
                               <div className="flex items-center justify-between mb-1.5">
                                 <span
-                                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    isDayToday ? "text-[#0173b6]" : "text-slate-400"
-                                  }`}
+                                  className={`text-[10px] font-bold uppercase tracking-wider ${isDayToday ? "text-[#0173b6]" : "text-slate-400"
+                                    }`}
                                 >
                                   {dayNameShort}
                                 </span>
@@ -970,9 +962,8 @@ export default function DashboardAdminPage() {
                               <div className="flex items-center gap-1">
                                 <ShiftIcon size={12} className={shiftTheme.text} />
                                 <span
-                                  className={`text-[11px] font-bold truncate ${
-                                    shiftInfo ? shiftTheme.text : "text-slate-400"
-                                  }`}
+                                  className={`text-[11px] font-bold truncate ${shiftInfo ? shiftTheme.text : "text-slate-400"
+                                    }`}
                                 >
                                   {shiftInfo ? shiftInfo.nama_shift : "Off / Libur"}
                                 </span>
@@ -1093,7 +1084,7 @@ export default function DashboardAdminPage() {
                           />
                         </div>
                         <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
-                          Akses ID Card digital 3D resmi RSU Avisena, berkas dossier kepegawaian, dan data kontak terdaftar.
+                          Akses ID Card digital 3D resmi RSU Avisena, berkas profil kepegawaian, dan data kontak terdaftar.
                         </p>
                       </div>
                     </Link>
@@ -1146,13 +1137,12 @@ export default function DashboardAdminPage() {
                           {personalCuti[0].jenis_cuti}
                         </span>
                         <span
-                          className={`badge text-[10px] font-bold border-0 ${
-                            personalCuti[0].status.toLowerCase().includes("disetujui")
+                          className={`badge text-[10px] font-bold border-0 ${personalCuti[0].status.toLowerCase().includes("disetujui")
                               ? "bg-emerald-100 text-emerald-800"
                               : personalCuti[0].status.toLowerCase().includes("ditolak")
-                              ? "bg-rose-100 text-rose-800"
-                              : "bg-amber-100 text-amber-900"
-                          }`}
+                                ? "bg-rose-100 text-rose-800"
+                                : "bg-amber-100 text-amber-900"
+                            }`}
                         >
                           {personalCuti[0].status}
                         </span>
@@ -1233,9 +1223,8 @@ export default function DashboardAdminPage() {
                           </div>
                           <div>
                             <span
-                              className={`badge badge-xs text-[9px] font-bold text-white px-2 py-1.5 ${
-                                item.is_late ? "badge-warning" : "badge-success"
-                              }`}
+                              className={`badge badge-xs text-[9px] font-bold text-white px-2 py-1.5 ${item.is_late ? "badge-warning" : "badge-success"
+                                }`}
                             >
                               {item.is_late ? "Terlambat" : "Tepat Waktu"}
                             </span>
@@ -1292,35 +1281,32 @@ export default function DashboardAdminPage() {
                     <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex">
                       <div
                         style={{
-                          width: `${
-                            stats.totalKaryawan > 0
+                          width: `${stats.totalKaryawan > 0
                               ? ((stats.hadirHariIni - stats.terlambatHariIni) /
-                                  stats.totalKaryawan) *
-                                100
+                                stats.totalKaryawan) *
+                              100
                               : 0
-                          }%`,
+                            }%`,
                         }}
                         className="bg-emerald-500 h-full transition-all duration-500"
                         title="Hadir Tepat Waktu"
                       ></div>
                       <div
                         style={{
-                          width: `${
-                            stats.totalKaryawan > 0
+                          width: `${stats.totalKaryawan > 0
                               ? (stats.terlambatHariIni / stats.totalKaryawan) * 100
                               : 0
-                          }%`,
+                            }%`,
                         }}
                         className="bg-amber-500 h-full transition-all duration-500"
                         title="Terlambat"
                       ></div>
                       <div
                         style={{
-                          width: `${
-                            stats.totalKaryawan > 0
+                          width: `${stats.totalKaryawan > 0
                               ? (stats.alphaHariIni / stats.totalKaryawan) * 100
                               : 0
-                          }%`,
+                            }%`,
                         }}
                         className="bg-slate-200 h-full transition-all duration-500"
                         title="Belum Presensi / Off"
@@ -1618,9 +1604,8 @@ export default function DashboardAdminPage() {
               {daysOfWeek.map((day, i) => (
                 <div
                   key={day}
-                  className={`py-3 text-center text-xs font-bold uppercase tracking-wider ${
-                    i >= 5 ? "text-rose-500" : "text-slate-600"
-                  }`}
+                  className={`py-3 text-center text-xs font-bold uppercase tracking-wider ${i >= 5 ? "text-rose-500" : "text-slate-600"
+                    }`}
                 >
                   {day}
                 </div>
@@ -1664,26 +1649,24 @@ export default function DashboardAdminPage() {
                     item.shifts && item.shifts.length > 0
                       ? item.shifts
                       : item.shift
-                      ? [item.shift]
-                      : [];
+                        ? [item.shift]
+                        : [];
 
                   return (
                     <div
                       key={item.date}
-                      className={`relative p-3 border-b sm:border-r border-slate-100 transition-all hover:bg-slate-50/80 group ${
-                        isToday ? "bg-blue-50/40" : ""
-                      }`}
+                      className={`relative p-3 border-b sm:border-r border-slate-100 transition-all hover:bg-slate-50/80 group ${isToday ? "bg-blue-50/40" : ""
+                        }`}
                     >
                       <div className="flex sm:flex-col justify-between items-start h-full gap-2">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`flex flex-col items-center justify-center w-8 h-8 rounded-xl font-bold leading-tight font-mono tabular-nums ${
-                              isToday
+                            className={`flex flex-col items-center justify-center w-8 h-8 rounded-xl font-bold leading-tight font-mono tabular-nums ${isToday
                                 ? "bg-[#0173b6] text-white shadow-xs"
                                 : isWeekend
-                                ? "text-rose-600 bg-rose-50"
-                                : "text-slate-700 bg-slate-100"
-                            }`}
+                                  ? "text-rose-600 bg-rose-50"
+                                  : "text-slate-700 bg-slate-100"
+                              }`}
                           >
                             <span className="text-xs">{dateObj.getDate()}</span>
                           </span>

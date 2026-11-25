@@ -30,6 +30,7 @@ import Modal from "@/app/components/modal";
 import Pagination from "@/app/components/admin/Pagination";
 import SearchableSelect from "@/app/components/admin/SearchableSelect";
 import { showSuccessToast, showErrorToast } from "@/app/components/admin/Alert";
+import EmployeeCompleteProfileSection from "@/app/components/admin/EmployeeCompleteProfileSection";
 
 // Renamed to FormOption to avoid naming collisions with external components
 type FormOption = { value: string; label: string };
@@ -1099,6 +1100,12 @@ export default function EmployeeManagementPage() {
                 </div>
               </div>
             </div>
+
+            {/* Rincian Lengkap Keluarga, Pendidikan, Pengalaman & Dokumen Berkas Pegawai */}
+            <EmployeeCompleteProfileSection
+              karyawanId={selectedEmployee.id}
+              isHRDView={true}
+            />
 
             {/* Modal Footer Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">

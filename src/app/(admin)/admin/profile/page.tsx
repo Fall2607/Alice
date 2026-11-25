@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   User,
   Mail,
@@ -12,8 +13,6 @@ import {
   ShieldCheck,
   Loader2,
   AlertCircle,
-  Camera,
-  ChevronLeft,
   ScanFace,
   CreditCard,
   Copy,
@@ -25,6 +24,17 @@ import {
   Printer,
   BadgeCheck,
   HeartPulse,
+  Edit3,
+  Users,
+  GraduationCap,
+  FolderOpen,
+  FileText,
+  ExternalLink,
+  Award,
+  Building2,
+  Calendar,
+  ArrowRight,
+  FileCheck2,
 } from "lucide-react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -33,7 +43,7 @@ if (typeof window !== "undefined") {
   gsap.registerPlugin(useGSAP);
 }
 
-interface ProfileData {
+interface KaryawanIdentity {
   readonly id: string;
   readonly nip: string;
   readonly nama_lengkap: string;
@@ -41,7 +51,12 @@ interface ProfileData {
   readonly email?: string | null;
   readonly handphone?: string | null;
   readonly jenis_kelamin?: string | null;
+  readonly tempat_lahir?: string | null;
   readonly tanggal_lahir?: string | null;
+  readonly agama?: string | null;
+  readonly suku_bangsa?: string | null;
+  readonly status_pernikahan?: string | null;
+  readonly jumlah_anak?: number | null;
   readonly alamat?: string | null;
   readonly alamat_domisili?: string | null;
   readonly tanggal_masuk?: string | null;
@@ -57,6 +72,106 @@ interface ProfileData {
   readonly has_face_descriptor?: boolean;
 }
 
+interface SpouseInfo {
+  readonly nama?: string | null;
+  readonly tempat_lahir?: string | null;
+  readonly tanggal_lahir?: string | null;
+  readonly no_hp?: string | null;
+}
+
+interface ParentsInfo {
+  readonly nama_ayah?: string | null;
+  readonly pekerjaan_ayah?: string | null;
+  readonly nohp_ayah?: string | null;
+  readonly nama_ibu?: string | null;
+  readonly pekerjaan_ibu?: string | null;
+  readonly nohp_ibu?: string | null;
+}
+
+interface SiblingItem {
+  readonly id?: number;
+  readonly nama: string;
+  readonly gender?: string | null;
+  readonly umur?: number | string | null;
+  readonly hubungan?: string | null;
+  readonly pekerjaan?: string | null;
+}
+
+interface FormalEduItem {
+  readonly id?: number;
+  readonly tingkat: string;
+  readonly nama_sekolah: string;
+  readonly jurusan?: string | null;
+  readonly tahun_masuk?: number | string | null;
+  readonly tahun_lulus?: number | string | null;
+  readonly nomor_ijazah?: string | null;
+  readonly ipk?: string | null;
+}
+
+interface NonFormalEduItem {
+  readonly id?: number;
+  readonly nama_lembaga: string;
+  readonly jenis_kursus: string;
+  readonly tahun_masuk?: number | string | null;
+  readonly tahun_selesai?: number | string | null;
+  readonly nomor_sertifikat?: string | null;
+}
+
+interface WorkExpItem {
+  readonly id?: number;
+  readonly nama_instansi: string;
+  readonly jabatan_terakhir: string;
+  readonly lokasi?: string | null;
+  readonly lama_kerja?: string | null;
+  readonly tahun_mulai?: number | string | null;
+  readonly tahun_selesai?: number | string | null;
+  readonly alasan_berhenti?: string | null;
+}
+
+interface DocumentsData {
+  readonly pas_foto_url?: string | null;
+  readonly scan_ktp_url?: string | null;
+  readonly kartu_keluarga_url?: string | null;
+  readonly ijazah_url?: string | null;
+  readonly transkrip_url?: string | null;
+  readonly cv_url?: string | null;
+  readonly str_url?: string | null;
+  readonly paklaring_url?: string | null;
+}
+
+interface OtherDocItem {
+  readonly id?: number;
+  readonly nama_dokumen: string;
+  readonly file_url: string;
+}
+
+interface CompletenessData {
+  readonly is_complete: boolean;
+  readonly percentage: number;
+  readonly missing_sections: readonly string[];
+  readonly pillars: {
+    readonly identity: boolean;
+    readonly family: boolean;
+    readonly education: boolean;
+    readonly documents: boolean;
+  };
+}
+
+interface FullProfilePayload {
+  readonly karyawan: KaryawanIdentity;
+  readonly spouse: SpouseInfo | null;
+  readonly parents: ParentsInfo | null;
+  readonly siblings: readonly SiblingItem[];
+  readonly education: {
+    readonly formal: readonly FormalEduItem[];
+    readonly nonFormal: readonly NonFormalEduItem[];
+  };
+  readonly experience: readonly WorkExpItem[];
+  readonly documents: DocumentsData | null;
+  readonly otherDocuments: readonly OtherDocItem[];
+  readonly completeness: CompletenessData;
+}
+
 interface AbsensiItem {
   readonly id: string;
   readonly tanggal: string;
@@ -66,7 +181,28 @@ interface AbsensiItem {
   readonly nama_shift?: string | null;
 }
 
-type ProfileTab = "pekerjaan" | "pribadi" | "kontak" | "presensi";
+type ProfileTab =
+  | "pekerjaan"
+  | "identitas"
+  | "keluarga"
+  | "pendidikan"
+  | "dokumen"
+  | "presensi";
+
+const STANDARD_DOCS: readonly {
+  readonly key: keyof DocumentsData;
+  readonly label: string;
+  readonly isMandatory: boolean;
+}[] = [
+  { key: "pas_foto_url", label: "Pas Foto Resmi", isMandatory: true },
+  { key: "scan_ktp_url", label: "Scan KTP Elektronik", isMandatory: true },
+  { key: "kartu_keluarga_url", label: "Kartu Keluarga (KK)", isMandatory: true },
+  { key: "ijazah_url", label: "Ijazah Pendidikan Terakhir", isMandatory: true },
+  { key: "transkrip_url", label: "Transkrip Nilai Akademik", isMandatory: false },
+  { key: "cv_url", label: "Curriculum Vitae (CV)", isMandatory: false },
+  { key: "str_url", label: "STR / SIP Tenaga Medis", isMandatory: false },
+  { key: "paklaring_url", label: "Paklaring / Surat Pengalaman Kerja", isMandatory: false },
+];
 
 function getCutOffRange(referenceDate = new Date()) {
   const year = referenceDate.getFullYear();
@@ -111,6 +247,17 @@ function calculateAge(tanggalLahir?: string | null) {
     age--;
   }
   return age > 0 ? `${age} Tahun` : null;
+}
+
+function formatDateId(dateStr?: string | null) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr).slice(0, 10);
+  return d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function formatWibTime(timeStr?: string | null) {
@@ -166,7 +313,8 @@ function BarcodeVisual({ code }: { readonly code: string }) {
 }
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const router = useRouter();
+  const [payload, setPayload] = useState<FullProfilePayload | null>(null);
   const [absensiList, setAbsensiList] = useState<readonly AbsensiItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -175,8 +323,17 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("pekerjaan");
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const hasAnimatedRef = useRef(false);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("complete") === "1") {
+        router.replace("/admin/profile/edit");
+      }
+    }
+  }, [router]);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -195,16 +352,16 @@ export default function ProfilePage() {
           throw new Error("ID Karyawan tidak terdaftar pada sesi pengguna.");
         }
 
-        const response = await fetch(`${baseUrl}/karyawan/${karyawanId}`);
+        const response = await fetch(`/api/karyawan/${karyawanId}/profile-lengkap`);
         if (!response.ok) {
           throw new Error("Gagal mengambil data profil dari server.");
         }
 
-        const data: ProfileData = await response.json();
-        setProfile(data);
+        const data: FullProfilePayload = await response.json();
+        setPayload(data);
 
         try {
-          const absensiResponse = await fetch(`${baseUrl}/absensi/${data.id}`);
+          const absensiResponse = await fetch(`${baseUrl}/absensi/${data.karyawan.id}`);
           if (absensiResponse.ok) {
             const absensiData: AbsensiItem[] = await absensiResponse.json();
             setAbsensiList(absensiData);
@@ -223,34 +380,57 @@ export default function ProfilePage() {
     fetchProfileData();
   }, [baseUrl]);
 
-  // GSAP Animations
   useGSAP(
     () => {
-      gsap.fromTo(
-        ".gsap-profile-hero",
-        { opacity: 0, y: -12 },
-        { opacity: 1, y: 0, duration: 0.35, ease: "power2.out", clearProps: "all" }
-      );
-      gsap.fromTo(
-        ".gsap-profile-side",
-        { opacity: 0, x: -10 },
-        { opacity: 1, x: 0, duration: 0.35, delay: 0.1, ease: "power2.out", clearProps: "all" }
-      );
-      gsap.fromTo(
-        ".gsap-profile-main",
-        { opacity: 0, x: 10 },
-        { opacity: 1, x: 0, duration: 0.35, delay: 0.1, ease: "power2.out", clearProps: "all" }
-      );
+      if (isLoading || !payload || hasAnimatedRef.current) return;
+      hasAnimatedRef.current = true;
+
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      tl.fromTo(
+        ".gsap-header",
+        { opacity: 0, y: -14 },
+        { opacity: 1, y: 0, duration: 0.4, clearProps: "all" }
+      )
+        .fromTo(
+          ".gsap-hero",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.42, clearProps: "all" },
+          "-=0.25"
+        )
+        .fromTo(
+          ".gsap-kpi-card",
+          { opacity: 0, y: 12 },
+          { opacity: 1, y: 0, duration: 0.35, stagger: 0.06, clearProps: "all" },
+          "-=0.22"
+        )
+        .fromTo(
+          ".gsap-banner",
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.35, clearProps: "all" },
+          "-=0.2"
+        )
+        .fromTo(
+          ".gsap-col-left",
+          { opacity: 0, x: -12 },
+          { opacity: 1, x: 0, duration: 0.4, clearProps: "all" },
+          "-=0.2"
+        )
+        .fromTo(
+          ".gsap-col-right",
+          { opacity: 0, x: 12 },
+          { opacity: 1, x: 0, duration: 0.4, clearProps: "all" },
+          "-=0.35"
+        );
     },
-    { scope: containerRef, dependencies: [isLoading] }
+    { scope: containerRef, dependencies: [isLoading, Boolean(payload)] }
   );
 
-  // GSAP Tab change transition
   useGSAP(
     () => {
+      if (isLoading || !payload) return;
       gsap.fromTo(
         ".gsap-tab-pane",
-        { opacity: 0, y: 6 },
+        { opacity: 0, y: 8 },
         { opacity: 1, y: 0, duration: 0.25, ease: "power2.out", clearProps: "all" }
       );
     },
@@ -270,7 +450,6 @@ export default function ProfilePage() {
         totalHadir: 0,
         tepatWaktu: 0,
         terlambat: 0,
-        lastRecord: null as AbsensiItem | null,
       };
     }
 
@@ -287,12 +466,11 @@ export default function ProfilePage() {
 
     const totalHadir = currentCutOffRecords.length;
     const terlambat = currentCutOffRecords.filter(
-      (item) => (item.menit_terlambat ?? 0) > 0,
+      (item) => (item.menit_terlambat ?? 0) > 0
     ).length;
     const tepatWaktu = Math.max(0, totalHadir - terlambat);
-    const lastRecord = absensiList[0] || null;
 
-    return { totalHadir, tepatWaktu, terlambat, lastRecord };
+    return { totalHadir, tepatWaktu, terlambat };
   }, [absensiList]);
 
   const cutOffLabel = useMemo(() => {
@@ -302,9 +480,13 @@ export default function ProfilePage() {
     return `${formatShort(start)} - ${formatShort(end)}`;
   }, []);
 
-  const handlePrintCard = () => {
-    window.print();
-  };
+  const uploadedDocsCount = useMemo(() => {
+    if (!payload) return 0;
+    const stdCount = STANDARD_DOCS.filter(
+      (doc) => Boolean(payload.documents?.[doc.key])
+    ).length;
+    return stdCount + (payload.otherDocuments?.length || 0);
+  }, [payload]);
 
   if (isLoading) {
     return (
@@ -312,14 +494,14 @@ export default function ProfilePage() {
         <div className="text-center space-y-3">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
           <p className="text-slate-500 font-bold text-xs uppercase tracking-wider">
-            Menyinkronkan Profil Pegawai RSU Avisena...
+            Menyinkronkan Berkas Profil Pegawai RSU Avisena...
           </p>
         </div>
       </div>
     );
   }
 
-  if (errorMessage || !profile) {
+  if (errorMessage || !payload) {
     return (
       <div className="p-6 sm:p-8 max-w-2xl mx-auto min-h-[70vh] flex items-center justify-center">
         <div className="rounded-[32px] bg-white p-8 sm:p-12 text-center border border-slate-200/80 shadow-xl w-full space-y-4">
@@ -342,105 +524,111 @@ export default function ProfilePage() {
     );
   }
 
+  const {
+    karyawan: profile,
+    spouse,
+    parents,
+    siblings,
+    education,
+    experience,
+    documents,
+    otherDocuments,
+    completeness,
+  } = payload;
+
   const profileImg =
-    profile.jenis_kelamin === "Perempuan"
+    documents?.pas_foto_url ||
+    (profile.jenis_kelamin === "Perempuan"
       ? "/img/potrait/woman.jpg"
-      : "/img/potrait/man.jpg";
+      : "/img/potrait/man.jpg");
 
   const tenureText = calculateTenure(profile.tanggal_masuk);
   const ageText = calculateAge(profile.tanggal_lahir);
 
   return (
-    <div ref={containerRef} className="p-4 sm:p-6 lg:p-8 font-sans max-w-7xl mx-auto min-h-screen space-y-7">
-      {/* Top Navigasi Kembali & Action Links */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/80">
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-primary font-bold text-xs uppercase tracking-wider transition-colors py-1 px-2.5 rounded-lg hover:bg-slate-100"
-          >
-            <ChevronLeft size={16} />
-            <span>Beranda</span>
-          </Link>
-          <span className="text-slate-300">/</span>
-          <span className="text-xs font-bold text-primary uppercase tracking-wider">
-            Profil &amp; Kartu Tanda Pengenal
-          </span>
+    <div
+      ref={containerRef}
+      className="p-4 sm:p-6 lg:p-8 font-sans min-h-screen space-y-6"
+    >
+      {/* LAYER 1: Header & Primary Action Bar */}
+      <div className="gsap-header flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-slate-200/80 pb-5">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-primary font-extrabold text-xs uppercase tracking-widest">
+            <ShieldCheck size={15} />
+            <span>Human Capital &bull; Pangkalan Data Personalia</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Profil &amp; Informasi Personalia Pegawai
+          </h1>
+          <p className="text-slate-500 text-xs sm:text-sm font-medium max-w-2xl">
+            Kartu identitas digital, data keluarga, riwayat pendidikan, berkas kepegawaian, serta ringkasan presensi cut-off RSU Avisena.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={handlePrintCard}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-2xs active:scale-[0.98]"
-            title="Cetak Tanda Pengenal"
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-2xs active:scale-[0.98] min-h-[42px] cursor-pointer"
           >
-            <Printer size={13} />
-            <span>Cetak ID</span>
+            <Printer size={14} />
+            <span>Cetak ID Card</span>
           </button>
 
           <Link
             href="/admin/my-activity"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-primary border border-blue-200/80 rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-2xs"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200/80 rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.98] min-h-[42px]"
           >
-            <Clock size={13} />
+            <Clock size={14} />
             <span>Aktivitas Saya</span>
+          </Link>
+
+          <Link
+            href="/admin/profile/edit"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0173b6] hover:bg-[#05445e] text-white rounded-xl font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-blue-900/15 transition-all active:scale-[0.98] min-h-[42px]"
+          >
+            <Edit3 size={15} />
+            <span>Edit Informasi Diri</span>
           </Link>
         </div>
       </div>
 
-      {/* Hero Banner Section (Hospital Executive Medical Gradient) */}
-      <div className="gsap-profile-hero relative mb-8">
-        <div className="h-44 sm:h-52 md:h-56 w-full rounded-[28px] sm:rounded-[32px] bg-gradient-to-r from-primary-dark via-[#03547b] to-primary shadow-xl shadow-blue-900/10 overflow-hidden relative border border-slate-700/40">
-          <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px]" />
-          
-          {/* Subtle Watermark Hospital Logo */}
-          <div className="absolute top-4 right-6 text-white/10 flex items-center gap-2 font-black text-2xl tracking-widest uppercase select-none pointer-events-none">
-            <HeartPulse size={36} className="text-white/20" />
-            <span>RSU AVISENA</span>
-          </div>
-
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+      {/* LAYER 2: Executive Hero Banner */}
+      <div className="gsap-hero relative rounded-[28px] sm:rounded-[32px] bg-white border border-slate-200/90 shadow-lg shadow-slate-200/40 overflow-hidden">
+        {/* Top Medical Gradient Cover (Clean Gradient Tanpa Tulisan/Watermark Icon) */}
+        <div className="h-36 sm:h-44 w-full bg-gradient-to-r from-[#03344a] via-[#025175] to-[#0173b6] relative overflow-hidden">
+          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1.2px,transparent_1.2px)] [background-size:16px_16px]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/25 via-transparent to-transparent" />
         </div>
 
-        {/* Floating Avatar & Header Information */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 px-6 sm:px-8 -mt-16 sm:-mt-20 relative z-10">
-          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left">
-            {/* Avatar Frame dengan Border Tebal Berkarakter */}
-            <div className="relative h-32 w-32 sm:h-36 sm:w-36 md:h-40 md:w-40 rounded-[28px] border-[5px] border-white bg-white shadow-2xl overflow-hidden group shrink-0">
+        {/* Bottom Identity Bar */}
+        <div className="px-6 sm:px-8 pb-6 pt-3 flex flex-col lg:flex-row lg:items-end justify-between gap-5 relative">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 -mt-16 sm:-mt-20 text-center sm:text-left">
+            <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-[26px] border-[6px] border-white bg-white shadow-2xl overflow-hidden shrink-0">
               <Image
                 src={profileImg}
-                alt="Foto Profil Pegawai"
-                width={160}
-                height={160}
-                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                alt={profile.nama_lengkap}
+                width={140}
+                height={140}
+                className="h-full w-full object-cover"
                 unoptimized
               />
-              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-2xs">
-                <Camera className="text-white" size={24} />
-              </div>
             </div>
 
-            {/* Nama, Jabatan & Tag Identitas */}
-            <div className="pb-1 space-y-2">
-              <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                  {profile.nama_lengkap}
-                </h1>
-                <span className="badge badge-sm badge-success gap-1 text-[11px] font-bold text-white shadow-2xs">
-                  <BadgeCheck size={12} />
-                  <span>Aktif</span>
-                </span>
-              </div>
+            <div className="space-y-2 pb-0.5">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight text-center sm:text-left">
+                {profile.nama_lengkap}
+              </h2>
 
               <div className="flex items-center justify-center sm:justify-start flex-wrap gap-2 text-xs">
-                <span className="px-2.5 py-0.5 bg-primary text-white font-bold uppercase tracking-wider rounded-lg shadow-2xs text-[11px]">
-                  {profile.profesi || profile.nama_level || "Tenaga Medis / Staf"}
+                <span className="px-2.5 py-1 bg-[#0173b6] text-white font-bold uppercase tracking-wider rounded-lg shadow-2xs text-[11px]">
+                  {profile.profesi || profile.nama_level || "Staf RSU Avisena"}
                 </span>
-                <span className="text-slate-400">&bull;</span>
+                <span className="text-slate-300">&bull;</span>
                 <span className="text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                  {profile.nama_departemen || "RSU Avisena"}
+                  {profile.nama_departemen || "Unit RSU Avisena"}
                 </span>
-                <span className="text-slate-400">&bull;</span>
+                <span className="text-slate-300">&bull;</span>
                 <span className="text-slate-600 font-mono font-bold tabular-nums text-[11px]">
                   NIP: {profile.nip}
                 </span>
@@ -448,11 +636,11 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Quick Copy NIP & Status */}
-          <div className="flex items-center justify-center sm:justify-end gap-2 pb-2">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2.5">
             <button
+              type="button"
               onClick={() => handleCopy(profile.nip, "NIP_HERO")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider shadow-2xs transition-all active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.98] cursor-pointer"
             >
               {copiedField === "NIP_HERO" ? (
                 <>
@@ -470,23 +658,207 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Grid Layout 2 Kolom: Kiri (Kartu ID & Biometrik - 4 Kolom) & Kanan (Dossier Pegawai - 8 Kolom) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start pb-8">
-        {/* Kolom Kiri: Kartu Tanda Pengenal Rumah Sakit & Biometrik Kiosk (4 Kolom) */}
-        <div className="gsap-profile-side lg:col-span-4 space-y-6">
-          {/* THE MASTERPIECE: Kartu Tanda Pengenal Digital Pegawai RSU Avisena */}
-          <div className="rounded-[32px] bg-white p-6 shadow-xl shadow-slate-200/60 border border-slate-200/90 relative overflow-hidden text-center transition-all">
-            {/* Lanyard Clip / Hole Realistic Medical Slot Visual */}
+      {/* LAYER 3: 4-Grid KPI Executive Summary Ribbon */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* KPI 1: Skor Kelengkapan Berkas */}
+        <div className="gsap-kpi-card rounded-2xl bg-white p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Kelengkapan Berkas
+            </p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-black text-slate-900 font-mono tabular-nums">
+                {completeness.percentage}%
+              </p>
+              <span
+                className={`badge badge-xs font-bold uppercase tracking-wider py-2 px-2 ${
+                  completeness.is_complete
+                    ? "badge-success text-white"
+                    : "badge-warning text-amber-950"
+                }`}
+              >
+                {completeness.is_complete ? "Lengkap" : "Perlu Dilengkapi"}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium">
+              4 Kategori Berkas Wajib
+            </p>
+          </div>
+          <div
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
+              completeness.is_complete
+                ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+                : "bg-amber-50 border-amber-200 text-amber-600"
+            }`}
+          >
+            <FileCheck2 size={22} />
+          </div>
+        </div>
+
+        {/* KPI 2: Kehadiran Cut-Off 26-25 */}
+        <div className="gsap-kpi-card rounded-2xl bg-white p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Hadir Cut-Off ({cutOffLabel})
+            </p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-black text-slate-900 font-mono tabular-nums">
+                {attendanceStats.totalHadir}
+              </p>
+              <span className="text-xs font-bold text-slate-500">Hari</span>
+            </div>
+            <p className="text-[11px] text-emerald-700 font-bold font-mono tabular-nums">
+              {attendanceStats.tepatWaktu} Tepat Waktu &bull; {attendanceStats.terlambat} Terlambat
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 text-[#0173b6] flex items-center justify-center shrink-0">
+            <Clock size={22} />
+          </div>
+        </div>
+
+        {/* KPI 3: Sisa Kuota Cuti */}
+        <div className="gsap-kpi-card rounded-2xl bg-white p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Sisa Kuota Cuti Tahunan
+            </p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-black text-slate-900 font-mono tabular-nums">
+                {profile.sisa_cuti ?? 0}
+              </p>
+              <span className="text-xs font-bold text-slate-500">/ 12 Hari</span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium font-mono tabular-nums">
+              Terpakai: {Math.max(0, 12 - (profile.sisa_cuti ?? 0))} Hari
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
+            <Calendar size={22} />
+          </div>
+        </div>
+
+        {/* KPI 4: Dokumen & Biometrik */}
+        <div className="gsap-kpi-card rounded-2xl bg-white p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Arsip Digital &amp; Biometrik
+            </p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-black text-slate-900 font-mono tabular-nums">
+                {uploadedDocsCount}
+              </p>
+              <span className="text-xs font-bold text-slate-500">Berkas Terunggah</span>
+            </div>
+            <p
+              className={`text-[11px] font-bold ${
+                profile.has_face_descriptor ? "text-emerald-600" : "text-amber-600"
+              }`}
+            >
+              {profile.has_face_descriptor
+                ? "Wajah Kiosk Terdaftar"
+                : "Wajah Kiosk Belum Terdaftar"}
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+            <FolderOpen size={22} />
+          </div>
+        </div>
+      </div>
+
+      {/* LAYER 4: Checklist Ringkas Status 4 Pilar Berkas */}
+      <div
+        className={`gsap-banner rounded-2xl p-4 sm:p-5 border shadow-2xs ${
+          completeness.is_complete
+            ? "bg-emerald-50/60 border-emerald-200"
+            : "bg-amber-50/50 border-amber-200/80"
+        }`}
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-200/60">
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono tabular-nums ${
+                completeness.is_complete
+                  ? "bg-emerald-600 text-white"
+                  : "bg-amber-500 text-white"
+              }`}
+            >
+              {completeness.is_complete ? (
+                <CheckCircle2 size={12} />
+              ) : (
+                <AlertCircle size={12} />
+              )}
+              <span>{completeness.percentage}% Lengkap</span>
+            </span>
+            <p className="text-xs font-bold text-slate-800">
+              {completeness.is_complete
+                ? "Seluruh data profil dan berkas wajib telah lengkap"
+                : "Pemeriksaan kelengkapan berkas wajib personalia"}
+            </p>
+          </div>
+          <span className="text-[11px] text-slate-500 font-medium">
+            Klik kategori di bawah untuk menuju form pengisian
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-3">
+          {[
+            {
+              label: "1. Identitas & Kontak",
+              ok: completeness.pillars.identity,
+              step: "identitas",
+            },
+            {
+              label: "2. Data Keluarga",
+              ok: completeness.pillars.family,
+              step: "keluarga",
+            },
+            {
+              label: "3. Pendidikan Formal",
+              ok: completeness.pillars.education,
+              step: "pendidikan",
+            },
+            {
+              label: "4. Dokumen Utama",
+              ok: completeness.pillars.documents,
+              step: "dokumen",
+            },
+          ].map((pillar) => (
+            <Link
+              key={pillar.label}
+              href={`/admin/profile/edit?step=${pillar.step}`}
+              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all hover:shadow-2xs ${
+                pillar.ok
+                  ? "bg-white border-emerald-200 text-emerald-800 hover:border-emerald-300"
+                  : "bg-white border-amber-200 text-slate-800 hover:border-primary"
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {pillar.ok ? (
+                  <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle size={14} className="text-amber-500 shrink-0" />
+                )}
+                <span className="truncate">{pillar.label}</span>
+              </div>
+              <ArrowRight size={12} className="text-slate-400 shrink-0" />
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* LAYER 5: 2-Column Main Dossier Layout (4 Cols ID Card + 8 Cols 6-Tab Read-Only Dossier) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pb-8">
+        {/* LEFT COLUMN (4 Cols): Hospital Identity Pass & Biometric Kiosk */}
+        <div className="gsap-col-left lg:col-span-4 space-y-6">
+          {/* Kartu Tanda Pengenal Digital Pegawai RSU Avisena */}
+          <div className="rounded-[32px] bg-white p-6 shadow-lg shadow-slate-200/50 border border-slate-200/90 relative overflow-hidden text-center">
             <div className="w-14 h-2.5 rounded-full bg-slate-200 border border-slate-300 mx-auto mb-4 shadow-inner flex items-center justify-center">
               <div className="w-8 h-1 bg-slate-300/80 rounded-full" />
             </div>
 
-            {/* Container Flip Kartu ID */}
-            <div ref={cardRef} className="relative min-h-[420px] flex flex-col justify-between">
+            <div className="relative min-h-[410px] flex flex-col justify-between">
               {!isCardFlipped ? (
-                /* SISI DEPAN KARTU IDENTITAS */
-                <div className="space-y-4 animate-in fade-in duration-300">
-                  {/* Hospital Brand Header */}
+                <div className="space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2 text-left">
                       <div className="h-8 w-8 rounded-xl bg-primary text-white flex items-center justify-center shadow-xs font-black text-sm">
@@ -506,13 +878,11 @@ export default function ProfilePage() {
                     </span>
                   </div>
 
-                  {/* Hologram Ribbon Simulation */}
-                  <div className="py-0.5 px-3 bg-gradient-to-r from-blue-100 via-sky-50 to-blue-100 rounded-lg border border-blue-200 text-[10px] font-bold text-primary tracking-wider uppercase flex items-center justify-between">
-                    <span>Tenaga Resmi</span>
+                  <div className="py-1 px-3 bg-gradient-to-r from-blue-100 via-sky-50 to-blue-100 rounded-lg border border-blue-200 text-[10px] font-bold text-primary tracking-wider uppercase flex items-center justify-between">
+                    <span>Tenaga Resmi Rumah Sakit</span>
                     <Sparkles size={11} className="text-amber-500" />
                   </div>
 
-                  {/* Foto Pegawai Digital */}
                   <div className="relative inline-block my-1">
                     <div className="w-28 h-28 rounded-2xl border-4 border-slate-100 shadow-lg overflow-hidden mx-auto bg-slate-100">
                       <Image
@@ -529,7 +899,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* Identitas Nama & Profesi */}
                   <div className="space-y-1">
                     <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-tight">
                       {profile.nama_lengkap}
@@ -542,15 +911,12 @@ export default function ProfilePage() {
                     </p>
                   </div>
 
-                  {/* Barcode Visual NIP */}
                   <div className="pt-2">
                     <BarcodeVisual code={profile.nip} />
                   </div>
                 </div>
               ) : (
-                /* SISI BELAKANG KARTU IDENTITAS */
-                <div className="space-y-4 py-1 text-left animate-in fade-in duration-300">
-                  {/* Magnetic Stripe Visual */}
+                <div className="space-y-4 py-1 text-left">
                   <div className="h-8 bg-slate-900 rounded-lg -mx-2 shadow-inner flex items-center px-4">
                     <div className="h-2 w-full bg-slate-800 rounded" />
                   </div>
@@ -585,12 +951,11 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Action Bar ID Card: Balik Kartu & Salin NIP */}
             <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setIsCardFlipped(!isCardFlipped)}
-                className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider border border-slate-200/80 transition-all active:scale-[0.98] min-h-[40px]"
+                className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-wider border border-slate-200/80 transition-all active:scale-[0.98] min-h-[40px] cursor-pointer"
               >
                 <RotateCw size={14} className="text-slate-500" />
                 <span>{isCardFlipped ? "Sisi Depan" : "Sisi Belakang"}</span>
@@ -599,7 +964,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => handleCopy(profile.nip, "NIP_BADGE")}
-                className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 bg-primary-dark hover:bg-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-xs min-h-[40px]"
+                className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#05445e] hover:bg-[#0173b6] text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-xs min-h-[40px] cursor-pointer"
               >
                 {copiedField === "NIP_BADGE" ? (
                   <>
@@ -624,10 +989,14 @@ export default function ProfilePage() {
                   Biometrik Wajah Kiosk
                 </h3>
                 <p className="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                  <span>{profile.has_face_descriptor ? "Terdaftar & Aktif" : "Belum Terdaftar"}</span>
+                  <span>
+                    {profile.has_face_descriptor ? "Terdaftar & Aktif" : "Belum Terdaftar"}
+                  </span>
                   <span
                     className={`inline-block w-2 h-2 rounded-full ${
-                      profile.has_face_descriptor ? "bg-emerald-400 animate-pulse" : "bg-rose-400"
+                      profile.has_face_descriptor
+                        ? "bg-emerald-400 animate-pulse"
+                        : "bg-rose-400"
                     }`}
                   />
                 </p>
@@ -657,184 +1026,83 @@ export default function ProfilePage() {
                   : "bg-primary hover:bg-primary-dark text-white shadow-xs"
               }`}
             >
-              {profile.has_face_descriptor ? "Perbarui Rekaman Wajah" : "Daftarkan Wajah Sekarang"}
+              {profile.has_face_descriptor
+                ? "Perbarui Rekaman Wajah"
+                : "Daftarkan Wajah Sekarang"}
             </Link>
-          </div>
-
-          {/* Card: Ringkasan Aktivitas Presensi (Cut-Off 26 - 25) */}
-          <div className="rounded-[28px] bg-gradient-to-br from-primary-dark to-primary p-6 text-white shadow-xl shadow-blue-900/10 space-y-4 border border-slate-700/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-blue-200">
-                  Presensi Periode Berjalan
-                </h3>
-                <p className="text-[11px] text-blue-100/80 font-mono tabular-nums">
-                  Cut-Off: {cutOffLabel}
-                </p>
-              </div>
-              <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center text-blue-200">
-                <Clock size={18} />
-              </div>
-            </div>
-
-            {/* 3 Metrik Utama Kehadiran */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-xs">
-                <p className="text-[10px] font-bold text-blue-200 uppercase tracking-wider">
-                  Total Hadir
-                </p>
-                <p className="text-xl font-extrabold font-mono tabular-nums text-white mt-0.5">
-                  {attendanceStats.totalHadir}
-                </p>
-                <p className="text-[9px] text-blue-200/80">Hari</p>
-              </div>
-
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-xs">
-                <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-wider">
-                  Tepat Waktu
-                </p>
-                <p className="text-xl font-extrabold font-mono tabular-nums text-emerald-300 mt-0.5">
-                  {attendanceStats.tepatWaktu}
-                </p>
-                <p className="text-[9px] text-emerald-200/80">Hari</p>
-              </div>
-
-              <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-xs">
-                <p className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">
-                  Terlambat
-                </p>
-                <p className="text-xl font-extrabold font-mono tabular-nums text-amber-300 mt-0.5">
-                  {attendanceStats.terlambat}
-                </p>
-                <p className="text-[9px] text-amber-200/80">Hari</p>
-              </div>
-            </div>
-
-            {/* Kuota Cuti Tahunan */}
-            <div className="p-3.5 bg-black/20 rounded-2xl border border-white/10 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-blue-100 font-medium">Sisa Kuota Cuti:</span>
-                <span className="font-mono font-bold text-white tabular-nums">
-                  {profile.sisa_cuti ?? 0} Hari
-                </span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                <div
-                  className="h-full bg-emerald-400 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(100, Math.max(0, ((profile.sisa_cuti ?? 0) / 12) * 100))}%`,
-                  }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-blue-200/70 font-mono tabular-nums">
-                <span>Terpakai: {Math.max(0, 12 - (profile.sisa_cuti ?? 0))} Hari</span>
-                <span>Alokasi: 12 Hari</span>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Kolom Kanan: Dossier Detail Biodata & Kepegawaian (8 Kolom) */}
-        <div className="gsap-profile-main lg:col-span-8">
-          <div className="rounded-[32px] sm:rounded-[36px] bg-white p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-200/90 space-y-6">
-            {/* Header Rincian & Navigasi Tab Dossier */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+        {/* RIGHT COLUMN (8 Cols): Comprehensive Read-Only Dossier with 6 Tabs */}
+        <div className="gsap-col-right lg:col-span-8">
+          <div className="rounded-[32px] bg-white p-6 sm:p-8 shadow-lg shadow-slate-200/50 border border-slate-200/90 space-y-6">
+            {/* Header Dossier & Quick Edit CTA */}
+            <div className="pb-4 border-b border-slate-100">
               <div className="space-y-1">
                 <h3 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-                  <div className="h-6 w-1.5 bg-primary rounded-full" />
-                  <span>Dossier Personalia Pegawai</span>
+                  <div className="h-6 w-1.5 bg-[#0173b6] rounded-full" />
+                  <span>Informasi &amp; Berkas Pegawai</span>
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  Pangkalan data resmi personalia terintegrasi dengan Human Capital RSU Avisena
+                  Tampilan baca (read-only) untuk seluruh data kepegawaian, keluarga, pendidikan, pengalaman, dan dokumen digital.
                 </p>
               </div>
-
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold self-start sm:self-auto">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>{profile.status_kepegawaian || "Pegawai Tetap"}</span>
-              </div>
             </div>
 
-            {/* Segmented Dossier Tabs (DaisyUI Pill Style) */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 overflow-x-auto text-xs">
-              <button
-                type="button"
-                onClick={() => setActiveTab("pekerjaan")}
-                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold transition-all min-h-[38px] ${
-                  activeTab === "pekerjaan"
-                    ? "bg-white text-primary shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Briefcase size={14} />
-                <span>Penugasan</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("pribadi")}
-                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold transition-all min-h-[38px] ${
-                  activeTab === "pribadi"
-                    ? "bg-white text-primary shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <User size={14} />
-                <span>Identitas Pribadi</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("kontak")}
-                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold transition-all min-h-[38px] ${
-                  activeTab === "kontak"
-                    ? "bg-white text-primary shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Mail size={14} />
-                <span>Kontak &amp; Alamat</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("presensi")}
-                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold transition-all min-h-[38px] ${
-                  activeTab === "presensi"
-                    ? "bg-white text-primary shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Clock size={14} />
-                <span>Log Presensi</span>
-              </button>
+            {/* 6 Segmented Dossier Tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 text-xs">
+              {[
+                { id: "pekerjaan" as const, label: "Penugasan", icon: Briefcase },
+                { id: "identitas" as const, label: "Identitas", icon: User },
+                { id: "keluarga" as const, label: "Keluarga", icon: Users },
+                { id: "pendidikan" as const, label: "Pendidikan", icon: GraduationCap },
+                { id: "dokumen" as const, label: "Berkas & Karir", icon: FolderOpen },
+                { id: "presensi" as const, label: "Presensi", icon: Clock },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-xl font-bold transition-all min-h-[40px] cursor-pointer ${
+                      isActive
+                        ? "bg-white text-[#0173b6] shadow-xs border border-slate-200/60"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    }`}
+                  >
+                    <Icon size={14} className="shrink-0" />
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* TAB CONTENT: GSAP Animated Pane */}
-            <div className="gsap-tab-pane">
-              {/* TAB 1: PENUGASAN & KETENAGAKERJAAN */}
+            {/* TAB CONTENT PANE */}
+            <div className="gsap-tab-pane min-h-[380px]">
+              {/* TAB 1: PENUGASAN & SIP */}
               {activeTab === "pekerjaan" && (
-                <div className="space-y-6 animate-in fade-in">
+                <div className="space-y-6">
                   <div className="space-y-4">
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                       <Briefcase size={14} className="text-primary" />
-                      <span>Data Penugasan &amp; Unit Kerja</span>
+                      <span>Penugasan, Unit Kerja &amp; Penggajian</span>
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* NIP */}
                       <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
                         <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                           Nomor Induk Pegawai (NIP)
                         </p>
                         <div className="flex items-center justify-between">
-                          <p className="text-sm font-bold text-slate-900 font-mono tabular-nums tracking-wider">
+                          <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
                             {profile.nip}
                           </p>
                           <button
                             type="button"
                             onClick={() => handleCopy(profile.nip, "NIP_GRID")}
-                            className="p-1 text-slate-400 hover:text-primary transition-colors"
+                            className="p-1 text-slate-400 hover:text-primary transition-colors cursor-pointer"
                             title="Salin NIP"
                           >
                             {copiedField === "NIP_GRID" ? (
@@ -846,176 +1114,51 @@ export default function ProfilePage() {
                         </div>
                       </div>
 
-                      {/* Jabatan & Profesi */}
                       <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
                         <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                          Jabatan &amp; Profesi Medis
+                          Jabatan &amp; Profesi
                         </p>
-                        <p className="text-sm font-bold text-slate-900 truncate">
+                        <p className="text-sm font-bold text-slate-900">
                           {profile.profesi || profile.nama_level || "-"}
                         </p>
                       </div>
 
-                      {/* Departemen / Unit Kerja */}
                       <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
                         <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                           Departemen / Unit Kerja
                         </p>
-                        <p className="text-sm font-bold text-slate-900 truncate">
+                        <p className="text-sm font-bold text-slate-900">
                           {profile.nama_departemen || "-"}
                         </p>
                       </div>
 
-                      {/* Atasan Langsung */}
                       <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
                         <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                          Atasan Langsung (Supervisor/Kepala Unit)
+                          Atasan Langsung (Supervisor)
                         </p>
-                        <p className="text-sm font-bold text-slate-900 truncate">
+                        <p className="text-sm font-bold text-slate-900">
                           {profile.nama_atasan || "-"}
                         </p>
                       </div>
 
-                      {/* Tanggal Bergabung & Masa Kerja */}
                       <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
                         <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                           Tanggal Bergabung &amp; Masa Kerja
                         </p>
-                        <div className="text-sm font-bold text-slate-900">
-                          <span className="font-mono tabular-nums">
-                            {profile.tanggal_masuk
-                              ? new Date(profile.tanggal_masuk).toLocaleDateString("id-ID", {
-                                  day: "numeric",
-                                  month: "long",
-                                  year: "numeric",
-                                })
-                              : "-"}
-                          </span>
-                          {tenureText && (
-                            <span className="text-xs font-normal text-slate-500 block mt-0.5">
-                              Masa Kerja: {tenureText}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Status Ikatan Kerja */}
-                      <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
-                        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                          Status Ikatan Kerja
+                        <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
+                          {formatDateId(profile.tanggal_masuk)}
                         </p>
-                        <p className="text-sm font-bold text-slate-900">
-                          {profile.status_kepegawaian || "Pegawai Tetap"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Kredensial Medis (SIP / STR) */}
-                  {profile.sip && (
-                    <div className="space-y-4 pt-4 border-t border-slate-100">
-                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                        <Stethoscope size={14} className="text-primary" />
-                        <span>Kredensial &amp; Surat Izin Praktik (SIP)</span>
-                      </h4>
-
-                      <div className="p-4 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
-                            Nomor Surat Izin Praktik
+                        {tenureText && (
+                          <p className="text-xs text-slate-500 font-medium">
+                            Masa Kerja: {tenureText}
                           </p>
-                          <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
-                            {profile.sip}
-                          </p>
-                        </div>
-                        {profile.masa_berlaku_sip && (
-                          <div className="text-left sm:text-right">
-                            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                              Masa Berlaku SIP
-                            </p>
-                            <p className="text-xs font-bold text-slate-800 font-mono tabular-nums">
-                              s/d {profile.masa_berlaku_sip}
-                            </p>
-                          </div>
                         )}
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
 
-              {/* TAB 2: IDENTITAS PRIBADI & PAYROLL */}
-              {activeTab === "pribadi" && (
-                <div className="space-y-6 animate-in fade-in">
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                      <User size={14} className="text-primary" />
-                      <span>Data Kependudukan &amp; Penggajian</span>
-                    </h4>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* NIK KTP */}
-                      <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
-                        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                          Nomor Induk Kependudukan (NIK)
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-bold text-slate-900 font-mono tabular-nums tracking-wider">
-                            {profile.nik || "-"}
-                          </p>
-                          {profile.nik && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(profile.nik, "NIK_GRID")}
-                              className="p-1 text-slate-400 hover:text-primary transition-colors"
-                              title="Salin NIK"
-                            >
-                              {copiedField === "NIK_GRID" ? (
-                                <CheckCircle2 size={14} className="text-emerald-600" />
-                              ) : (
-                                <Copy size={14} />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Tanggal Lahir & Usia */}
-                      <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
-                        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                          Tanggal Lahir &amp; Usia
-                        </p>
-                        <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
-                          {profile.tanggal_lahir
-                            ? new Date(profile.tanggal_lahir).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })
-                            : "-"}
-                          {ageText && (
-                            <span className="text-xs font-normal text-slate-500 ml-2">
-                              ({ageText})
-                            </span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Jenis Kelamin */}
-                      <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
-                        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                          Jenis Kelamin
-                        </p>
-                        <p className="text-sm font-bold text-slate-900">
-                          {profile.jenis_kelamin || "-"}
-                        </p>
-                      </div>
-
-                      {/* Rekening BSI Payroll */}
                       <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
                         <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                           <CreditCard size={12} className="text-emerald-600" />
-                          <span>Rekening Penggajian (Bank Syariah Indonesia)</span>
+                          <span>Rekening Payroll (BSI)</span>
                         </p>
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
@@ -1024,9 +1167,10 @@ export default function ProfilePage() {
                           {profile.rekening_bsi && (
                             <button
                               type="button"
-                              onClick={() => handleCopy(profile.rekening_bsi!, "BSI_GRID")}
-                              className="p-1 text-slate-400 hover:text-primary transition-colors"
-                              title="Salin No. Rekening"
+                              onClick={() =>
+                                handleCopy(profile.rekening_bsi!, "BSI_GRID")
+                              }
+                              className="p-1 text-slate-400 hover:text-primary transition-colors cursor-pointer"
                             >
                               {copiedField === "BSI_GRID" ? (
                                 <CheckCircle2 size={14} className="text-emerald-600" />
@@ -1039,69 +1183,588 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Kredensial Medis (SIP / STR) */}
+                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                      <Stethoscope size={14} className="text-primary" />
+                      <span>Kredensial Medis &amp; Surat Izin Praktik (SIP)</span>
+                    </h4>
+                    <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] font-extrabold text-primary uppercase tracking-wider">
+                          Nomor Surat Izin Praktik (SIP)
+                        </p>
+                        <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
+                          {profile.sip || "Tidak / Belum Terdaftar"}
+                        </p>
+                      </div>
+                      <div className="sm:text-right space-y-0.5">
+                        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                          Masa Berlaku SIP
+                        </p>
+                        <p className="text-xs font-bold text-slate-800 font-mono tabular-nums">
+                          {profile.masa_berlaku_sip
+                            ? formatDateId(profile.masa_berlaku_sip)
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* TAB 3: KONTAK & ALAMAT DOMISILI */}
-              {activeTab === "kontak" && (
-                <div className="space-y-6 animate-in fade-in">
-                  <div className="space-y-4">
+              {/* TAB 2: IDENTITAS PRIBADI & KONTAK */}
+              {activeTab === "identitas" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                      <Mail size={14} className="text-primary" />
-                      <span>Saluran Komunikasi &amp; Alamat Tinggal</span>
+                      <User size={14} className="text-primary" />
+                      <span>Biodata Kependudukan &amp; Kontak</span>
                     </h4>
+                    <Link
+                      href="/admin/profile/edit?step=identitas"
+                      className="text-xs font-bold text-[#0173b6] hover:underline inline-flex items-center gap-1"
+                    >
+                      <Edit3 size={12} />
+                      <span>Ubah Identitas</span>
+                    </Link>
+                  </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Email Resmi */}
-                      <div className="flex items-center gap-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90">
-                        <div className="h-10 w-10 rounded-xl bg-blue-50 text-primary flex items-center justify-center shrink-0 border border-blue-200">
-                          <Mail size={18} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                            Email Terdaftar
-                          </p>
-                          <p className="text-xs font-bold text-slate-900 truncate">
-                            {profile.email || "Belum didaftarkan"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* WhatsApp / Handphone */}
-                      <div className="flex items-center gap-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90">
-                        <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200">
-                          <Phone size={18} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                            Nomor WhatsApp / HP
-                          </p>
-                          <p className="text-xs font-bold text-slate-900 font-mono tabular-nums truncate">
-                            {profile.handphone || "Belum didaftarkan"}
-                          </p>
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Nomor Induk Kependudukan (NIK)
+                      </p>
+                      <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
+                        {profile.nik || "-"}
+                      </p>
                     </div>
 
-                    {/* Alamat Domisili */}
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Tempat, Tanggal Lahir
+                      </p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {profile.tempat_lahir || "-"},{" "}
+                        <span className="font-mono tabular-nums">
+                          {formatDateId(profile.tanggal_lahir)}
+                        </span>
+                      </p>
+                      {ageText && (
+                        <p className="text-[11px] text-slate-500 font-mono tabular-nums">
+                          Usia: {ageText}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Jenis Kelamin
+                      </p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {profile.jenis_kelamin || "-"}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Agama &amp; Suku Bangsa
+                      </p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {profile.agama || "-"}
+                        {profile.suku_bangsa ? ` • ${profile.suku_bangsa}` : ""}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Status Pernikahan &amp; Anak
+                      </p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {profile.status_pernikahan || "-"}
+                        {profile.jumlah_anak !== null &&
+                        profile.jumlah_anak !== undefined
+                          ? ` (${profile.jumlah_anak} Anak)`
+                          : ""}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1">
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        WhatsApp &amp; Email Aktif
+                      </p>
+                      <p className="text-sm font-bold text-slate-900 font-mono tabular-nums">
+                        {profile.handphone || "-"}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {profile.email || "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1.5">
                       <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                         <MapPin size={13} className="text-primary" />
-                        <span>Alamat Domisili / Tempat Tinggal</span>
+                        <span>Alamat Sesuai KTP</span>
+                      </p>
+                      <p className="text-xs sm:text-sm font-medium text-slate-800 leading-relaxed">
+                        {profile.alamat || "Belum dilengkapi."}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-1.5">
+                      <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin size={13} className="text-emerald-600" />
+                        <span>Alamat Domisili Saat Ini</span>
                       </p>
                       <p className="text-xs sm:text-sm font-medium text-slate-800 leading-relaxed">
                         {profile.alamat_domisili ||
                           profile.alamat ||
-                          "Alamat domisili belum dilengkapi pada pangkalan data personalia."}
+                          "Belum dilengkapi."}
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* TAB 4: LOG PRESENSI PERIODE BERJALAN */}
+              {/* TAB 3: DATA KELUARGA */}
+              {activeTab === "keluarga" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                      <Users size={14} className="text-primary" />
+                      <span>Data Orang Tua, Pasangan &amp; Saudara Kandung</span>
+                    </h4>
+                    <Link
+                      href="/admin/profile/edit?step=keluarga"
+                      className="text-xs font-bold text-[#0173b6] hover:underline inline-flex items-center gap-1"
+                    >
+                      <Edit3 size={12} />
+                      <span>Perbarui Data Keluarga</span>
+                    </Link>
+                  </div>
+
+                  {/* Orang Tua Kandung */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/90 space-y-2">
+                      <span className="badge badge-sm bg-blue-100 text-[#0173b6] border-0 font-bold uppercase text-[10px]">
+                        Ayah Kandung
+                      </span>
+                      <p className="text-sm font-extrabold text-slate-900">
+                        {parents?.nama_ayah || "Belum diisi"}
+                      </p>
+                      <div className="text-xs text-slate-600 space-y-0.5">
+                        <p>Pekerjaan: {parents?.pekerjaan_ayah || "-"}</p>
+                        <p className="font-mono tabular-nums">
+                          No. HP: {parents?.nohp_ayah || "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/90 space-y-2">
+                      <span className="badge badge-sm bg-emerald-100 text-emerald-800 border-0 font-bold uppercase text-[10px]">
+                        Ibu Kandung
+                      </span>
+                      <p className="text-sm font-extrabold text-slate-900">
+                        {parents?.nama_ibu || "Belum diisi"}
+                      </p>
+                      <div className="text-xs text-slate-600 space-y-0.5">
+                        <p>Pekerjaan: {parents?.pekerjaan_ibu || "-"}</p>
+                        <p className="font-mono tabular-nums">
+                          No. HP: {parents?.nohp_ibu || "-"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pasangan (Suami / Istri) */}
+                  <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-200/70 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                        Data Pasangan (Suami / Istri)
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-500">
+                        Status: {profile.status_pernikahan || "-"}
+                      </span>
+                    </div>
+                    {spouse?.nama ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase text-slate-400">
+                            Nama Lengkap
+                          </p>
+                          <p className="text-sm font-bold text-slate-900">
+                            {spouse.nama}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase text-slate-400">
+                            Tempat, Tanggal Lahir
+                          </p>
+                          <p className="text-xs font-bold text-slate-800">
+                            {spouse.tempat_lahir || "-"},{" "}
+                            <span className="font-mono tabular-nums">
+                              {formatDateId(spouse.tanggal_lahir)}
+                            </span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase text-slate-400">
+                            Nomor Telepon / HP
+                          </p>
+                          <p className="text-xs font-bold text-slate-800 font-mono tabular-nums">
+                            {spouse.no_hp || "-"}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        Tidak ada data pasangan terdaftar.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Saudara Kandung */}
+                  <div className="space-y-3">
+                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+                      Daftar Saudara Kandung ({siblings.length})
+                    </h5>
+                    {siblings.length === 0 ? (
+                      <div className="p-6 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Belum ada data saudara kandung yang dicatat.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-[11px]">
+                            <tr>
+                              <th className="px-4 py-2.5">Nama Saudara</th>
+                              <th className="px-4 py-2.5">Hubungan</th>
+                              <th className="px-4 py-2.5">L/P</th>
+                              <th className="px-4 py-2.5">Usia</th>
+                              <th className="px-4 py-2.5">Pekerjaan</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {siblings.map((sib, idx) => (
+                              <tr key={sib.id ?? idx} className="hover:bg-slate-50/80">
+                                <td className="px-4 py-2.5 font-bold text-slate-900">
+                                  {sib.nama}
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-600">
+                                  {sib.hubungan || "-"}
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-600">
+                                  {sib.gender || "-"}
+                                </td>
+                                <td className="px-4 py-2.5 font-mono tabular-nums text-slate-700">
+                                  {sib.umur ? `${sib.umur} Thn` : "-"}
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-600">
+                                  {sib.pekerjaan || "-"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: PENDIDIKAN & PELATIHAN */}
+              {activeTab === "pendidikan" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                      <GraduationCap size={14} className="text-primary" />
+                      <span>Riwayat Pendidikan Formal &amp; Pelatihan</span>
+                    </h4>
+                    <Link
+                      href="/admin/profile/edit?step=pendidikan"
+                      className="text-xs font-bold text-[#0173b6] hover:underline inline-flex items-center gap-1"
+                    >
+                      <Edit3 size={12} />
+                      <span>Kelola Pendidikan</span>
+                    </Link>
+                  </div>
+
+                  {/* Pendidikan Formal */}
+                  <div className="space-y-3">
+                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
+                      Pendidikan Formal ({education.formal.length})
+                    </h5>
+                    {education.formal.length === 0 ? (
+                      <div className="p-6 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-2">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Belum ada riwayat pendidikan formal yang tercatat.
+                        </p>
+                        <Link
+                          href="/admin/profile/edit?step=pendidikan"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0173b6] hover:underline"
+                        >
+                          <span>Tambah Pendidikan Formal</span>
+                          <ArrowRight size={13} />
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3">
+                        {education.formal.map((edu, idx) => (
+                          <div
+                            key={edu.id ?? idx}
+                            className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-0.5 rounded-lg bg-[#0173b6] text-white font-extrabold text-[11px] font-mono">
+                                  {edu.tingkat || "Pendidikan"}
+                                </span>
+                                <h6 className="text-sm font-extrabold text-slate-900">
+                                  {edu.nama_sekolah}
+                                </h6>
+                              </div>
+                              <p className="text-xs text-slate-600 font-medium">
+                                Program Studi / Jurusan:{" "}
+                                <span className="font-bold text-slate-800">
+                                  {edu.jurusan || "-"}
+                                </span>
+                              </p>
+                              {edu.nomor_ijazah && (
+                                <p className="text-[11px] text-slate-500 font-mono tabular-nums">
+                                  No. Ijazah: {edu.nomor_ijazah}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="sm:text-right space-y-1 shrink-0">
+                              <span className="inline-block px-3 py-1 rounded-xl bg-white border border-slate-200 text-xs font-mono tabular-nums font-bold text-slate-700">
+                                {edu.tahun_masuk || "?"} &ndash;{" "}
+                                {edu.tahun_lulus || "?"}
+                              </span>
+                              {edu.ipk && (
+                                <p className="text-xs font-mono tabular-nums font-bold text-emerald-700">
+                                  IPK / Nilai: {edu.ipk}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pelatihan & Kursus Non-Formal */}
+                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <Award size={14} className="text-amber-500" />
+                      <span>Pelatihan, Seminar &amp; Sertifikasi ({education.nonFormal.length})</span>
+                    </h5>
+                    {education.nonFormal.length === 0 ? (
+                      <div className="p-5 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Belum ada data pelatihan atau sertifikasi non-formal.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {education.nonFormal.map((nf, idx) => (
+                          <div
+                            key={nf.id ?? idx}
+                            className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/90 space-y-1"
+                          >
+                            <p className="text-sm font-extrabold text-slate-900">
+                              {nf.jenis_kursus}
+                            </p>
+                            <p className="text-xs font-bold text-primary">
+                              {nf.nama_lembaga}
+                            </p>
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono tabular-nums pt-1">
+                              <span>
+                                Tahun: {nf.tahun_masuk || "-"} s/d{" "}
+                                {nf.tahun_selesai || "-"}
+                              </span>
+                              {nf.nomor_sertifikat && (
+                                <span>No: {nf.nomor_sertifikat}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: PENGALAMAN KERJA & DOKUMEN DIGITAL */}
+              {activeTab === "dokumen" && (
+                <div className="space-y-6">
+                  {/* Dokumen Digital */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                        <FolderOpen size={14} className="text-primary" />
+                        <span>Arsip Dokumen Kepegawaian Digital</span>
+                      </h4>
+                      <Link
+                        href="/admin/profile/edit?step=dokumen"
+                        className="text-xs font-bold text-[#0173b6] hover:underline inline-flex items-center gap-1"
+                      >
+                        <Edit3 size={12} />
+                        <span>Unggah / Perbarui Berkas</span>
+                      </Link>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {STANDARD_DOCS.map((doc) => {
+                        const fileUrl = documents?.[doc.key];
+                        return (
+                          <div
+                            key={doc.key}
+                            className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                              fileUrl
+                                ? "bg-emerald-50/40 border-emerald-200"
+                                : "bg-slate-50/80 border-slate-200/80"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                  fileUrl
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-200 text-slate-500"
+                                }`}
+                              >
+                                <FileText size={16} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-xs font-extrabold text-slate-900 truncate">
+                                    {doc.label}
+                                  </p>
+                                  {doc.isMandatory && (
+                                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                                      Wajib
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500">
+                                  {fileUrl ? "Berkas Tersimpan" : "Belum Diunggah"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {fileUrl ? (
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 text-[11px] font-bold transition-all shrink-0"
+                              >
+                                <span>Lihat</span>
+                                <ExternalLink size={11} />
+                              </a>
+                            ) : (
+                              <Link
+                                href="/admin/profile/edit?step=dokumen"
+                                className="text-[11px] font-bold text-[#0173b6] hover:underline shrink-0"
+                              >
+                                Unggah
+                              </Link>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Sertifikat & Dokumen Tambahan */}
+                    {otherDocuments.length > 0 && (
+                      <div className="pt-2 space-y-2">
+                        <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                          Sertifikat &amp; Dokumen Pendukung Tambahan ({otherDocuments.length})
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {otherDocuments.map((od, idx) => (
+                            <div
+                              key={od.id ?? idx}
+                              className="p-3 rounded-xl bg-blue-50/50 border border-blue-200/80 flex items-center justify-between gap-2"
+                            >
+                              <span className="text-xs font-bold text-slate-800 truncate">
+                                {od.nama_dokumen}
+                              </span>
+                              <a
+                                href={od.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white text-[#0173b6] border border-blue-200 text-[11px] font-bold hover:bg-[#0173b6] hover:text-white transition-all shrink-0"
+                              >
+                                <span>Buka</span>
+                                <ExternalLink size={11} />
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Riwayat Pengalaman Kerja Sebelumnya */}
+                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                        <Building2 size={14} className="text-primary" />
+                        <span>Riwayat Pengalaman Kerja Sebelumnya ({experience.length})</span>
+                      </h4>
+                      <Link
+                        href="/admin/profile/edit?step=pengalaman"
+                        className="text-xs font-bold text-[#0173b6] hover:underline inline-flex items-center gap-1"
+                      >
+                        <Edit3 size={12} />
+                        <span>Kelola Pengalaman</span>
+                      </Link>
+                    </div>
+
+                    {experience.length === 0 ? (
+                      <div className="p-5 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200">
+                        <p className="text-xs text-slate-500 font-medium">
+                          Belum ada riwayat pengalaman kerja sebelumnya yang dicatat.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {experience.map((exp, idx) => (
+                          <div
+                            key={exp.id ?? idx}
+                            className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                          >
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-extrabold text-slate-900">
+                                {exp.jabatan_terakhir} &mdash;{" "}
+                                <span className="text-primary">{exp.nama_instansi}</span>
+                              </p>
+                              <p className="text-xs text-slate-600">
+                                Lokasi: {exp.lokasi || "-"} &bull; Alasan Berhenti:{" "}
+                                {exp.alasan_berhenti || "-"}
+                              </p>
+                            </div>
+                            <span className="px-3 py-1 rounded-xl bg-white border border-slate-200 text-xs font-mono tabular-nums font-bold text-slate-700 self-start sm:self-auto shrink-0">
+                              {exp.tahun_mulai || "?"} &ndash; {exp.tahun_selesai || "?"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 6: LOG PRESENSI PERIODE BERJALAN */}
               {activeTab === "presensi" && (
-                <div className="space-y-4 animate-in fade-in">
+                <div className="space-y-4">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                       <Clock size={14} className="text-primary" />
@@ -1120,20 +1783,23 @@ export default function ProfilePage() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+                    <div className="overflow-x-auto max-h-[380px] overflow-y-auto rounded-2xl border border-slate-200/80">
                       <table className="w-full text-left text-xs whitespace-nowrap">
-                        <thead className="bg-primary-dark text-white font-semibold uppercase text-[11px] sticky top-0 z-10">
+                        <thead className="bg-[#05445e] text-white font-semibold uppercase text-[11px] sticky top-0 z-10">
                           <tr>
-                            <th className="px-4 py-2.5 rounded-l-lg">Tanggal</th>
-                            <th className="px-4 py-2.5">Shift</th>
-                            <th className="px-4 py-2.5 text-center">Masuk</th>
-                            <th className="px-4 py-2.5 text-center">Pulang</th>
-                            <th className="px-4 py-2.5 text-right rounded-r-lg">Status</th>
+                            <th className="px-4 py-3">Tanggal</th>
+                            <th className="px-4 py-3">Shift</th>
+                            <th className="px-4 py-3 text-center">Masuk</th>
+                            <th className="px-4 py-3 text-center">Pulang</th>
+                            <th className="px-4 py-3 text-right">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {absensiList.slice(0, 10).map((row, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                          {absensiList.slice(0, 15).map((row, idx) => (
+                            <tr
+                              key={row.id ?? idx}
+                              className="hover:bg-slate-50/80 transition-colors"
+                            >
                               <td className="px-4 py-2.5 font-bold font-mono tabular-nums text-slate-900">
                                 {row.tanggal}
                               </td>
@@ -1148,7 +1814,7 @@ export default function ProfilePage() {
                               </td>
                               <td className="px-4 py-2.5 text-right">
                                 <span
-                                  className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                  className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono tabular-nums ${
                                     (row.menit_terlambat ?? 0) > 0
                                       ? "bg-amber-100 text-amber-800"
                                       : "bg-emerald-100 text-emerald-800"
@@ -1169,24 +1835,7 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Note Verifikasi Keamanan Personalia */}
-            <div className="p-4 sm:p-5 bg-blue-50/70 rounded-2xl border border-blue-200/80 flex items-start gap-3.5">
-              <div className="h-9 w-9 rounded-xl bg-white shadow-2xs border border-blue-200 flex items-center justify-center text-primary shrink-0 mt-0.5">
-                <ShieldCheck size={18} />
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-xs font-extrabold text-slate-900">
-                  Integritas Pangkalan Data SDM RSU Avisena
-                </p>
-                <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                  Seluruh arsip biodata kepegawaian dilindungi dan disinkronkan secara terpusat.
-                  Apabila terdapat pembaruan alamat domisili, nomor kontak, atau mutasi jabatan, silakan
-                  mengajukan verifikasi melalui Bagian Human Capital RSU Avisena.
-                </p>
-              </div>
-            </div>
-
-            {/* Footer Profil: ID Pegawai & Hak Akses */}
+            {/* Footer Integritas Data SDM */}
             <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
@@ -1199,7 +1848,7 @@ export default function ProfilePage() {
 
               <div className="flex items-center gap-2">
                 <span className="badge badge-sm badge-ghost text-slate-600 text-[10px] font-bold uppercase tracking-wider font-mono">
-                  Sistem Absensi Kiosk &amp; GPS
+                  Sistem Informasi SDM RSU Avisena
                 </span>
               </div>
             </div>
