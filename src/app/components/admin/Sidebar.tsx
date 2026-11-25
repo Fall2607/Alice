@@ -164,9 +164,8 @@ export default function Sidebar({
   return (
     <>
       <aside
-        className={`fixed md:sticky top-0 left-0 z-50 flex h-screen flex-col overflow-hidden bg-white transition-all duration-300 border-r border-slate-100 shrink-0 ${
-          isCollapsed ? "-translate-x-full md:translate-x-0 md:w-20" : "translate-x-0 w-[260px] md:w-64"
-        }`}
+        className={`fixed md:sticky top-0 left-0 z-50 flex h-screen flex-col overflow-hidden bg-white transition-all duration-300 border-r border-slate-100 shrink-0 ${isCollapsed ? "-translate-x-full md:translate-x-0 md:w-20" : "translate-x-0 w-[260px] md:w-64"
+          }`}
       >
         {/* Brand Section */}
         <div className="p-6 border-b border-slate-50 shrink-0">
@@ -177,7 +176,7 @@ export default function Sidebar({
             {!isCollapsed && (
               <div className="overflow-hidden animate-in fade-in slide-in-from-left-2">
                 <h2 className="text-sm font-black text-slate-800 tracking-tighter leading-none">
-                  Alice Admin
+                  Alice
                 </h2>
                 <p className="text-[8px] font-bold text-slate-400 tracking-widest mt-1">
                   HRIS Ecosystem
@@ -191,19 +190,17 @@ export default function Sidebar({
         <div className={`p-4 ${isCollapsed ? "flex justify-center" : ""}`}>
           <Link
             href="/admin/profile"
-            className={`flex items-center gap-3 p-2.5 rounded-md transition-all border group ${
-              isProfileActive
+            className={`flex items-center gap-3 p-2.5 rounded-md transition-all border group ${isProfileActive
                 ? "bg-[#0173b6] border-[#0173b6] shadow-md shadow-blue-100"
                 : "hover:bg-slate-50 border-transparent"
-            } ${isCollapsed ? "w-10 h-10 justify-center p-0" : "w-full"}`}
+              } ${isCollapsed ? "w-10 h-10 justify-center p-0" : "w-full"}`}
           >
             <div className="relative shrink-0">
               <img
                 src={profileImg}
                 alt="Profile"
-                className={`h-8 w-8 rounded-md object-cover border-2 transition-all ${
-                  isProfileActive ? "border-white/20" : "border-white shadow-sm"
-                }`}
+                className={`h-8 w-8 rounded-md object-cover border-2 transition-all ${isProfileActive ? "border-white/20" : "border-white shadow-sm"
+                  }`}
               />
               <div
                 className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-400 border-2 border-white rounded-full`}
@@ -212,16 +209,14 @@ export default function Sidebar({
             {!isCollapsed && (
               <div className="overflow-hidden flex-1 text-left">
                 <p
-                  className={`text-[11px] font-black truncate leading-none mb-1 ${
-                    isProfileActive ? "text-white" : "text-slate-800"
-                  }`}
+                  className={`text-[11px] font-black truncate leading-none mb-1 ${isProfileActive ? "text-white" : "text-slate-800"
+                    }`}
                 >
                   {user?.name || "Administrator"}
                 </p>
                 <p
-                  className={`text-[8px] font-bold truncate ${
-                    isProfileActive ? "text-blue-100" : "text-slate-400"
-                  }`}
+                  className={`text-[8px] font-bold truncate ${isProfileActive ? "text-blue-100" : "text-slate-400"
+                    }`}
                 >
                   {user?.role || "System User"}
                 </p>
@@ -260,8 +255,8 @@ export default function Sidebar({
               const hasSub = !!(item.subItems && item.subItems.length > 0);
               const isActive = hasSub
                 ? item.subItems?.some(
-                    (sub) => currentPath === sub.href?.replace(/\/$/, ""),
-                  )
+                  (sub) => currentPath === sub.href?.replace(/\/$/, ""),
+                )
                 : currentPath === item.href?.replace(/\/$/, "");
               const isOpen = openMenu === item.label;
 
@@ -270,11 +265,10 @@ export default function Sidebar({
                   <div key={item.label} className="mb-1">
                     <button
                       onClick={() => toggleSubMenu(item.label)}
-                      className={`flex w-full items-center justify-between rounded-md px-3 py-2.5 transition-all group ${
-                        isActive
+                      className={`flex w-full items-center justify-between rounded-md px-3 py-2.5 transition-all group ${isActive
                           ? "bg-blue-50/50 text-[#0173b6]"
                           : "text-slate-500 hover:bg-slate-50"
-                      } ${isCollapsed ? "justify-center" : ""}`}
+                        } ${isCollapsed ? "justify-center" : ""}`}
                     >
                       <div className="flex items-center">
                         <DynamicIcon
@@ -313,11 +307,10 @@ export default function Sidebar({
                                 <Link
                                   key={sub.href}
                                   href={sub.href || "#"}
-                                  className={`flex items-center rounded-md px-3 py-2 text-[11px] font-bold transition-all gap-2.5 ${
-                                    isSubActive
+                                  className={`flex items-center rounded-md px-3 py-2 text-[11px] font-bold transition-all gap-2.5 ${isSubActive
                                       ? "bg-[#0173b6] text-white shadow-sm"
                                       : "text-slate-500 hover:text-[#0173b6] hover:bg-slate-50"
-                                  }`}
+                                    }`}
                                 >
                                   {/* ICON SUB ITEM DIKEMBALIKAN */}
                                   <DynamicIcon
@@ -345,11 +338,10 @@ export default function Sidebar({
                 <Link
                   key={item.label}
                   href={item.href || "#"}
-                  className={`flex items-center rounded-md px-3 py-2.5 transition-all group ${
-                    isActive
+                  className={`flex items-center rounded-md px-3 py-2.5 transition-all group ${isActive
                       ? "bg-[#0173b6] text-white shadow-md shadow-blue-100"
                       : "text-slate-500 hover:bg-slate-50 hover:text-[#0173b6]"
-                  } ${isCollapsed ? "justify-center" : ""}`}
+                    } ${isCollapsed ? "justify-center" : ""}`}
                 >
                   <DynamicIcon
                     name={item.icon}
@@ -374,9 +366,8 @@ export default function Sidebar({
         <div className="mt-auto p-4 space-y-3 shrink-0">
           <button
             onClick={openLogoutModal}
-            className={`flex w-full items-center rounded-md px-3 py-2.5 text-red-500 font-black transition-all hover:bg-red-50 group ${
-              isCollapsed ? "justify-center" : ""
-            }`}
+            className={`flex w-full items-center rounded-md px-3 py-2.5 text-red-500 font-black transition-all hover:bg-red-50 group ${isCollapsed ? "justify-center" : ""
+              }`}
           >
             <LogOut
               size={18}
