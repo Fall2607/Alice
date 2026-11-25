@@ -125,11 +125,45 @@ export async function POST(req: Request) {
             `, [tanggal, shift_id, ...subordinateValues]);
         }
 
+        // Cek apakah shift yang sedang di-plot adalah shift Libur/Off atau Cuti
+        const targetShiftRes = await client.query(
+            `SELECT id, nama_shift, jam_masuk FROM shift WHERE id = $1 LIMIT 1`,
+            [shift_id]
+        );
+        const targetShiftName = (targetShiftRes.rows[0]?.nama_shift || '').toLowerCase();
+        const isTargetOffOrLeave =
+            targetShiftName.includes('libur') ||
+            targetShiftName.includes('off') ||
+            targetShiftName.includes('lepas') ||
+            targetShiftName.includes('cuti') ||
+            targetShiftName.includes('izin') ||
+            !targetShiftRes.rows[0]?.jam_masuk;
+
         // 2. Insert or Update remaining employees
         for (const k_id of (karyawan_ids || [])) {
             // Cek otorisasi: jika SPV, pastikan ID ada di dalam bawahan
             if (superior_id && !subordinateValues.includes(k_id)) {
                 continue; // Skip jika bukan bawahan
+            }
+
+            if (isTargetOffOrLeave) {
+                // Jika pegawai di-plot Libur/Off/Cuti, hapus shift kerja lain di tanggal yang sama agar tidak bentrok
+                await client.query(
+                    `DELETE FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2 AND shift_id <> $3`,
+                    [k_id, tanggal, shift_id]
+                );
+            } else {
+                // Jika pegawai di-plot shift kerja aktif, hapus status Libur/Off di tanggal yang sama
+                await client.query(
+                    `DELETE FROM karyawan_shift ks
+                     USING shift s
+                     WHERE ks.shift_id = s.id
+                       AND ks.karyawan_id = $1
+                       AND ks.tanggal = $2
+                       AND ks.shift_id <> $3
+                       AND (LOWER(s.nama_shift) LIKE '%libur%' OR LOWER(s.nama_shift) LIKE '%off%' OR LOWER(s.nama_shift) LIKE '%lepas%' OR s.jam_masuk IS NULL)`,
+                    [k_id, tanggal, shift_id]
+                );
             }
 
             await client.query(`

@@ -24,8 +24,9 @@ export async function GET(request: NextRequest) {
 
         // 1. Ambil Karyawan Aktif (Kecualikan semua karyawan yang telah berstatus resign / non-aktif)
         let karQuery = `
-            SELECT k.id, k.nama_lengkap as nama, k.jadwal_kerja_id, lj.nama_level as jabatan, k.tanggal_keluar, k.is_active
+            SELECT k.id, k.nama_lengkap as nama, k.jadwal_kerja_id, jk.tipe as tipe_jadwal, lj.nama_level as jabatan, k.tanggal_keluar, k.is_active
             FROM karyawan k
+            LEFT JOIN jadwal_kerja jk ON k.jadwal_kerja_id = jk.id
             LEFT JOIN jabatan j ON k.jabatan_id = j.id
             LEFT JOIN level_jabatan lj ON j.level_jabatan_id = lj.id
             WHERE k.is_active = true AND k.tanggal_keluar IS NULL
@@ -94,14 +95,19 @@ export async function GET(request: NextRequest) {
             absensiMap[row.karyawan_id][dateStr] = row;
         }
 
-        // 2.5 Ambil Data Shift Date Range
+        // 2.5 Ambil Data Shift Date Range (diperluas +6 hari untuk pengecekan piket Sabtu di minggu terakhir)
+        const extendedEndDate = new Date(endDate);
+        extendedEndDate.setDate(extendedEndDate.getDate() + 6);
+        const extendedEndDateStr = extendedEndDate.toISOString().split('T')[0];
+
         const shiftQuery = `
-            SELECT ks.karyawan_id, ks.tanggal, s.nama_shift, s.jam_masuk, s.jam_keluar
+            SELECT ks.id, ks.karyawan_id, ks.tanggal, s.nama_shift, s.jam_masuk, s.jam_keluar
             FROM karyawan_shift ks
             JOIN shift s ON ks.shift_id = s.id
             WHERE ks.tanggal >= $1 AND ks.tanggal <= $2 AND ks.karyawan_id = ANY($3::uuid[])
+            ORDER BY ks.id ASC
         `;
-        const shiftRes = await pool.query(shiftQuery, [startDateParam, endDateParam, karyawanIds]);
+        const shiftRes = await pool.query(shiftQuery, [startDateParam, extendedEndDateStr, karyawanIds]);
         
         const shiftMap: Record<string, Record<string, any>> = {};
         for (const row of shiftRes.rows) {
@@ -165,6 +171,25 @@ export async function GET(request: NextRequest) {
         todayDate.setMinutes(todayDate.getMinutes() - todayDate.getTimezoneOffset());
         const todayStr = todayDate.toISOString().split('T')[0];
 
+        const isCutiOrIzinShift = (shift?: { nama_shift?: string | null } | null): boolean => {
+            if (!shift?.nama_shift) return false;
+            const name = shift.nama_shift.toLowerCase();
+            return name.includes('cuti') || name.includes('izin') || name.includes('sakit');
+        };
+
+        const isLiburOrOffShift = (shift?: { nama_shift?: string | null; jam_masuk?: string | null } | null): boolean => {
+            if (!shift) return false;
+            if (isCutiOrIzinShift(shift)) return false;
+            const name = (shift.nama_shift || '').toLowerCase();
+            if (name.includes('libur') || name.includes('off') || name.includes('lepas')) {
+                return true;
+            }
+            if (!shift.jam_masuk) {
+                return true;
+            }
+            return false;
+        };
+
         // 3. Susun Response Final
         const result = karyawanList.map(kar => {
             const harian: Record<string, any> = {};
@@ -172,20 +197,23 @@ export async function GET(request: NextRequest) {
             let totalTelat = 0;
             let totalAlpha = 0;
             let totalIzin = 0;
+            const hasPlottedShifts = Boolean(shiftMap[kar.id] && Object.keys(shiftMap[kar.id]).length > 0);
+            const isShiftingEmployee = kar.tipe_jadwal === 'SHIFT' || (!kar.jadwal_kerja_id && hasPlottedShifts);
 
             for (const dateStr of dates) {
                 const currentDate = new Date(dateStr);
                 const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 6 = Saturday
+                const dbDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // 1 = Senin .. 7 = Minggu
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 const absenHariIni = absensiMap[kar.id]?.[dateStr];
                 let adaShift = shiftMap[kar.id]?.[dateStr]; 
                 
                 if (!adaShift && kar.jadwal_kerja_id) {
-                    adaShift = defaultShiftMap[kar.jadwal_kerja_id]?.[dayOfWeek];
+                    adaShift = defaultShiftMap[kar.jadwal_kerja_id]?.[dbDayOfWeek] ?? defaultShiftMap[kar.jadwal_kerja_id]?.[dayOfWeek];
                 }
 
-                // DYNAMIC OVERRIDE: Jika 8-5 dan ada piket sabtu di minggu yang sama -> jadi 8-4
+                // DYNAMIC OVERRIDE: Jika 8-5 dan ada piket sabtu kerja aktif di minggu yang sama -> jadi 8-4
                 if (dayOfWeek >= 1 && dayOfWeek <= 5 && adaShift && adaShift.nama_shift && adaShift.nama_shift.includes('8-5') && shift84Data) {
                     const daysToSaturday = 6 - dayOfWeek;
                     const satDate = new Date(currentDate);
@@ -193,13 +221,13 @@ export async function GET(request: NextRequest) {
                     const satDateStr = satDate.toISOString().split('T')[0];
                     
                     const adaPiketSabtu = shiftMap[kar.id]?.[satDateStr];
-                    if (adaPiketSabtu) {
+                    if (adaPiketSabtu && !isLiburOrOffShift(adaPiketSabtu) && !isCutiOrIzinShift(adaPiketSabtu)) {
                         adaShift = shift84Data;
                     }
                 }
 
-                // Cek Cuti / Izin dari shift
-                const isCuti = adaShift && adaShift.nama_shift.toLowerCase().includes('cuti');
+                const isCuti = isCutiOrIzinShift(adaShift);
+                const isLiburShift = isLiburOrOffShift(adaShift);
 
                 if (isCuti) {
                     totalIzin++;
@@ -212,13 +240,15 @@ export async function GET(request: NextRequest) {
                     } else {
                         harian[dateStr] = { status: 'hadir', shift: adaShift, ...absenHariIni };
                     }
+                } else if (isLiburShift) {
+                    harian[dateStr] = { status: 'libur', shift: adaShift };
                 } else {
                     if (dateStr > todayStr) {
                         harian[dateStr] = { status: 'belum', shift: adaShift };
                     } else if (adaShift) {
                         totalAlpha++;
                         harian[dateStr] = { status: 'alpha', shift: adaShift };
-                    } else if (!isWeekend) {
+                    } else if (!isWeekend && !isShiftingEmployee) {
                         totalAlpha++;
                         harian[dateStr] = { status: 'alpha', shift: adaShift };
                     } else {
