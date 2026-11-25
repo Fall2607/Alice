@@ -108,13 +108,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 const saturdayDate = new Date(curY, curM, curD + daysToSaturday);
                 const satDateStr = `${saturdayDate.getFullYear()}-${pad2(saturdayDate.getMonth() + 1)}-${pad2(saturdayDate.getDate())}`;
                 
-                // Apakah ada piket sabtu?
-                const piketRes = await pool.query(
-                    `SELECT shift_id FROM karyawan_shift WHERE karyawan_id = $1 AND tanggal = $2 LIMIT 1`,
-                    [karyawanId, satDateStr]
-                );
+                // Apakah ada piket sabtu kerja aktif (bukan Libur/Off dan bukan Cuti)?
+                const satOverrides = overrides[satDateStr] || [];
+                const hasActiveSaturdayPiket = satOverrides.some((s) => {
+                    const name = (s.nama_shift || '').toLowerCase();
+                    const isOffOrLeave =
+                        name.includes('libur') ||
+                        name.includes('off') ||
+                        name.includes('lepas') ||
+                        name.includes('cuti') ||
+                        name.includes('izin') ||
+                        !s.jam_masuk;
+                    return !isOffOrLeave;
+                });
 
-                if (piketRes.rows.length > 0 && piketRes.rows[0].shift_id) {
+                if (hasActiveSaturdayPiket) {
                     finalShifts = [shift84];
                 }
             }
