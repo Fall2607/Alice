@@ -18,7 +18,10 @@ import {
   ChevronRight,
   Sparkles,
   Info,
-} from "lucide-react";
+  ArrowUpDown,
+  ArrowUpNarrowWide,
+  ArrowDownWideNarrow,
+}/*  */ from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useGSAP } from "@gsap/react";
@@ -35,7 +38,7 @@ interface KaryawanRekap {
   id: string;
   nama: string;
   jabatan: string;
-  rekap: { hadir: number; telat: number; alpha: number; izin: number };
+  rekap: { hadir: number; telat: number; alpha: number; libur?: number; izin: number };
   harian: Record<
     string,
     {
@@ -52,6 +55,21 @@ interface KaryawanRekap {
 }
 
 type FormOption = { value: string | number; label: string };
+
+const SORT_OPTIONS: FormOption[] = [
+  { value: "rate_desc", label: "Tingkat Kehadiran: Tertinggi (100% – 0%)" },
+  { value: "rate_asc", label: "Tingkat Kehadiran: Terendah (0% – 100%)" },
+];
+
+const getPersonalAttendanceRate = (kar: KaryawanRekap): number => {
+  const personalWorkingDays = Object.values(kar.harian || {}).filter(
+    (h) => h.status === "hadir" || h.status === "telat" || h.status === "alpha" || h.status === "izin"
+  ).length;
+  if (personalWorkingDays > 0) {
+    return Math.min(Number(((kar.rekap.hadir / personalWorkingDays) * 100).toFixed(1)), 100);
+  }
+  return kar.rekap.hadir > 0 ? 100 : 0;
+};
 
 /**
  * Menghitung rentang tanggal cut-off 26 - 25 baku RSU Avisena
@@ -80,6 +98,7 @@ export default function RekapAbsensiPage() {
     value: "all",
     label: "Semua Unit (Seluruh Karyawan)",
   });
+  const [selectedSort, setSelectedSort] = useState<FormOption | null>(null);
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
   const [startDateObj, endDateObj] = dateRange;
   const [searchQuery, setSearchQuery] = useState("");
@@ -175,14 +194,47 @@ export default function RekapAbsensiPage() {
     return totalHadirAll > 0 ? "100.0" : "0.0";
   }, [totalHadirAll, totalHariKerjaAll]);
 
-  // Filter data berdasarkan query pencarian
+  // Filter & urutkan data berdasarkan query pencarian dan tingkat kehadiran
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return data;
-    const q = searchQuery.toLowerCase();
-    return data.filter(
-      (k) => k.nama.toLowerCase().includes(q) || k.jabatan.toLowerCase().includes(q)
-    );
-  }, [data, searchQuery]);
+    const q = searchQuery.trim().toLowerCase();
+    const baseList = q
+      ? data.filter(
+        (k) => k.nama.toLowerCase().includes(q) || k.jabatan.toLowerCase().includes(q)
+      )
+      : [...data];
+
+    const sortVal = selectedSort?.value || "default";
+    if (sortVal === "rate_desc") {
+      return [...baseList].sort((a, b) => {
+        const rateDiff = getPersonalAttendanceRate(b) - getPersonalAttendanceRate(a);
+        if (rateDiff !== 0) return rateDiff;
+        const hadirDiff = b.rekap.hadir - a.rekap.hadir;
+        if (hadirDiff !== 0) return hadirDiff;
+        return a.nama.localeCompare(b.nama);
+      });
+    }
+    if (sortVal === "rate_asc") {
+      return [...baseList].sort((a, b) => {
+        const rateDiff = getPersonalAttendanceRate(a) - getPersonalAttendanceRate(b);
+        if (rateDiff !== 0) return rateDiff;
+        const alphaDiff = b.rekap.alpha - a.rekap.alpha;
+        if (alphaDiff !== 0) return alphaDiff;
+        return a.nama.localeCompare(b.nama);
+      });
+    }
+    return baseList;
+  }, [data, searchQuery, selectedSort]);
+
+  const handleToggleRateSort = () => {
+    const current = selectedSort?.value;
+    if (!current) {
+      setSelectedSort(SORT_OPTIONS[0]); // Tingkat Kehadiran: Tertinggi (100% - 0%)
+    } else if (current === "rate_desc") {
+      setSelectedSort(SORT_OPTIONS[1]); // Tingkat Kehadiran: Terendah (0% - 100%)
+    } else {
+      setSelectedSort(null);
+    }
+  };
 
   // Options unit departemen
   const unitOptions: FormOption[] = useMemo(() => {
@@ -215,12 +267,15 @@ export default function RekapAbsensiPage() {
   const handleResetFilter = () => {
     setSearchQuery("");
     setSelectedUnit({ value: "all", label: "Semua Unit (Seluruh Karyawan)" });
+    setSelectedSort(null);
     applyPresetCutOff();
     showInfoToast("Filter telah direset ke pengaturan standar cut-off 26–25.");
   };
 
   const hasActiveFilters = Boolean(
-    searchQuery || (selectedUnit && selectedUnit.value !== "all")
+    searchQuery ||
+    (selectedUnit && selectedUnit.value !== "all") ||
+    Boolean(selectedSort)
   );
 
   // Export Excel menggunakan ExcelJS
@@ -446,22 +501,20 @@ export default function RekapAbsensiPage() {
           <div className="join border border-slate-200 bg-white shadow-2xs rounded-xl p-0.5">
             <button
               onClick={() => setViewType("table")}
-              className={`join-item btn btn-sm border-0 font-bold text-xs gap-1.5 transition-all ${
-                viewType === "table"
+              className={`join-item btn btn-sm border-0 font-bold text-xs gap-1.5 transition-all ${viewType === "table"
                   ? "bg-[#0173b6] text-white hover:bg-[#005f98] shadow-xs"
                   : "bg-transparent text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               <TableProperties size={15} />
               <span>Tabel Ringkas</span>
             </button>
             <button
               onClick={() => setViewType("heatmap")}
-              className={`join-item btn btn-sm border-0 font-bold text-xs gap-1.5 transition-all ${
-                viewType === "heatmap"
+              className={`join-item btn btn-sm border-0 font-bold text-xs gap-1.5 transition-all ${viewType === "heatmap"
                   ? "bg-[#0173b6] text-white hover:bg-[#005f98] shadow-xs"
                   : "bg-transparent text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
             >
               <Grid size={15} />
               <span>Heatmap Matriks</span>
@@ -615,7 +668,7 @@ export default function RekapAbsensiPage() {
           </div>
 
           {/* Date Picker Rentang Tanggal */}
-          <div className="relative lg:col-span-2">
+          <div className="relative">
             <div className="relative w-full">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none">
                 <Calendar size={15} />
@@ -631,6 +684,17 @@ export default function RekapAbsensiPage() {
                 wrapperClassName="w-full"
               />
             </div>
+          </div>
+
+          {/* Urutan Tingkat Kehadiran Dropdown */}
+          <div>
+            <SearchableSelect
+              options={SORT_OPTIONS}
+              value={selectedSort}
+              onChange={(opt) => setSelectedSort(opt)}
+              placeholder="Urutkan Tingkat Kehadiran..."
+              isClearable={true}
+            />
           </div>
         </div>
       </div>
@@ -691,31 +755,37 @@ export default function RekapAbsensiPage() {
                   <th className="py-3.5 px-4 text-center">Hadir</th>
                   <th className="py-3.5 px-4 text-center">Terlambat</th>
                   <th className="py-3.5 px-4 text-center">Alpha</th>
+                  <th className="py-3.5 px-4 text-center">Libur</th>
                   <th className="py-3.5 px-4 text-center">Izin / Cuti</th>
-                  <th className="py-3.5 px-6 text-center w-56">Tingkat Kehadiran</th>
+                  <th className="py-3.5 px-6 text-center w-60">
+                    <button
+                      type="button"
+                      onClick={handleToggleRateSort}
+                      className="inline-flex items-center justify-center gap-1.5 uppercase tracking-wider font-semibold text-white hover:text-sky-200 transition-colors cursor-pointer select-none"
+                      title="Klik untuk mengurutkan Tingkat Kehadiran"
+                    >
+                      <span>Tingkat Kehadiran</span>
+                      {selectedSort?.value === "rate_desc" ? (
+                        <ArrowDownWideNarrow size={14} className="text-sky-300" />
+                      ) : selectedSort?.value === "rate_asc" ? (
+                        <ArrowUpNarrowWide size={14} className="text-amber-300" />
+                      ) : (
+                        <ArrowUpDown size={13} className="opacity-60" />
+                      )}
+                    </button>
+                  </th>
                   <th className="py-3.5 px-4 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredData.map((kar, idx) => {
-                  const personalWorkingDays = Object.values(kar.harian || {}).filter(
-                    (h) => h.status === "hadir" || h.status === "telat" || h.status === "alpha" || h.status === "izin"
-                  ).length;
-                  const personalAvg =
-                    personalWorkingDays > 0
-                      ? ((kar.rekap.hadir / personalWorkingDays) * 100).toFixed(1)
-                      : kar.rekap.hadir > 0
-                      ? "100.0"
-                      : "0.0";
-
-                  const rateNum = Number(personalAvg);
+                  const rateNum = getPersonalAttendanceRate(kar);
 
                   return (
                     <tr
                       key={kar.id}
-                      className={`rekap-row hover:bg-blue-50/40 transition-colors ${
-                        idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-                      }`}
+                      className={`rekap-row hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
+                        }`}
                     >
                       <td className="py-3.5 px-6">
                         <div className="flex items-center gap-3">
@@ -742,11 +812,10 @@ export default function RekapAbsensiPage() {
 
                       <td className="py-3.5 px-4 text-center">
                         <span
-                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${
-                            kar.rekap.telat > 0
+                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${kar.rekap.telat > 0
                               ? "bg-amber-50 text-amber-700 border-amber-200/60"
                               : "bg-slate-50 text-slate-400 border-slate-200/50"
-                          }`}
+                            }`}
                         >
                           {kar.rekap.telat}
                         </span>
@@ -754,13 +823,18 @@ export default function RekapAbsensiPage() {
 
                       <td className="py-3.5 px-4 text-center">
                         <span
-                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${
-                            kar.rekap.alpha > 0
+                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${kar.rekap.alpha > 0
                               ? "bg-rose-50 text-rose-700 border-rose-200/60"
                               : "bg-slate-50 text-slate-400 border-slate-200/50"
-                          }`}
+                            }`}
                         >
                           {kar.rekap.alpha}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-slate-100 text-slate-700 font-bold font-mono tabular-nums border border-slate-200/80">
+                          {kar.rekap.libur ?? 0}
                         </span>
                       </td>
 
@@ -773,24 +847,22 @@ export default function RekapAbsensiPage() {
                       <td className="py-3.5 px-6">
                         <div className="flex items-center gap-3">
                           <progress
-                            className={`progress h-2 w-full ${
-                              rateNum >= 85
+                            className={`progress h-2 w-full ${rateNum >= 85
                                 ? "progress-success"
                                 : rateNum >= 60
-                                ? "progress-warning"
-                                : "progress-error"
-                            }`}
+                                  ? "progress-warning"
+                                  : "progress-error"
+                              }`}
                             value={Math.min(rateNum, 100)}
                             max="100"
                           ></progress>
                           <span
-                            className={`text-xs font-mono tabular-nums font-bold w-12 text-right ${
-                              rateNum >= 85
+                            className={`text-xs font-mono tabular-nums font-bold w-12 text-right ${rateNum >= 85
                                 ? "text-emerald-600"
                                 : rateNum >= 60
-                                ? "text-amber-600"
-                                : "text-rose-600"
-                            }`}
+                                  ? "text-amber-600"
+                                  : "text-rose-600"
+                              }`}
                           >
                             {Math.min(rateNum, 100)}%
                           </span>
@@ -952,7 +1024,7 @@ export default function RekapAbsensiPage() {
             </div>
 
             {/* Modal Sub-Ribbon Quick Stats */}
-            <div className="grid grid-cols-4 gap-3 p-4 bg-slate-50 border-b border-slate-200 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-50 border-b border-slate-200 text-xs">
               <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Hadir</p>
                 <p className="text-lg font-black text-emerald-600 font-mono tabular-nums mt-0.5">
@@ -969,6 +1041,12 @@ export default function RekapAbsensiPage() {
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Alpha</p>
                 <p className="text-lg font-black text-rose-600 font-mono tabular-nums mt-0.5">
                   {selectedUserDetail.rekap.alpha} Hari
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Libur</p>
+                <p className="text-lg font-black text-slate-700 font-mono tabular-nums mt-0.5">
+                  {selectedUserDetail.rekap.libur ?? 0} Hari
                 </p>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
@@ -1020,9 +1098,8 @@ export default function RekapAbsensiPage() {
                       return (
                         <tr
                           key={dateStr}
-                          className={`hover:bg-slate-50 transition-colors ${
-                            idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"
-                          }`}
+                          className={`hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"
+                            }`}
                         >
                           <td className="py-3 px-4 font-sans font-semibold text-slate-700 whitespace-nowrap">
                             {new Date(dateStr).toLocaleDateString("id-ID", {
@@ -1034,31 +1111,28 @@ export default function RekapAbsensiPage() {
                           </td>
                           <td className="py-3 px-4 font-sans">
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                                shiftName.toLowerCase().includes("libur")
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold ${shiftName.toLowerCase().includes("libur")
                                   ? "bg-slate-100 text-slate-600"
                                   : shiftName.toLowerCase().includes("cuti")
-                                  ? "bg-blue-100 text-[#0173b6]"
-                                  : "bg-blue-50 text-[#0173b6]"
-                              }`}
+                                    ? "bg-blue-100 text-[#0173b6]"
+                                    : "bg-blue-50 text-[#0173b6]"
+                                }`}
                             >
                               {shiftName} {shiftIn !== "-" && shiftOut !== "-" ? `(${shiftIn} - ${shiftOut})` : ""}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-center">
                             <span
-                              className={`font-bold ${
-                                checkIn !== "-" ? "text-emerald-600" : "text-slate-400"
-                              }`}
+                              className={`font-bold ${checkIn !== "-" ? "text-emerald-600" : "text-slate-400"
+                                }`}
                             >
                               {checkIn}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-center">
                             <span
-                              className={`font-bold ${
-                                checkOut !== "-" ? "text-emerald-600" : "text-slate-400"
-                              }`}
+                              className={`font-bold ${checkOut !== "-" ? "text-emerald-600" : "text-slate-400"
+                                }`}
                             >
                               {checkOut}
                             </span>
@@ -1083,17 +1157,16 @@ export default function RekapAbsensiPage() {
                           </td>
                           <td className="py-3 px-4 text-center font-sans">
                             <span
-                              className={`badge badge-sm font-bold uppercase text-[10px] ${
-                                dayData?.status === "hadir"
+                              className={`badge badge-sm font-bold uppercase text-[10px] ${dayData?.status === "hadir"
                                   ? "badge-success text-white"
                                   : dayData?.status === "telat"
-                                  ? "badge-warning text-slate-900"
-                                  : dayData?.status === "alpha"
-                                  ? "badge-error text-white"
-                                  : dayData?.status === "izin"
-                                  ? "badge-info text-white"
-                                  : "badge-ghost text-slate-500"
-                              }`}
+                                    ? "badge-warning text-slate-900"
+                                    : dayData?.status === "alpha"
+                                      ? "badge-error text-white"
+                                      : dayData?.status === "izin"
+                                        ? "badge-info text-white"
+                                        : "badge-ghost text-slate-500"
+                                }`}
                             >
                               {dayData?.status || "Libur"}
                             </span>

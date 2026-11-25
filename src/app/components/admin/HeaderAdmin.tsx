@@ -30,6 +30,7 @@ interface LoggedInUser {
   role: string;
   role_id?: string;
   jenis_kelamin?: string;
+  pas_foto_url?: string | null;
 }
 
 interface HeaderAdminProps {
@@ -99,11 +100,12 @@ export default function HeaderAdmin({
     setBreadcrumbs(labels);
   }, [pathname, user?.role_id]);
 
-  // Gambar profil berdasarkan jenis kelamin
-  const profileImg =
+  // Gambar profil: utamakan pas_foto_url jika ada, fallback ke default berdasarkan jenis kelamin
+  const defaultImg =
     user?.jenis_kelamin === "Perempuan"
       ? "/img/potrait/woman.jpg"
       : "/img/potrait/man.jpg";
+  const profileImg = user?.pas_foto_url || defaultImg;
 
   if (!mounted)
     return <header className="h-16 bg-white border-b border-slate-100" />;

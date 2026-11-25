@@ -21,10 +21,12 @@ export async function POST(request: Request) {
         u.role_id, -- Diambil untuk kebutuhan hak akses di frontend
         k.nama_lengkap,
         k.jenis_kelamin,
-        r.nama_role
+        r.nama_role,
+        kd.pas_foto_url
       FROM users u
       LEFT JOIN karyawan k ON u.karyawan_id = k.id
       LEFT JOIN roles r ON u.role_id = r.id
+      LEFT JOIN karyawan_documents kd ON u.karyawan_id = kd.karyawan_id
       WHERE LOWER(u.email) = LOWER($1)`,
       [identifier]
     );
@@ -60,7 +62,8 @@ export async function POST(request: Request) {
         name: user.nama_lengkap,
         email: user.email,
         role: user.nama_role,
-        jenis_kelamin: user.jenis_kelamin
+        jenis_kelamin: user.jenis_kelamin,
+        pas_foto_url: user.pas_foto_url || null,
       },
     });
   } catch (error) {

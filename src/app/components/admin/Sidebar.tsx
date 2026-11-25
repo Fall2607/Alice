@@ -36,6 +36,7 @@ interface LoggedInUser {
   role_id?: string;
   karyawan_id?: string;
   jenis_kelamin?: string;
+  pas_foto_url?: string | null;
 }
 
 interface SidebarProps {
@@ -146,10 +147,11 @@ export default function Sidebar({
       .filter((item): item is MenuItem => item !== null);
   }, [displayMenus, searchTerm]);
 
-  const profileImg =
+  const defaultImg =
     user?.jenis_kelamin === "Perempuan"
       ? "/img/potrait/woman.jpg"
       : "/img/potrait/man.jpg";
+  const profileImg = user?.pas_foto_url || defaultImg;
   const isProfileActive = currentPath === "/admin/profile";
 
   if (!mounted)

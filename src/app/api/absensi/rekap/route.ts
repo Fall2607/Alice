@@ -7,14 +7,14 @@ export async function GET(request: NextRequest) {
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
         const unitParam = searchParams.get('unit'); // departemen_id or 'all'
-        
+
         if (!startDateParam || !endDateParam) {
             return NextResponse.json({ message: "Parameter startDate dan endDate wajib diisi." }, { status: 400 });
         }
 
         const startDate = new Date(startDateParam);
         const endDate = new Date(endDateParam);
-        
+
         // Cek jika date tidak valid
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
             return NextResponse.json({ message: "Format tanggal tidak valid." }, { status: 400 });
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
             WHERE k.is_active = true AND k.tanggal_keluar IS NULL
         `;
         const queryParams: any[] = [];
-        
+
         if (unitParam && unitParam !== 'all' && unitParam !== 'Semua Unit') {
             karQuery += ` AND j.departemen_id = $${queryParams.length + 1}`;
             queryParams.push(unitParam);
@@ -49,10 +49,10 @@ export async function GET(request: NextRequest) {
                 )
             `;
             queryParams.push(superiorId);
-            
+
             karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
         }
-        
+
         karQuery += ` ORDER BY k.nama_lengkap ASC`;
 
         const karyawanRes = await pool.query(karQuery, queryParams);
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
             WHERE tanggal >= $1 AND tanggal <= $2 AND karyawan_id = ANY($3::uuid[])
         `;
         const absensiRes = await pool.query(absensiQuery, [startDateParam, endDateParam, karyawanIds]);
-        
+
         // Map absensi by karyawan_id -> date -> data
         const absensiMap: Record<string, Record<string, any>> = {};
         for (const row of absensiRes.rows) {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
             const d = new Date(row.tanggal);
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             const dateStr = d.toISOString().split('T')[0];
-            
+
             const formatTime = (timeVal: any) => {
                 if (!timeVal) return null;
                 const t = new Date(timeVal);
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
             ORDER BY ks.id ASC
         `;
         const shiftRes = await pool.query(shiftQuery, [startDateParam, extendedEndDateStr, karyawanIds]);
-        
+
         const shiftMap: Record<string, Record<string, any>> = {};
         for (const row of shiftRes.rows) {
             if (!shiftMap[row.karyawan_id]) {
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
             const d = new Date(row.tanggal);
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             const dateStr = d.toISOString().split('T')[0];
-            
+
             shiftMap[row.karyawan_id][dateStr] = {
                 nama_shift: row.nama_shift,
                 jam_masuk: row.jam_masuk,
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
         // 2.6 Ambil Data Default Shift dari jadwal_kerja
         const jadwalKerjaIds = Array.from(new Set(karyawanList.map(k => k.jadwal_kerja_id).filter(id => id)));
         const defaultShiftMap: Record<number, Record<number, any>> = {};
-        
+
         if (jadwalKerjaIds.length > 0) {
             const defaultShiftQuery = `
                 SELECT jkd.jadwal_kerja_id, jkd.hari, s.nama_shift, s.jam_masuk, s.jam_keluar
@@ -196,9 +196,11 @@ export async function GET(request: NextRequest) {
             let totalHadir = 0;
             let totalTelat = 0;
             let totalAlpha = 0;
+            let totalLibur = 0;
             let totalIzin = 0;
             const hasPlottedShifts = Boolean(shiftMap[kar.id] && Object.keys(shiftMap[kar.id]).length > 0);
             const isShiftingEmployee = kar.tipe_jadwal === 'SHIFT' || (!kar.jadwal_kerja_id && hasPlottedShifts);
+            const isFixedSchedule = !isShiftingEmployee;
 
             for (const dateStr of dates) {
                 const currentDate = new Date(dateStr);
@@ -207,8 +209,8 @@ export async function GET(request: NextRequest) {
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                 const absenHariIni = absensiMap[kar.id]?.[dateStr];
-                let adaShift = shiftMap[kar.id]?.[dateStr]; 
-                
+                let adaShift = shiftMap[kar.id]?.[dateStr];
+
                 if (!adaShift && kar.jadwal_kerja_id) {
                     adaShift = defaultShiftMap[kar.jadwal_kerja_id]?.[dbDayOfWeek] ?? defaultShiftMap[kar.jadwal_kerja_id]?.[dayOfWeek];
                 }
@@ -219,7 +221,7 @@ export async function GET(request: NextRequest) {
                     const satDate = new Date(currentDate);
                     satDate.setDate(currentDate.getDate() + daysToSaturday);
                     const satDateStr = satDate.toISOString().split('T')[0];
-                    
+
                     const adaPiketSabtu = shiftMap[kar.id]?.[satDateStr];
                     if (adaPiketSabtu && !isLiburOrOffShift(adaPiketSabtu) && !isCutiOrIzinShift(adaPiketSabtu)) {
                         adaShift = shift84Data;
@@ -227,7 +229,9 @@ export async function GET(request: NextRequest) {
                 }
 
                 const isCuti = isCutiOrIzinShift(adaShift);
-                const isLiburShift = isLiburOrOffShift(adaShift);
+                const isLiburPlotted = isLiburOrOffShift(adaShift);
+                // Jadwal normal (FIXED): Sabtu & Minggu otomatis libur kecuali di hari tersebut ada plot shift kerja/piket
+                const isNormalWeekendOff = isFixedSchedule && isWeekend && !adaShift;
 
                 if (isCuti) {
                     totalIzin++;
@@ -240,8 +244,12 @@ export async function GET(request: NextRequest) {
                     } else {
                         harian[dateStr] = { status: 'hadir', shift: adaShift, ...absenHariIni };
                     }
-                } else if (isLiburShift) {
-                    harian[dateStr] = { status: 'libur', shift: adaShift };
+                } else if (isLiburPlotted || isNormalWeekendOff) {
+                    totalLibur++;
+                    harian[dateStr] = {
+                        status: 'libur',
+                        shift: adaShift || { nama_shift: 'Libur', jam_masuk: null, jam_keluar: null }
+                    };
                 } else {
                     if (dateStr > todayStr) {
                         harian[dateStr] = { status: 'belum', shift: adaShift };
@@ -252,7 +260,7 @@ export async function GET(request: NextRequest) {
                         totalAlpha++;
                         harian[dateStr] = { status: 'alpha', shift: adaShift };
                     } else {
-                        harian[dateStr] = { status: 'libur', shift: adaShift };
+                        harian[dateStr] = { status: 'belum', shift: null };
                     }
                 }
             }
@@ -265,6 +273,7 @@ export async function GET(request: NextRequest) {
                     hadir: totalHadir,
                     telat: totalTelat,
                     alpha: totalAlpha,
+                    libur: totalLibur,
                     izin: totalIzin
                 },
                 harian

@@ -43,8 +43,13 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     const normalizedCurrentPath = currentPath.replace(/\/$/, "");
 
     // 1. Whitelist rute dasar Alice yang selalu bisa diakses (setelah login)
-    const whitelist = ["/admin", "/admin/profile"];
-    if (whitelist.includes(normalizedCurrentPath)) return true;
+    const whitelist = ["/admin", "/admin/profile", "/admin/profile/edit"];
+    if (
+      whitelist.includes(normalizedCurrentPath) ||
+      normalizedCurrentPath.startsWith("/admin/profile")
+    ) {
+      return true;
+    }
 
     for (const menu of allowedMenus) {
       if (menu.href && menu.href !== "#" && menu.href !== null) {
