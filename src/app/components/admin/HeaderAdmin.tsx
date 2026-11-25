@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { getSafeImageUrl } from "@/app/utils/imageUrl";
 import {
   Search,
   Bell,
@@ -105,7 +106,7 @@ export default function HeaderAdmin({
     user?.jenis_kelamin === "Perempuan"
       ? "/img/potrait/woman.jpg"
       : "/img/potrait/man.jpg";
-  const profileImg = user?.pas_foto_url || defaultImg;
+  const profileImg = getSafeImageUrl(user?.pas_foto_url, defaultImg);
 
   if (!mounted)
     return <header className="h-16 bg-white border-b border-slate-100" />;
@@ -171,6 +172,9 @@ export default function HeaderAdmin({
               <img
                 src={profileImg}
                 alt="User"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = defaultImg;
+                }}
                 className="h-8 w-8 rounded-full object-cover border border-white shadow-sm"
               />
               <div className="absolute bottom-0 right-0 h-2 w-2 bg-emerald-500 border border-white rounded-full"></div>

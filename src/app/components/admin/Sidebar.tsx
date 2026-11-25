@@ -20,6 +20,7 @@ import {
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getSafeImageUrl } from "@/app/utils/imageUrl";
 
 // --- INTERFACES ---
 export interface MenuItem {
@@ -151,7 +152,7 @@ export default function Sidebar({
     user?.jenis_kelamin === "Perempuan"
       ? "/img/potrait/woman.jpg"
       : "/img/potrait/man.jpg";
-  const profileImg = user?.pas_foto_url || defaultImg;
+  const profileImg = getSafeImageUrl(user?.pas_foto_url, defaultImg);
   const isProfileActive = currentPath === "/admin/profile";
 
   if (!mounted)
@@ -199,6 +200,9 @@ export default function Sidebar({
               <img
                 src={profileImg}
                 alt="Profile"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = defaultImg;
+                }}
                 className={`h-8 w-8 rounded-md object-cover border-2 transition-all ${isProfileActive ? "border-white/20" : "border-white shadow-sm"
                   }`}
               />

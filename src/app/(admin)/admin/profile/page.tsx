@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { getSafeImageUrl } from "@/app/utils/imageUrl";
 import {
   User,
   Mail,
@@ -536,11 +537,12 @@ export default function ProfilePage() {
     completeness,
   } = payload;
 
-  const profileImg =
-    documents?.pas_foto_url ||
-    (profile.jenis_kelamin === "Perempuan"
+  const defaultProfileImg =
+    profile.jenis_kelamin === "Perempuan"
       ? "/img/potrait/woman.jpg"
-      : "/img/potrait/man.jpg");
+      : "/img/potrait/man.jpg";
+
+  const profileImg = getSafeImageUrl(documents?.pas_foto_url, defaultProfileImg);
 
   const tenureText = calculateTenure(profile.tanggal_masuk);
   const ageText = calculateAge(profile.tanggal_lahir);
