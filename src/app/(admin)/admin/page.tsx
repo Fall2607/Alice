@@ -191,8 +191,13 @@ export default function DashboardAdminPage() {
     }
 
     const today = new Date();
+    // Selaraskan default periode cut-off (26 s/d 25): jika hari ini >= tanggal 26, masuk ke periode bulan berikutnya
+    const cutOffTargetDate =
+      today.getDate() >= 26
+        ? new Date(today.getFullYear(), today.getMonth() + 1, 1)
+        : today;
     const localMonthStr = new Date(
-      today.getTime() - today.getTimezoneOffset() * 60000
+      cutOffTargetDate.getTime() - cutOffTargetDate.getTimezoneOffset() * 60000
     )
       .toISOString()
       .substring(0, 7);

@@ -76,7 +76,7 @@ const getPersonalAttendanceRate = (kar: KaryawanRekap): number => {
   if (activeDutyDays > 0) {
     return Math.min(Number(((kar.rekap.hadir / activeDutyDays) * 100).toFixed(1)), 100);
   }
-  return 100;
+  return (kar.rekap.cuti || 0) > 0 || (kar.rekap.izin || 0) > 0 || (kar.rekap.libur || 0) > 0 ? 100 : 0;
 };
 
 const getPersonalCutiRate = (kar: KaryawanRekap): number => {

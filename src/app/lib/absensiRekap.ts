@@ -305,9 +305,12 @@ export async function calculateAbsensiRekap(options: AbsensiRekapOptions): Promi
     let totalCuti = 0;
     let totalIzin = 0;
 
-    const hasPlottedShifts = Boolean(shiftMap[kar.id] && Object.keys(shiftMap[kar.id]).length > 0);
-    const isShiftingEmployee = kar.tipe_jadwal === "SHIFT" || (!kar.jadwal_kerja_id && hasPlottedShifts);
-    const isFixedSchedule = !isShiftingEmployee;
+    const hasDefaultSchedule = Boolean(
+      kar.jadwal_kerja_id &&
+        defaultShiftMap[kar.jadwal_kerja_id] &&
+        Object.keys(defaultShiftMap[kar.jadwal_kerja_id]).length > 0
+    );
+    const isFixedScheduleWithDefault = kar.tipe_jadwal !== "SHIFT" && hasDefaultSchedule;
 
     for (const dateStr of dates) {
       const currentDate = new Date(dateStr);
@@ -338,7 +341,9 @@ export async function calculateAbsensiRekap(options: AbsensiRekapOptions): Promi
       const isCuti = isCutiShift(adaShift);
       const isIzin = isIzinOrSakitShift(adaShift);
       const isLiburPlotted = isLiburOrOffShift(adaShift);
-      const isNormalWeekendOff = isFixedSchedule && isWeekend && !adaShift;
+      // Libur akhir pekan otomatis hanya berlaku bagi pegawai dengan jadwal tetap (Non-Shift) yang memiliki detail jadwal default.
+      // Pegawai yang tidak terplotting shiftnya sama sekali (!adaShift) tidak dianggap libur.
+      const isNormalWeekendOff = isFixedScheduleWithDefault && isWeekend && !adaShift;
 
       if (isCuti) {
         totalCuti++;
@@ -362,15 +367,15 @@ export async function calculateAbsensiRekap(options: AbsensiRekapOptions): Promi
         };
       } else {
         if (dateStr > todayStr) {
-          harian[dateStr] = { status: "belum", shift: adaShift };
-        } else if (adaShift) {
-          totalAlpha++;
-          harian[dateStr] = { status: "alpha", shift: adaShift };
-        } else if (!isWeekend && !isShiftingEmployee) {
-          totalAlpha++;
-          harian[dateStr] = { status: "alpha", shift: adaShift };
+          harian[dateStr] = { status: "belum", shift: adaShift || null };
         } else {
-          harian[dateStr] = { status: "belum", shift: null };
+          // Baik karyawan sudah terplotting shift maupun TIDAK terplotting shiftnya (!adaShift),
+          // jika tanggal <= hari ini dan tidak hadir/cuti/izin/libur, wajib dihitung sebagai ALPHA
+          totalAlpha++;
+          harian[dateStr] = {
+            status: "alpha",
+            shift: adaShift || { nama_shift: "Belum Diplot (Alpha)", jam_masuk: null, jam_keluar: null },
+          };
         }
       }
     }
@@ -378,7 +383,12 @@ export async function calculateAbsensiRekap(options: AbsensiRekapOptions): Promi
     // Hitung persentase individual
     // 1. Kehadiran Fisik (Dinas Aktif: Hadir vs Alpha. Cuti & Izin TIDAK mengurangi)
     const activeDutyDays = totalHadir + totalAlpha;
-    const kehadiranFisik = activeDutyDays > 0 ? Math.min(Number(((totalHadir / activeDutyDays) * 100).toFixed(1)), 100) : 100;
+    const kehadiranFisik =
+      activeDutyDays > 0
+        ? Math.min(Number(((totalHadir / activeDutyDays) * 100).toFixed(1)), 100)
+        : totalCuti > 0 || totalIzin > 0 || totalLibur > 0
+        ? 100
+        : 0;
 
     // 2. Persentase Cuti & Izin terhadap total jadwal terencana (Dinas Aktif + Cuti + Izin)
     const totalPlannedDays = activeDutyDays + totalCuti + totalIzin;
