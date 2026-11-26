@@ -57,6 +57,15 @@ interface AbsensiDashboardStats {
   terlambatHariIni: number;
   alphaHariIni: number;
   kehadiranBulanIni: number;
+  cutiRateBulanIni?: number;
+  izinRateBulanIni?: number;
+  totalDinasAktif?: number;
+  totalHadirCutOff?: number;
+  totalAlphaCutOff?: number;
+  totalCutiCutOff?: number;
+  totalIzinCutOff?: number;
+  cutOffStart?: string;
+  cutOffEnd?: string;
 }
 
 interface PendingCutiItem {
@@ -1261,18 +1270,29 @@ export default function DashboardAdminPage() {
                           : `Monitoring Kehadiran Tim ${karyawanProfile?.nama_departemen || "Unit"} Hari Ini`}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">
-                        {isHCAdmin
-                          ? "Tingkat kedisiplinan dan absensi cut-off 26–25 bulan terpilih"
-                          : "Tingkat kedisiplinan dan absensi anggota tim bawahan Anda periode cut-off 26–25"}
+                        Tingkat kehadiran fisik (dinas aktif) periode cut-off 26–25
                       </p>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-700 font-mono tabular-nums">
-                        {stats.kehadiranBulanIni}%
-                      </span>
-                      <span className="badge badge-xs badge-info text-[9px] font-bold text-white">
-                        Rata-Rata
-                      </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-black text-emerald-600 font-mono tabular-nums">
+                          {stats.kehadiranBulanIni}%
+                        </span>
+                        <span className="badge badge-xs badge-success text-[9px] font-bold text-white">
+                          Kehadiran Fisik
+                        </span>
+                      </div>
+                      {(stats.cutiRateBulanIni !== undefined || stats.izinRateBulanIni !== undefined) && (
+                        <div className="flex items-center gap-2 text-[10px] font-mono tabular-nums text-slate-400">
+                          <span>
+                            Cuti: <strong className="text-indigo-600">{stats.cutiRateBulanIni ?? 0}%</strong>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            Izin: <strong className="text-sky-600">{stats.izinRateBulanIni ?? 0}%</strong>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

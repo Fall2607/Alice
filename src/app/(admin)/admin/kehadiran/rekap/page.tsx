@@ -21,6 +21,8 @@ import {
   ArrowUpDown,
   ArrowUpNarrowWide,
   ArrowDownWideNarrow,
+  Palmtree,
+  Coffee,
 }/*  */ from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -38,7 +40,8 @@ interface KaryawanRekap {
   id: string;
   nama: string;
   jabatan: string;
-  rekap: { hadir: number; telat: number; alpha: number; libur?: number; izin: number };
+  rekap: { hadir: number; telat: number; alpha: number; libur?: number; cuti?: number; izin: number };
+  rates?: { kehadiranFisik: number; cutiRate: number; izinRate: number };
   harian: Record<
     string,
     {
@@ -61,14 +64,43 @@ const SORT_OPTIONS: FormOption[] = [
   { value: "rate_asc", label: "Tingkat Kehadiran: Terendah (0% – 100%)" },
 ];
 
+/**
+ * Tingkat Kehadiran Fisik: (Hadir / (Hadir + Alpha)) * 100%
+ * Cuti dan Izin DIKECUALIKAN dari pembagi dinas fisik agar tidak mengurangi persentase kehadiran
+ */
 const getPersonalAttendanceRate = (kar: KaryawanRekap): number => {
-  const personalWorkingDays = Object.values(kar.harian || {}).filter(
-    (h) => h.status === "hadir" || h.status === "telat" || h.status === "alpha" || h.status === "izin"
-  ).length;
-  if (personalWorkingDays > 0) {
-    return Math.min(Number(((kar.rekap.hadir / personalWorkingDays) * 100).toFixed(1)), 100);
+  if (kar.rates?.kehadiranFisik !== undefined) {
+    return kar.rates.kehadiranFisik;
   }
-  return kar.rekap.hadir > 0 ? 100 : 0;
+  const activeDutyDays = (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0);
+  if (activeDutyDays > 0) {
+    return Math.min(Number(((kar.rekap.hadir / activeDutyDays) * 100).toFixed(1)), 100);
+  }
+  return 100;
+};
+
+const getPersonalCutiRate = (kar: KaryawanRekap): number => {
+  if (kar.rates?.cutiRate !== undefined) {
+    return kar.rates.cutiRate;
+  }
+  const activeDutyDays = (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0);
+  const totalPlanned = activeDutyDays + (kar.rekap.cuti || 0) + (kar.rekap.izin || 0);
+  if (totalPlanned > 0) {
+    return Number((((kar.rekap.cuti || 0) / totalPlanned) * 100).toFixed(1));
+  }
+  return 0;
+};
+
+const getPersonalIzinRate = (kar: KaryawanRekap): number => {
+  if (kar.rates?.izinRate !== undefined) {
+    return kar.rates.izinRate;
+  }
+  const activeDutyDays = (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0);
+  const totalPlanned = activeDutyDays + (kar.rekap.cuti || 0) + (kar.rekap.izin || 0);
+  if (totalPlanned > 0) {
+    return Number((((kar.rekap.izin || 0) / totalPlanned) * 100).toFixed(1));
+  }
+  return 0;
 };
 
 /**
@@ -178,21 +210,44 @@ export default function RekapAbsensiPage() {
   const totalTelat = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.telat, 0), [data]);
   const totalAlpha = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.alpha, 0), [data]);
 
-  const totalHariKerjaAll = useMemo(() => {
-    return data.reduce((acc, curr) => {
-      const pDays = Object.values(curr.harian || {}).filter(
-        (h) => h.status === "hadir" || h.status === "telat" || h.status === "alpha" || h.status === "izin"
-      ).length;
-      return acc + pDays;
-    }, 0);
-  }, [data]);
+  // Metrik Cuti, Libur & Izin
+  const totalUserCuti = useMemo(() => data.filter((curr) => (curr.rekap.cuti || 0) > 0).length, [data]);
+  const totalHariCutiAll = useMemo(() => data.reduce((acc, curr) => acc + (curr.rekap.cuti || 0), 0), [data]);
+
+  const totalUserLibur = useMemo(() => data.filter((curr) => (curr.rekap.libur || 0) > 0).length, [data]);
+  const totalHariLiburAll = useMemo(() => data.reduce((acc, curr) => acc + (curr.rekap.libur || 0), 0), [data]);
+
+  const totalUserIzin = useMemo(() => data.filter((curr) => (curr.rekap.izin || 0) > 0).length, [data]);
+  const totalHariIzinAll = useMemo(() => data.reduce((acc, curr) => acc + (curr.rekap.izin || 0), 0), [data]);
+
+  // Total dinas aktif fisik: Hadir + Alpha (Cuti & Izin TIDAK masuk pembagi)
+  const totalDinasAktifAll = useMemo(() => totalHadirAll + totalAlpha, [totalHadirAll, totalAlpha]);
+  // Total rencana plotting jadwal: Dinas Aktif + Cuti + Izin
+  const totalPlottingAll = useMemo(
+    () => totalDinasAktifAll + totalHariCutiAll + totalHariIzinAll,
+    [totalDinasAktifAll, totalHariCutiAll, totalHariIzinAll]
+  );
 
   const avgKehadiran = useMemo(() => {
-    if (totalHariKerjaAll > 0) {
-      return ((totalHadirAll / totalHariKerjaAll) * 100).toFixed(1);
+    if (totalDinasAktifAll > 0) {
+      return Math.min(Number(((totalHadirAll / totalDinasAktifAll) * 100).toFixed(1)), 100).toFixed(1);
     }
-    return totalHadirAll > 0 ? "100.0" : "0.0";
-  }, [totalHadirAll, totalHariKerjaAll]);
+    return "100.0";
+  }, [totalHadirAll, totalDinasAktifAll]);
+
+  const avgCutiRate = useMemo(() => {
+    if (totalPlottingAll > 0) {
+      return ((totalHariCutiAll / totalPlottingAll) * 100).toFixed(1);
+    }
+    return "0.0";
+  }, [totalHariCutiAll, totalPlottingAll]);
+
+  const avgIzinRate = useMemo(() => {
+    if (totalPlottingAll > 0) {
+      return ((totalHariIzinAll / totalPlottingAll) * 100).toFixed(1);
+    }
+    return "0.0";
+  }, [totalHariIzinAll, totalPlottingAll]);
 
   // Filter & urutkan data berdasarkan query pencarian dan tingkat kehadiran
   const filteredData = useMemo(() => {
@@ -537,8 +592,8 @@ export default function RekapAbsensiPage() {
         </div>
       </div>
 
-      {/* LAYER 2: KPI / SUMMARY RIBBON (4 METRICS) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* LAYER 2: KPI / SUMMARY RIBBON (6 METRICS: Karyawan, Rate, Terlambat, Alpha, Cuti, Libur) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Karyawan</p>
@@ -554,11 +609,14 @@ export default function RekapAbsensiPage() {
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Rata-Rata Kehadiran</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kehadiran Fisik</p>
               <span className="badge badge-xs badge-success text-[9px] font-bold text-white">Rate</span>
             </div>
             <p className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-0.5">
               {Math.min(Number(avgKehadiran), 100)}%
+            </p>
+            <p className="text-[10px] font-mono tabular-nums text-slate-400 font-semibold mt-0.5">
+              Dinas: {totalHadirAll} / {totalDinasAktifAll} Hari
             </p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
@@ -580,13 +638,56 @@ export default function RekapAbsensiPage() {
 
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Alpha</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Alpha</p>
+              {totalHariIzinAll > 0 && (
+                <span className="badge badge-xs bg-sky-100 text-sky-700 font-bold font-mono text-[9px]">Izin: {avgIzinRate}%</span>
+              )}
+            </div>
             <p className="text-2xl font-black text-rose-600 font-mono tabular-nums mt-0.5">
               {totalAlpha} <span className="text-xs font-semibold text-slate-400 font-sans">Hari</span>
+            </p>
+            <p className="text-[10px] font-mono tabular-nums text-slate-400 font-semibold mt-0.5">
+              Izin / Sakit: {totalHariIzinAll} Hari
             </p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
             <AlertTriangle size={22} />
+          </div>
+        </div>
+
+        {/* CARD BARU: KARYAWAN CUTI */}
+        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pegawai Cuti</p>
+              <span className="badge badge-xs bg-indigo-100 text-indigo-700 font-bold font-mono text-[9px]">{avgCutiRate}%</span>
+            </div>
+            <p className="text-2xl font-black text-indigo-600 font-mono tabular-nums mt-0.5">
+              {totalUserCuti} <span className="text-xs font-semibold text-slate-400 font-sans">User</span>
+            </p>
+            <p className="text-[10px] font-mono tabular-nums text-slate-400 font-semibold mt-0.5">
+              {totalHariCutiAll} Hari Terpakai
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+            <Palmtree size={22} />
+          </div>
+        </div>
+
+        {/* CARD BARU: KARYAWAN LIBUR */}
+        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pegawai Libur</p>
+            <p className="text-2xl font-black text-cyan-600 font-mono tabular-nums mt-0.5">
+              {totalUserLibur} <span className="text-xs font-semibold text-slate-400 font-sans">User</span>
+            </p>
+            <p className="text-[10px] font-mono tabular-nums text-slate-400 font-semibold mt-0.5">
+              {totalHariLiburAll} Hari Plot Libur
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold">
+            <Coffee size={22} />
           </div>
         </div>
       </div>
@@ -756,8 +857,9 @@ export default function RekapAbsensiPage() {
                   <th className="py-3.5 px-4 text-center">Terlambat</th>
                   <th className="py-3.5 px-4 text-center">Alpha</th>
                   <th className="py-3.5 px-4 text-center">Libur</th>
-                  <th className="py-3.5 px-4 text-center">Izin / Cuti</th>
-                  <th className="py-3.5 px-6 text-center w-60">
+                  <th className="py-3.5 px-4 text-center">Izin</th>
+                  <th className="py-3.5 px-4 text-center">Cuti</th>
+                  <th className="py-3.5 px-6 text-center w-64">
                     <button
                       type="button"
                       onClick={handleToggleRateSort}
@@ -780,6 +882,8 @@ export default function RekapAbsensiPage() {
               <tbody className="divide-y divide-slate-100 text-xs">
                 {filteredData.map((kar, idx) => {
                   const rateNum = getPersonalAttendanceRate(kar);
+                  const cutiRateNum = getPersonalCutiRate(kar);
+                  const izinRateNum = getPersonalIzinRate(kar);
 
                   return (
                     <tr
@@ -839,33 +943,61 @@ export default function RekapAbsensiPage() {
                       </td>
 
                       <td className="py-3.5 px-4 text-center">
-                        <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-blue-50 text-[#0173b6] font-bold font-mono tabular-nums border border-blue-200/60">
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${kar.rekap.izin > 0
+                              ? "bg-sky-50 text-sky-700 border-sky-200/60"
+                              : "bg-slate-50 text-slate-400 border-slate-200/50"
+                            }`}
+                        >
                           {kar.rekap.izin}
                         </span>
                       </td>
 
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg font-bold font-mono tabular-nums border ${(kar.rekap.cuti || 0) > 0
+                              ? "bg-indigo-50 text-indigo-700 border-indigo-200/60"
+                              : "bg-slate-50 text-slate-400 border-slate-200/50"
+                            }`}
+                        >
+                          {kar.rekap.cuti ?? 0}
+                        </span>
+                      </td>
+
                       <td className="py-3.5 px-6">
-                        <div className="flex items-center gap-3">
-                          <progress
-                            className={`progress h-2 w-full ${rateNum >= 85
-                                ? "progress-success"
-                                : rateNum >= 60
-                                  ? "progress-warning"
-                                  : "progress-error"
-                              }`}
-                            value={Math.min(rateNum, 100)}
-                            max="100"
-                          ></progress>
-                          <span
-                            className={`text-xs font-mono tabular-nums font-bold w-12 text-right ${rateNum >= 85
-                                ? "text-emerald-600"
-                                : rateNum >= 60
-                                  ? "text-amber-600"
-                                  : "text-rose-600"
-                              }`}
-                          >
-                            {Math.min(rateNum, 100)}%
-                          </span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-3">
+                            <progress
+                              className={`progress h-2 w-full ${rateNum >= 85
+                                  ? "progress-success"
+                                  : rateNum >= 60
+                                    ? "progress-warning"
+                                    : "progress-error"
+                                }`}
+                              value={Math.min(rateNum, 100)}
+                              max="100"
+                            ></progress>
+                            <span
+                              className={`text-xs font-mono tabular-nums font-bold w-12 text-right ${rateNum >= 85
+                                  ? "text-emerald-600"
+                                  : rateNum >= 60
+                                    ? "text-amber-600"
+                                    : "text-rose-600"
+                                }`}
+                            >
+                              {Math.min(rateNum, 100)}%
+                            </span>
+                          </div>
+                          {(cutiRateNum > 0 || izinRateNum > 0) && (
+                            <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-slate-400 px-0.5">
+                              {cutiRateNum > 0 ? (
+                                <span className="text-indigo-600 font-semibold">Cuti: {cutiRateNum}%</span>
+                              ) : <span />}
+                              {izinRateNum > 0 ? (
+                                <span className="text-sky-600 font-semibold">Izin: {izinRateNum}%</span>
+                              ) : <span />}
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -905,7 +1037,11 @@ export default function RekapAbsensiPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3.5 h-3.5 rounded bg-sky-500 shadow-2xs"></div>
-                <span className="font-semibold text-slate-600">Izin / Cuti</span>
+                <span className="font-semibold text-slate-600">Izin</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3.5 h-3.5 rounded bg-indigo-500 shadow-2xs"></div>
+                <span className="font-semibold text-slate-600">Cuti</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3.5 h-3.5 rounded bg-slate-200"></div>
@@ -970,7 +1106,10 @@ export default function RekapAbsensiPage() {
                           tooltip = `${dateStr}: Alpha / Tanpa Keterangan`;
                         } else if (statusObj.status === "izin") {
                           bgColor = "bg-sky-500 hover:bg-sky-600";
-                          tooltip = `${dateStr}: Izin / Cuti`;
+                          tooltip = `${dateStr}: Izin / Sakit`;
+                        } else if (statusObj.status === "cuti") {
+                          bgColor = "bg-indigo-500 hover:bg-indigo-600";
+                          tooltip = `${dateStr}: Cuti Kerja Terjadwal`;
                         } else if (statusObj.status === "libur") {
                           bgColor = "bg-slate-200 hover:bg-slate-300";
                           tooltip = `${dateStr}: Libur Jadwal Shift`;
@@ -1024,7 +1163,7 @@ export default function RekapAbsensiPage() {
             </div>
 
             {/* Modal Sub-Ribbon Quick Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-4 bg-slate-50 border-b border-slate-200 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 p-4 bg-slate-50 border-b border-slate-200 text-xs">
               <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Hadir</p>
                 <p className="text-lg font-black text-emerald-600 font-mono tabular-nums mt-0.5">
@@ -1045,13 +1184,19 @@ export default function RekapAbsensiPage() {
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Libur</p>
-                <p className="text-lg font-black text-slate-700 font-mono tabular-nums mt-0.5">
+                <p className="text-lg font-black text-cyan-600 font-mono tabular-nums mt-0.5">
                   {selectedUserDetail.rekap.libur ?? 0} Hari
                 </p>
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Izin / Cuti</p>
-                <p className="text-lg font-black text-[#0173b6] font-mono tabular-nums mt-0.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cuti</p>
+                <p className="text-lg font-black text-indigo-600 font-mono tabular-nums mt-0.5">
+                  {selectedUserDetail.rekap.cuti ?? 0} Hari
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-slate-200/80 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Izin</p>
+                <p className="text-lg font-black text-sky-600 font-mono tabular-nums mt-0.5">
                   {selectedUserDetail.rekap.izin} Hari
                 </p>
               </div>

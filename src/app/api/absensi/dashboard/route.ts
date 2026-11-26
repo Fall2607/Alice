@@ -1,97 +1,102 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/app/lib/db";
+import { calculateAbsensiRekap, getCutOffPeriodDates } from "@/app/lib/absensiRekap";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-    try {
-        const { searchParams } = new URL(request.url);
-        const monthParam = searchParams.get('month'); // YYYY-MM
-        const unitParam = searchParams.get('unit'); // departemen_id or 'all'
-        
-        let dateFilter = monthParam ? `${monthParam}-%` : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-%`;
-        const todayDateStr = new Date().toISOString().split('T')[0];
+  try {
+    const { searchParams } = new URL(request.url);
+    const monthParam = searchParams.get("month"); // YYYY-MM
+    const unitParam = searchParams.get("unit"); // departemen_id or 'all'
+    const superiorId = searchParams.get("superior_id") || searchParams.get("superiorId");
 
-        const superiorId = searchParams.get('superior_id') || searchParams.get('superiorId');
+    const today = new Date();
+    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+    const todayDateStr = today.toISOString().split("T")[0];
 
-        // Base Karyawan Query (Hanya karyawan aktif, kecualikan yang sudah resign)
-        let karQuery = `
-            SELECT k.id 
-            FROM karyawan k
-            LEFT JOIN jabatan j ON k.jabatan_id = j.id
-            WHERE k.is_active = true AND k.tanggal_keluar IS NULL
-        `;
-        const queryParams: any[] = [];
-        
-        if (unitParam && unitParam !== 'all' && unitParam !== 'Semua Unit') {
-            karQuery += ` AND j.departemen_id = $${queryParams.length + 1}`;
-            queryParams.push(unitParam);
-        }
+    // Tentukan rentang cut-off (26 s/d 25)
+    let startDate: string;
+    let endDate: string;
 
-        if (superiorId) {
-            const paramIdx = queryParams.length + 1;
-            const recursiveCte = `
-                WITH RECURSIVE subordinates AS (
-                    SELECT id FROM karyawan WHERE atasan_id = $${paramIdx}
-                    UNION
-                    SELECT k.id FROM karyawan k
-                    INNER JOIN subordinates s ON s.id = k.atasan_id
-                )
-            `;
-            queryParams.push(superiorId);
-            
-            karQuery = `${recursiveCte} ${karQuery} AND k.id IN (SELECT id FROM subordinates)`;
-        }
+    if (monthParam) {
+      const [yStr, mStr] = monthParam.split("-");
+      const yNum = parseInt(yStr, 10);
+      const mNum = parseInt(mStr, 10);
+      const pad2 = (n: number) => String(n).padStart(2, "0");
 
-        const karyawanRes = await pool.query(karQuery, queryParams);
-        const totalKaryawan = karyawanRes.rows.length;
-        const karyawanIds = karyawanRes.rows.map(r => r.id);
-
-        if (totalKaryawan === 0) {
-            return NextResponse.json({
-                totalKaryawan: 0,
-                hadirHariIni: 0,
-                terlambatHariIni: 0,
-                alphaHariIni: 0,
-                kehadiranBulanIni: 0
-            });
-        }
-
-        // Stats Hari Ini
-        let queryHadir = `SELECT id, is_late FROM absensi WHERE tanggal = $1 AND karyawan_id = ANY($2::uuid[])`;
-        const hadirRes = await pool.query(queryHadir, [todayDateStr, karyawanIds]);
-        
-        const hadirHariIni = hadirRes.rows.length;
-        const terlambatHariIni = hadirRes.rows.filter(r => r.is_late).length;
-        // Simple Alpha estimation (if they didn't clock in, they might be alpha, though it could be leave)
-        const alphaHariIni = totalKaryawan - hadirHariIni; 
-
-        // Rata-rata Periode Cut-Off Ini (26 bulan lalu s/d 25 bulan terpilih)
-        const [yStr, mStr] = (monthParam || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`).split('-');
-        const yNum = parseInt(yStr, 10);
-        const mNum = parseInt(mStr, 10);
-        const pad2 = (n: number) => String(n).padStart(2, '0');
-        const startCutOff = new Date(yNum, mNum - 2, 26);
-        const endCutOff = new Date(yNum, mNum - 1, 25);
-        const startStr = `${startCutOff.getFullYear()}-${pad2(startCutOff.getMonth() + 1)}-${pad2(startCutOff.getDate())}`;
-        const endStr = `${endCutOff.getFullYear()}-${pad2(endCutOff.getMonth() + 1)}-${pad2(endCutOff.getDate())}`;
-
-        let queryBulan = `SELECT COUNT(id) as total_absen FROM absensi WHERE tanggal::text >= $1 AND tanggal::text <= $2 AND karyawan_id = ANY($3::uuid[])`;
-        const bulanRes = await pool.query(queryBulan, [startStr, endStr, karyawanIds]);
-        
-        // Asumsi hari kerja efektif sebulan sekitar 22 hari
-        const totalExpectedAbsen = totalKaryawan * 22; 
-        const actualAbsen = parseInt(bulanRes.rows[0].total_absen || '0');
-        const kehadiranBulanIni = totalExpectedAbsen > 0 ? ((actualAbsen / totalExpectedAbsen) * 100).toFixed(1) : 0;
-
-        return NextResponse.json({
-            totalKaryawan,
-            hadirHariIni,
-            terlambatHariIni,
-            alphaHariIni,
-            kehadiranBulanIni: Math.min(Number(kehadiranBulanIni), 100) // cap at 100%
-        });
-
-    } catch (err: any) {
-        console.error("Error fetching dashboard absensi:", err);
-        return NextResponse.json({ message: "Internal server error", error: err.message }, { status: 500 });
+      const startCutOff = new Date(yNum, mNum - 2, 26);
+      const endCutOff = new Date(yNum, mNum - 1, 25);
+      startDate = `${startCutOff.getFullYear()}-${pad2(startCutOff.getMonth() + 1)}-${pad2(startCutOff.getDate())}`;
+      endDate = `${endCutOff.getFullYear()}-${pad2(endCutOff.getMonth() + 1)}-${pad2(endCutOff.getDate())}`;
+    } else {
+      const cutOff = getCutOffPeriodDates(today);
+      startDate = cutOff.startDateStr;
+      endDate = cutOff.endDateStr;
     }
+
+    // 1. Hitung agregasi rekap presensi cut-off dengan formula terstandarisasi
+    const rekapResult = await calculateAbsensiRekap({
+      startDate,
+      endDate,
+      unit: unitParam,
+      superiorId,
+    });
+
+    const { summary, data: karyawanData } = rekapResult;
+    const totalKaryawan = summary.totalKaryawan;
+
+    if (totalKaryawan === 0) {
+      return NextResponse.json({
+        totalKaryawan: 0,
+        hadirHariIni: 0,
+        terlambatHariIni: 0,
+        alphaHariIni: 0,
+        kehadiranBulanIni: 100,
+        cutiRateBulanIni: 0,
+        izinRateBulanIni: 0,
+        totalDinasAktif: 0,
+        cutOffStart: startDate,
+        cutOffEnd: endDate,
+      });
+    }
+
+    const karyawanIds = karyawanData.map((k) => k.id);
+
+    // 2. Stats Real-time Hari Ini
+    const queryHadir = `
+      SELECT id, is_late 
+      FROM absensi 
+      WHERE tanggal = $1 AND karyawan_id = ANY($2::uuid[])
+    `;
+    const hadirRes = await pool.query(queryHadir, [todayDateStr, karyawanIds]);
+
+    const hadirHariIni = hadirRes.rows.length;
+    const terlambatHariIni = hadirRes.rows.filter((r) => r.is_late).length;
+    const alphaHariIni = Math.max(0, totalKaryawan - hadirHariIni);
+
+    return NextResponse.json({
+      totalKaryawan,
+      hadirHariIni,
+      terlambatHariIni,
+      alphaHariIni,
+      // Persentase kehadiran fisik: (Hadir / (Hadir + Alpha)) * 100
+      kehadiranBulanIni: summary.kehadiranRate,
+      // Persentase Cuti & Izin terpisah
+      cutiRateBulanIni: summary.cutiRate,
+      izinRateBulanIni: summary.izinRate,
+      totalDinasAktif: summary.totalDinasAktif,
+      totalHadirCutOff: summary.totalHadir,
+      totalTelatCutOff: summary.totalTelat,
+      totalAlphaCutOff: summary.totalAlpha,
+      totalCutiCutOff: summary.totalCuti,
+      totalIzinCutOff: summary.totalIzin,
+      totalLiburCutOff: summary.totalLibur,
+      cutOffStart: startDate,
+      cutOffEnd: endDate,
+    });
+  } catch (err: any) {
+    console.error("Error fetching dashboard absensi:", err);
+    return NextResponse.json({ message: "Internal server error", error: err.message }, { status: 500 });
+  }
 }
