@@ -1,0 +1,31 @@
+/* =========================================================================
+   Scoped CSS Khusus Tampilan Depan Website RSU Avisena Cimahi (Guideline 2026)
+   Terpisah sepenuhnya dari styling Dashboard Admin & Auth HRIS.
+   Catatan: Menggunakan prefix --avisena-* agar tidak menimpa variabel
+   bawaan Tailwind CSS v4 seperti --color-blue-50 atau --color-orange-50.
+   ========================================================================= */
+
+.website-theme {
+  --avisena-tosca: #00A79C;
+  --avisena-tosca-80: rgba(0, 167, 156, 0.8);
+  --avisena-tosca-50: rgba(0, 167, 156, 0.5);
+  --avisena-tosca-15: rgba(0, 167, 156, 0.15);
+
+  --avisena-blue: #154C96;
+  --avisena-blue-80: rgba(21, 76, 150, 0.8);
+  --avisena-blue-50: rgba(21, 76, 150, 0.5);
+  --avisena-blue-15: rgba(21, 76, 150, 0.15);
+
+  --avisena-orange: #F69320;
+  --avisena-orange-80: rgba(246, 147, 32, 0.8);
+  --avisena-orange-50: rgba(246, 147, 32, 0.5);
+  --avisena-orange-15: rgba(246, 147, 32, 0.15);
+
+  --avisena-dark-navy: #10162C;
+  --avisena-grey: #B2B5B3;
+  --avisena-light-grey: #E0E4E9;
+  --avisena-white: #FFFFFF;
+  --avisena-bg-subtle: #F7F9FB;
+
+  --avisena-emergency: #D92D20;
+}

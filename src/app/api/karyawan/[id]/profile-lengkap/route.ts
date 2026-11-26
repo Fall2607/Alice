@@ -110,7 +110,7 @@ function hasText(val: unknown): boolean {
   return typeof val === "string" && val.trim().length > 0;
 }
 
-export function calculateProfileCompleteness(payload: {
+function calculateProfileCompleteness(payload: {
   karyawan: Record<string, any>;
   spouse: Record<string, any> | null;
   parents: Record<string, any> | null;
