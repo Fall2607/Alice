@@ -447,7 +447,26 @@ Halaman peninjauan detail lowongan, antrean berkas kandidat, dan evaluasi psikom
 
 ---
 
-## 13. Checklist Verifikasi Sebelum Menyelesaikan Halaman
+## 13. Standar Perhitungan Presensi, Cut-Off 26–25 & Rekapitulasi Kehadiran
+
+Seluruh halaman yang menampilkan metrik kehadiran (**Dashboard Awal Login `/admin`**, **Dashboard Kehadiran `/admin/kehadiran/dashboard`**, dan **Rekapitulasi Kehadiran `/admin/kehadiran/rekap`**) wajib mengacu pada *Single Source of Truth* di `src/app/lib/absensiRekap.ts` dan spesifikasi lengkap di `docx/STANDAR_PERHITUNGAN_PRESENSI_KEHADIRAN.md`:
+
+1. **Formula Baku Persentase Kehadiran**:
+   - **Rumus Harian (1 Hari)**:
+     $$\text{Persentase Kehadiran Hari Ini (\%)} = \frac{(\text{Hadir Tepat Waktu} + \text{Hadir Terlambat} + \text{Cuti} + \text{Izin}) \times 100}{\text{Total Karyawan} - \text{Libur / Day Off Hari Ini}}$$
+   - **Rumus Periode Cut-Off / Multi-Hari (Evaluasi s/d Hari Ini)**:
+     $$\text{Persentase Kehadiran (\%)} = \frac{(\text{Hadir Tepat Waktu} + \text{Hadir Terlambat} + \text{Cuti} + \text{Izin}) \times 100}{\text{Total Hari Evaluasi s/d Hari Ini} - \text{Total Hari Libur / Day Off}}$$
+     Di mana penyebut $(\text{Total Hari Evaluasi} - \text{Libur})$ ekuivalen dengan $(\text{Hadir Tepat Waktu} + \text{Hadir Terlambat} + \text{Cuti} + \text{Izin} + \text{Alpha})$.
+2. **Aturan Pegawai Tanpa Plotting Shift (`!adaShift`)**:
+   - Setiap tanggal yang sudah berjalan (`tanggal <= hari ini`) yang bukan Cuti, Izin, atau Libur resmi—**baik pegawai sudah terplotting shift maupun belum/tidak terplotting shiftnya**—dan tidak terdapat log presensi hadir, **wajib dihitung sebagai Alpha (`totalAlpha++`)**.
+3. **Preset Periode Cut-Off 26–25**:
+   - Tombol preset **`Bulan Berjalan (26–25)`** dan **`Bulan Lalu (26–25)`** pada halaman Rekapitulasi Kehadiran selalu mengikuti siklus tanggal 26 s/d 25 (bukan tanggal kalender 1 s/d 30/31).
+4. **Card Pembanding Tepat Waktu vs Terlambat**:
+   - Deretan 6 Card KPI pada `/admin/kehadiran/rekap` wajib memuat kartu perbandingan langsung antara **User Tepat Waktu (`Xx Tepat`)** vs **User Terlambat (`Yx Telat`)** dilengkapi *mini dual-segment progress bar* (Emerald vs Amber).
+
+---
+
+## 14. Checklist Verifikasi Sebelum Menyelesaikan Halaman
 
 - [ ] Header menggunakan Tag Kategori, Judul H1 `text-primary-dark`, dan Tombol Tambah `rounded-xl min-h-[44px]`.
 - [ ] Kontainer Filter menggunakan `rounded-2xl border-slate-200/80` dengan reset filter `RotateCcw`.

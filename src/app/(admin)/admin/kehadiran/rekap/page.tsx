@@ -65,28 +65,30 @@ const SORT_OPTIONS: FormOption[] = [
 ];
 
 /**
- * Tingkat Kehadiran Fisik: (Hadir / (Hadir + Alpha)) * 100%
- * Cuti dan Izin DIKECUALIKAN dari pembagi dinas fisik agar tidak mengurangi persentase kehadiran
+ * Rumus Baku Tingkat Kehadiran:
+ * ((Hadir Tepat Waktu + Terlambat + Cuti + Izin) * 100) / (Total Hari Evaluasi s/d Hari Ini - Libur/Day Off)
  */
 const getPersonalAttendanceRate = (kar: KaryawanRekap): number => {
   if (kar.rates?.kehadiranFisik !== undefined) {
     return kar.rates.kehadiranFisik;
   }
-  const activeDutyDays = (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0);
-  if (activeDutyDays > 0) {
-    return Math.min(Number(((kar.rekap.hadir / activeDutyDays) * 100).toFixed(1)), 100);
+  const hadirPlusCutiIzin =
+    (kar.rekap.hadir || 0) + (kar.rekap.cuti || 0) + (kar.rekap.izin || 0);
+  const totalHariWajibNonLibur = hadirPlusCutiIzin + (kar.rekap.alpha || 0);
+  if (totalHariWajibNonLibur > 0) {
+    return Math.min(Number(((hadirPlusCutiIzin * 100) / totalHariWajibNonLibur).toFixed(1)), 100);
   }
-  return (kar.rekap.cuti || 0) > 0 || (kar.rekap.izin || 0) > 0 || (kar.rekap.libur || 0) > 0 ? 100 : 0;
+  return (kar.rekap.libur || 0) > 0 ? 100 : 0;
 };
 
 const getPersonalCutiRate = (kar: KaryawanRekap): number => {
   if (kar.rates?.cutiRate !== undefined) {
     return kar.rates.cutiRate;
   }
-  const activeDutyDays = (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0);
-  const totalPlanned = activeDutyDays + (kar.rekap.cuti || 0) + (kar.rekap.izin || 0);
-  if (totalPlanned > 0) {
-    return Number((((kar.rekap.cuti || 0) / totalPlanned) * 100).toFixed(1));
+  const totalHariWajibNonLibur =
+    (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0) + (kar.rekap.cuti || 0) + (kar.rekap.izin || 0);
+  if (totalHariWajibNonLibur > 0) {
+    return Number((((kar.rekap.cuti || 0) * 100) / totalHariWajibNonLibur).toFixed(1));
   }
   return 0;
 };
@@ -95,29 +97,31 @@ const getPersonalIzinRate = (kar: KaryawanRekap): number => {
   if (kar.rates?.izinRate !== undefined) {
     return kar.rates.izinRate;
   }
-  const activeDutyDays = (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0);
-  const totalPlanned = activeDutyDays + (kar.rekap.cuti || 0) + (kar.rekap.izin || 0);
-  if (totalPlanned > 0) {
-    return Number((((kar.rekap.izin || 0) / totalPlanned) * 100).toFixed(1));
+  const totalHariWajibNonLibur =
+    (kar.rekap.hadir || 0) + (kar.rekap.alpha || 0) + (kar.rekap.cuti || 0) + (kar.rekap.izin || 0);
+  if (totalHariWajibNonLibur > 0) {
+    return Number((((kar.rekap.izin || 0) * 100) / totalHariWajibNonLibur).toFixed(1));
   }
   return 0;
 };
 
 /**
  * Menghitung rentang tanggal cut-off 26 - 25 baku RSU Avisena
+ * @param refDate Tanggal acuan
+ * @param monthOffset 0 = Periode Cut-Off Bulan Berjalan (26 - 25), -1 = Periode Cut-Off Bulan Lalu (26 - 25)
  */
-const getCutOffPeriod = (refDate = new Date()): [Date, Date] => {
+const getCutOffPeriod = (refDate = new Date(), monthOffset = 0): [Date, Date] => {
   const year = refDate.getFullYear();
   const month = refDate.getMonth();
   const day = refDate.getDate();
 
   if (day >= 26) {
-    const start = new Date(year, month, 26);
-    const end = new Date(year, month + 1, 25);
+    const start = new Date(year, month + monthOffset, 26);
+    const end = new Date(year, month + 1 + monthOffset, 25);
     return [start, end];
   } else {
-    const start = new Date(year, month - 1, 26);
-    const end = new Date(year, month, 25);
+    const start = new Date(year, month - 1 + monthOffset, 26);
+    const end = new Date(year, month + monthOffset, 25);
     return [start, end];
   }
 };
@@ -208,7 +212,32 @@ export default function RekapAbsensiPage() {
   const totalKaryawan = data.length;
   const totalHadirAll = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.hadir, 0), [data]);
   const totalTelat = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.telat, 0), [data]);
+  const totalTepatWaktuAll = useMemo(() => Math.max(0, totalHadirAll - totalTelat), [totalHadirAll, totalTelat]);
   const totalAlpha = useMemo(() => data.reduce((acc, curr) => acc + curr.rekap.alpha, 0), [data]);
+
+  // Jumlah User Tepat Waktu vs User Terlambat vs User Alpha
+  const totalUserTepatWaktu = useMemo(
+    () => data.filter((curr) => Math.max(0, (curr.rekap.hadir || 0) - (curr.rekap.telat || 0)) > 0).length,
+    [data]
+  );
+  const totalUserTelat = useMemo(
+    () => data.filter((curr) => (curr.rekap.telat || 0) > 0).length,
+    [data]
+  );
+  const totalUserAlpha = useMemo(
+    () => data.filter((curr) => (curr.rekap.alpha || 0) > 0).length,
+    [data]
+  );
+
+  // Rasio Tepat Waktu vs Terlambat dari total kehadiran fisik
+  const tepatWaktuPct = useMemo(
+    () => (totalHadirAll > 0 ? Math.round((totalTepatWaktuAll / totalHadirAll) * 100) : 0),
+    [totalTepatWaktuAll, totalHadirAll]
+  );
+  const telatPct = useMemo(
+    () => (totalHadirAll > 0 ? 100 - tepatWaktuPct : 0),
+    [totalHadirAll, tepatWaktuPct]
+  );
 
   // Metrik Cuti, Libur & Izin
   const totalUserCuti = useMemo(() => data.filter((curr) => (curr.rekap.cuti || 0) > 0).length, [data]);
@@ -220,31 +249,33 @@ export default function RekapAbsensiPage() {
   const totalUserIzin = useMemo(() => data.filter((curr) => (curr.rekap.izin || 0) > 0).length, [data]);
   const totalHariIzinAll = useMemo(() => data.reduce((acc, curr) => acc + (curr.rekap.izin || 0), 0), [data]);
 
-  // Total dinas aktif fisik: Hadir + Alpha (Cuti & Izin TIDAK masuk pembagi)
-  const totalDinasAktifAll = useMemo(() => totalHadirAll + totalAlpha, [totalHadirAll, totalAlpha]);
-  // Total rencana plotting jadwal: Dinas Aktif + Cuti + Izin
+  // Rumus Baku: ((Tepat Waktu + Terlambat + Cuti + Izin) * 100) / (Total Hari Evaluasi - Libur/Day Off)
+  const totalHadirPlusCutiIzinAll = useMemo(
+    () => totalHadirAll + totalHariCutiAll + totalHariIzinAll,
+    [totalHadirAll, totalHariCutiAll, totalHariIzinAll]
+  );
   const totalPlottingAll = useMemo(
-    () => totalDinasAktifAll + totalHariCutiAll + totalHariIzinAll,
-    [totalDinasAktifAll, totalHariCutiAll, totalHariIzinAll]
+    () => totalHadirPlusCutiIzinAll + totalAlpha,
+    [totalHadirPlusCutiIzinAll, totalAlpha]
   );
 
   const avgKehadiran = useMemo(() => {
-    if (totalDinasAktifAll > 0) {
-      return Math.min(Number(((totalHadirAll / totalDinasAktifAll) * 100).toFixed(1)), 100).toFixed(1);
+    if (totalPlottingAll > 0) {
+      return Math.min(Number(((totalHadirPlusCutiIzinAll * 100) / totalPlottingAll).toFixed(1)), 100).toFixed(1);
     }
-    return "100.0";
-  }, [totalHadirAll, totalDinasAktifAll]);
+    return totalHariLiburAll > 0 ? "100.0" : "0.0";
+  }, [totalHadirPlusCutiIzinAll, totalPlottingAll, totalHariLiburAll]);
 
   const avgCutiRate = useMemo(() => {
     if (totalPlottingAll > 0) {
-      return ((totalHariCutiAll / totalPlottingAll) * 100).toFixed(1);
+      return ((totalHariCutiAll * 100) / totalPlottingAll).toFixed(1);
     }
     return "0.0";
   }, [totalHariCutiAll, totalPlottingAll]);
 
   const avgIzinRate = useMemo(() => {
     if (totalPlottingAll > 0) {
-      return ((totalHariIzinAll / totalPlottingAll) * 100).toFixed(1);
+      return ((totalHariIzinAll * 100) / totalPlottingAll).toFixed(1);
     }
     return "0.0";
   }, [totalHariIzinAll, totalPlottingAll]);
@@ -299,25 +330,37 @@ export default function RekapAbsensiPage() {
     ];
   }, [departemenList]);
 
-  // Preset filter tanggal cepat
+  // Preset filter tanggal cepat (Seluruhnya mengikuti standar Cut-Off 26 – 25)
   const applyPresetCutOff = () => {
-    const [start, end] = getCutOffPeriod();
+    const [start, end] = getCutOffPeriod(new Date(), 0);
     setDateRange([start, end]);
   };
 
   const applyPresetCurrentMonth = () => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    setDateRange([firstDay, lastDay]);
+    const [start, end] = getCutOffPeriod(new Date(), 0);
+    setDateRange([start, end]);
   };
 
   const applyPresetPreviousMonth = () => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
-    setDateRange([firstDay, lastDay]);
+    const [start, end] = getCutOffPeriod(new Date(), -1);
+    setDateRange([start, end]);
   };
+
+  const isSameDay = (a: Date | null, b: Date | null): boolean => {
+    if (!a || !b) return false;
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  };
+
+  const [currCutOffStart, currCutOffEnd] = getCutOffPeriod(new Date(), 0);
+  const [prevCutOffStart, prevCutOffEnd] = getCutOffPeriod(new Date(), -1);
+  const isCurrentPresetActive =
+    isSameDay(startDateObj, currCutOffStart) && isSameDay(endDateObj, currCutOffEnd);
+  const isPreviousPresetActive =
+    isSameDay(startDateObj, prevCutOffStart) && isSameDay(endDateObj, prevCutOffEnd);
 
   const handleResetFilter = () => {
     setSearchQuery("");
@@ -330,7 +373,8 @@ export default function RekapAbsensiPage() {
   const hasActiveFilters = Boolean(
     searchQuery ||
     (selectedUnit && selectedUnit.value !== "all") ||
-    Boolean(selectedSort)
+    Boolean(selectedSort) ||
+    !isCurrentPresetActive
   );
 
   // Export Excel menggunakan ExcelJS
@@ -592,71 +636,119 @@ export default function RekapAbsensiPage() {
         </div>
       </div>
 
-      {/* LAYER 2: KPI / SUMMARY RIBBON (6 METRICS: Karyawan, Rate, Terlambat, Alpha, Cuti, Libur) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      {/* LAYER 2: KPI / SUMMARY RIBBON (6 METRICS: Karyawan, Rate Kehadiran, Tepat Waktu vs Telat, Alpha, Cuti, Libur) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        {/* CARD 1: TOTAL KARYAWAN */}
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Karyawan</p>
             <p className="text-2xl font-black text-slate-800 font-mono tabular-nums mt-0.5">
               {totalKaryawan} <span className="text-xs font-semibold text-slate-400 font-sans">Pegawai</span>
             </p>
+            <p className="text-[10px] font-mono tabular-nums text-slate-400 font-semibold mt-0.5">
+              {totalHadirAll} Hari Hadir Fisik
+            </p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0173b6] flex items-center justify-center font-bold">
+          <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0173b6] flex items-center justify-center font-bold shrink-0">
             <Users size={22} />
           </div>
         </div>
 
+        {/* CARD 2: PERSENTASE KEHADIRAN ((Tepat + Telat + Cuti + Izin) * 100 / (Hari Kerja - Libur)) */}
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kehadiran Fisik</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Rata-Rata Kehadiran</p>
               <span className="badge badge-xs badge-success text-[9px] font-bold text-white">Rate</span>
             </div>
             <p className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-0.5">
               {Math.min(Number(avgKehadiran), 100)}%
             </p>
             <p className="text-[10px] font-mono tabular-nums text-slate-400 font-semibold mt-0.5">
-              Dinas: {totalHadirAll} / {totalDinasAktifAll} Hari
+              {totalHadirPlusCutiIzinAll} / {totalPlottingAll} Hari Wajib
             </p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
             <CalendarDays size={22} />
           </div>
         </div>
 
-        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Terlambat</p>
-            <p className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-0.5">
-              {totalTelat} <span className="text-xs font-semibold text-slate-400 font-sans">Kali</span>
+        {/* CARD 3: PERBANDINGAN USER TEPAT WAKTU VS TERLAMBAT */}
+        <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Tepat Waktu vs Telat
             </p>
+            <Clock size={14} className="text-slate-400 shrink-0" />
           </div>
-          <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
-            <Clock size={22} />
+
+          <div className="grid grid-cols-2 gap-2 my-1.5 items-center">
+            <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-xl px-2.5 py-1.5">
+              <div className="flex items-baseline justify-between gap-1">
+                <span className="text-base font-black text-emerald-600 font-mono tabular-nums leading-none">
+                  {totalUserTepatWaktu}
+                </span>
+                <span className="text-[9px] font-bold uppercase text-emerald-700">User</span>
+              </div>
+              <p className="text-[10px] font-mono tabular-nums text-emerald-700/80 font-semibold mt-0.5 truncate">
+                {totalTepatWaktuAll}x Tepat
+              </p>
+            </div>
+
+            <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl px-2.5 py-1.5">
+              <div className="flex items-baseline justify-between gap-1">
+                <span className="text-base font-black text-amber-600 font-mono tabular-nums leading-none">
+                  {totalUserTelat}
+                </span>
+                <span className="text-[9px] font-bold uppercase text-amber-700">User</span>
+              </div>
+              <p className="text-[10px] font-mono tabular-nums text-amber-700/80 font-semibold mt-0.5 truncate">
+                {totalTelat}x Telat
+              </p>
+            </div>
+          </div>
+
+          {/* Mini Bar Pembanding Tepat Waktu vs Terlambat */}
+          <div className="space-y-1">
+            <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden flex">
+              <div
+                style={{ width: `${tepatWaktuPct}%` }}
+                className="bg-emerald-500 h-full transition-all duration-500"
+                title={`Tepat Waktu: ${tepatWaktuPct}%`}
+              />
+              <div
+                style={{ width: `${telatPct}%` }}
+                className="bg-amber-400 h-full transition-all duration-500"
+                title={`Terlambat: ${telatPct}%`}
+              />
+            </div>
           </div>
         </div>
 
+        {/* CARD 4: TOTAL ALPHA & IZIN */}
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Alpha</p>
               {totalHariIzinAll > 0 && (
-                <span className="badge badge-xs bg-sky-100 text-sky-700 font-bold font-mono text-[9px]">Izin: {avgIzinRate}%</span>
+                <span className="badge badge-xs bg-sky-100 text-sky-700 font-bold font-mono text-[9px]">
+                  Izin: {avgIzinRate}%
+                </span>
               )}
             </div>
             <p className="text-2xl font-black text-rose-600 font-mono tabular-nums mt-0.5">
               {totalAlpha} <span className="text-xs font-semibold text-slate-400 font-sans">Hari</span>
             </p>
             <p className="text-[10px] font-mono tabular-nums text-slate-400 font-semibold mt-0.5">
-              Izin / Sakit: {totalHariIzinAll} Hari
+              {totalUserAlpha} User • Izin: {totalHariIzinAll} Hr
             </p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+          <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shrink-0">
             <AlertTriangle size={22} />
           </div>
         </div>
 
-        {/* CARD BARU: KARYAWAN CUTI */}
+        {/* CARD 5: KARYAWAN CUTI */}
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5">
@@ -670,12 +762,12 @@ export default function RekapAbsensiPage() {
               {totalHariCutiAll} Hari Terpakai
             </p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
             <Palmtree size={22} />
           </div>
         </div>
 
-        {/* CARD BARU: KARYAWAN LIBUR */}
+        {/* CARD 6: KARYAWAN LIBUR */}
         <div className="rekap-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pegawai Libur</p>
@@ -686,7 +778,7 @@ export default function RekapAbsensiPage() {
               {totalHariLiburAll} Hari Plot Libur
             </p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold">
+          <div className="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold shrink-0">
             <Coffee size={22} />
           </div>
         </div>
@@ -704,28 +796,33 @@ export default function RekapAbsensiPage() {
             </span>
           </div>
 
-          {/* Quick preset buttons */}
+          {/* Quick preset buttons (Seluruhnya berbasis Cut-Off 26–25) */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
-              onClick={applyPresetCutOff}
-              className="btn btn-xs btn-ghost text-[11px] font-bold text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg px-2.5"
-            >
-              Cut-Off 26–25
-            </button>
-            <button
+              type="button"
               onClick={applyPresetCurrentMonth}
-              className="btn btn-xs btn-ghost text-[11px] font-bold text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg px-2.5"
+              className={`btn btn-xs text-[11px] font-bold rounded-lg px-3 transition-all ${
+                isCurrentPresetActive
+                  ? "bg-[#0173b6] text-white hover:bg-[#005f98] border-0 shadow-2xs"
+                  : "btn-ghost text-slate-600 hover:text-[#0173b6] hover:bg-blue-50"
+              }`}
             >
-              Bulan Berjalan
+              Bulan Berjalan (26–25)
             </button>
             <button
+              type="button"
               onClick={applyPresetPreviousMonth}
-              className="btn btn-xs btn-ghost text-[11px] font-bold text-slate-600 hover:text-[#0173b6] hover:bg-blue-50 rounded-lg px-2.5"
+              className={`btn btn-xs text-[11px] font-bold rounded-lg px-3 transition-all ${
+                isPreviousPresetActive
+                  ? "bg-[#0173b6] text-white hover:bg-[#005f98] border-0 shadow-2xs"
+                  : "btn-ghost text-slate-600 hover:text-[#0173b6] hover:bg-blue-50"
+              }`}
             >
-              Bulan Lalu
+              Bulan Lalu (26–25)
             </button>
             {hasActiveFilters && (
               <button
+                type="button"
                 onClick={handleResetFilter}
                 className="btn btn-xs btn-ghost text-[11px] font-bold text-rose-600 hover:bg-rose-50 rounded-lg px-2 gap-1 ml-1"
               >

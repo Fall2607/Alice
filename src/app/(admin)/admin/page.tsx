@@ -54,16 +54,37 @@ interface ScheduleItem {
 interface AbsensiDashboardStats {
   totalKaryawan: number;
   hadirHariIni: number;
+  tepatWaktuHariIni?: number;
   terlambatHariIni: number;
+  cutiHariIni?: number;
+  izinHariIni?: number;
+  liburHariIni?: number;
   alphaHariIni: number;
+  kehadiranHariIniRate?: number;
   kehadiranBulanIni: number;
   cutiRateBulanIni?: number;
   izinRateBulanIni?: number;
   totalDinasAktif?: number;
   totalHadirCutOff?: number;
+  totalTepatWaktuCutOff?: number;
+  totalTelatCutOff?: number;
   totalAlphaCutOff?: number;
   totalCutiCutOff?: number;
   totalIzinCutOff?: number;
+  totalLiburCutOff?: number;
+  personalRekap?: {
+    hadir: number;
+    tepatWaktu: number;
+    telat: number;
+    alpha: number;
+    libur: number;
+    cuti: number;
+    izin: number;
+    hariWajibNonLibur: number;
+    kehadiranRate: number;
+    cutiRate: number;
+    izinRate: number;
+  } | null;
   cutOffStart?: string;
   cutOffEnd?: string;
 }
@@ -231,6 +252,9 @@ export default function DashboardAdminPage() {
         let statsUrl = `/api/absensi/dashboard?month=${month || ""}`;
         if (!isHCAdmin && user.karyawan_id) {
           statsUrl += `&superior_id=${user.karyawan_id}`;
+        }
+        if (user.karyawan_id) {
+          statsUrl += `&personal_id=${user.karyawan_id}`;
         }
         const res = await fetch(statsUrl);
         if (res.ok) {
@@ -400,27 +424,51 @@ export default function DashboardAdminPage() {
   }, [todayScheduleItem]);
 
   // Statistik Presensi Mandiri Periode Cut-Off (26 s/d 25)
+  // Menggunakan rumus baku: ((Tepat Waktu + Terlambat + Cuti + Izin) * 100) / (Total Hari Evaluasi - Libur)
   const personalCutOffStats = useMemo(() => {
-    if (!month || personalAbsensi.length === 0) {
-      const total = personalAbsensi.length;
-      const late = personalAbsensi.filter((a) => a.is_late).length;
-      const onTime = Math.max(0, total - late);
-      const discipline = total > 0 ? Math.round((onTime / total) * 100) : 100;
-      return { totalHadir: total, onTime, late, discipline };
+    if (stats.personalRekap) {
+      return {
+        totalHadir: stats.personalRekap.hadir,
+        onTime: stats.personalRekap.tepatWaktu,
+        late: stats.personalRekap.telat,
+        cuti: stats.personalRekap.cuti,
+        izin: stats.personalRekap.izin,
+        alpha: stats.personalRekap.alpha,
+        libur: stats.personalRekap.libur,
+        discipline: stats.personalRekap.kehadiranRate,
+        kehadiranRate: stats.personalRekap.kehadiranRate,
+      };
     }
-    const [y, m] = month.split("-").map(Number);
-    const startDateStr = new Date(y, m - 2, 26).toISOString().split("T")[0];
-    const endDateStr = new Date(y, m - 1, 25).toISOString().split("T")[0];
 
-    const recordsInPeriod = personalAbsensi.filter(
-      (a) => a.tanggal >= startDateStr && a.tanggal <= endDateStr
-    );
+    const pad2 = (n: number) => String(n).padStart(2, "0");
+    let recordsInPeriod = personalAbsensi;
+    if (month) {
+      const [y, m] = month.split("-").map(Number);
+      const startCut = new Date(y, m - 2, 26);
+      const endCut = new Date(y, m - 1, 25);
+      const startDateStr = `${startCut.getFullYear()}-${pad2(startCut.getMonth() + 1)}-${pad2(startCut.getDate())}`;
+      const endDateStr = `${endCut.getFullYear()}-${pad2(endCut.getMonth() + 1)}-${pad2(endCut.getDate())}`;
+      recordsInPeriod = personalAbsensi.filter(
+        (a) => a.tanggal >= startDateStr && a.tanggal <= endDateStr
+      );
+    }
+
     const total = recordsInPeriod.length;
     const late = recordsInPeriod.filter((a) => a.is_late).length;
     const onTime = Math.max(0, total - late);
-    const discipline = total > 0 ? Math.round((onTime / total) * 100) : 100;
-    return { totalHadir: total, onTime, late, discipline };
-  }, [month, personalAbsensi]);
+    const discipline = total > 0 ? 100 : 0;
+    return {
+      totalHadir: total,
+      onTime,
+      late,
+      cuti: 0,
+      izin: 0,
+      alpha: 0,
+      libur: 0,
+      discipline,
+      kehadiranRate: discipline,
+    };
+  }, [stats.personalRekap, month, personalAbsensi]);
 
   // Strip Jadwal Tugas 7 Hari ke Depan (Weekly Duty Strip)
   const weeklyDuty = useMemo(() => {
@@ -686,19 +734,24 @@ export default function DashboardAdminPage() {
           {/* KPI 3: Kehadiran Cut-Off (26-25) */}
           <div className="dash-kpi-card bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex items-center justify-between">
             <div className="min-w-0 pr-2">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Kehadiran Cut-Off
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Kehadiran Cut-Off
+                </p>
+                <span className="badge badge-xs badge-success text-[9px] font-bold text-white font-mono">
+                  {personalCutOffStats.kehadiranRate}%
+                </span>
+              </div>
               <p className="text-xl font-black text-[#0173b6] font-mono tabular-nums mt-0.5">
-                {isLoadingPersonal ? (
+                {isLoadingPersonal && isLoadingStats ? (
                   <span className="inline-block w-12 h-6 bg-slate-100 rounded-md animate-pulse"></span>
                 ) : (
                   personalCutOffStats.totalHadir
                 )}{" "}
-                <span className="text-xs font-semibold text-slate-400 font-sans">Hari</span>
+                <span className="text-xs font-semibold text-slate-400 font-sans">Hari Hadir</span>
               </p>
-              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-                Disiplin: {personalCutOffStats.discipline}% ({personalCutOffStats.late} terlambat)
+              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5 font-mono tabular-nums">
+                {personalCutOffStats.onTime} Tepat • {personalCutOffStats.late} Telat • {personalCutOffStats.cuti} Cuti
               </p>
             </div>
             <div className="w-11 h-11 rounded-xl bg-blue-50 text-[#0173b6] flex items-center justify-center font-bold shrink-0">
@@ -1275,7 +1328,7 @@ export default function DashboardAdminPage() {
                           : `Monitoring Kehadiran Tim ${karyawanProfile?.nama_departemen || "Unit"} Hari Ini`}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">
-                        Tingkat kehadiran fisik (dinas aktif) periode cut-off 26–25
+                        Rata-rata kehadiran cut-off 26–25: (Tepat Waktu + Terlambat + Cuti + Izin) / (Hari Kerja - Libur)
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
@@ -1284,20 +1337,22 @@ export default function DashboardAdminPage() {
                           {stats.kehadiranBulanIni}%
                         </span>
                         <span className="badge badge-xs badge-success text-[9px] font-bold text-white">
-                          Kehadiran Fisik
+                          Rate Cut-Off
                         </span>
                       </div>
-                      {(stats.cutiRateBulanIni !== undefined || stats.izinRateBulanIni !== undefined) && (
-                        <div className="flex items-center gap-2 text-[10px] font-mono tabular-nums text-slate-400">
-                          <span>
-                            Cuti: <strong className="text-indigo-600">{stats.cutiRateBulanIni ?? 0}%</strong>
-                          </span>
-                          <span>•</span>
-                          <span>
-                            Izin: <strong className="text-sky-600">{stats.izinRateBulanIni ?? 0}%</strong>
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 text-[10px] font-mono tabular-nums text-slate-400">
+                        <span>
+                          Tepat: <strong className="text-emerald-600">{stats.totalTepatWaktuCutOff ?? 0}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Telat: <strong className="text-amber-600">{stats.totalTelatCutOff ?? 0}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Cuti: <strong className="text-indigo-600">{stats.cutiRateBulanIni ?? 0}%</strong>
+                        </span>
+                      </div>
                     </div>
                   </div>
 

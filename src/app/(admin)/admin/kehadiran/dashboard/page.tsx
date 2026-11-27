@@ -39,9 +39,24 @@ export default function DashboardAbsensiPage() {
   const [stats, setStats] = useState({
     totalKaryawan: 0,
     hadirHariIni: 0,
+    tepatWaktuHariIni: 0,
     terlambatHariIni: 0,
+    cutiHariIni: 0,
+    izinHariIni: 0,
+    liburHariIni: 0,
     alphaHariIni: 0,
+    kehadiranHariIniRate: 0,
     kehadiranBulanIni: 0,
+    cutiRateBulanIni: 0,
+    izinRateBulanIni: 0,
+    totalDinasAktif: 0,
+    totalHadirCutOff: 0,
+    totalTepatWaktuCutOff: 0,
+    totalTelatCutOff: 0,
+    totalAlphaCutOff: 0,
+    totalCutiCutOff: 0,
+    totalIzinCutOff: 0,
+    totalLiburCutOff: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
@@ -77,9 +92,25 @@ export default function DashboardAbsensiPage() {
         setStats({
           totalKaryawan: data.totalKaryawan || 0,
           hadirHariIni: data.hadirHariIni || 0,
+          tepatWaktuHariIni:
+            data.tepatWaktuHariIni ?? Math.max(0, (data.hadirHariIni || 0) - (data.terlambatHariIni || 0)),
           terlambatHariIni: data.terlambatHariIni || 0,
+          cutiHariIni: data.cutiHariIni || 0,
+          izinHariIni: data.izinHariIni || 0,
+          liburHariIni: data.liburHariIni || 0,
           alphaHariIni: data.alphaHariIni || 0,
+          kehadiranHariIniRate: data.kehadiranHariIniRate ?? 0,
           kehadiranBulanIni: data.kehadiranBulanIni || 0,
+          cutiRateBulanIni: data.cutiRateBulanIni || 0,
+          izinRateBulanIni: data.izinRateBulanIni || 0,
+          totalDinasAktif: data.totalDinasAktif || 0,
+          totalHadirCutOff: data.totalHadirCutOff || 0,
+          totalTepatWaktuCutOff: data.totalTepatWaktuCutOff || 0,
+          totalTelatCutOff: data.totalTelatCutOff || 0,
+          totalAlphaCutOff: data.totalAlphaCutOff || 0,
+          totalCutiCutOff: data.totalCutiCutOff || 0,
+          totalIzinCutOff: data.totalIzinCutOff || 0,
+          totalLiburCutOff: data.totalLiburCutOff || 0,
         });
       })
       .catch(console.error)
@@ -154,9 +185,22 @@ export default function DashboardAbsensiPage() {
     });
   }, []);
 
-  const hadirPercent = stats.totalKaryawan > 0
-    ? Math.round((stats.hadirHariIni / stats.totalKaryawan) * 100)
-    : 0;
+  // Rumus Harian: ((Tepat Waktu + Terlambat + Cuti + Izin) * 100) / (Total Karyawan - Libur Hari Ini)
+  const wajibHadirHariIni = Math.max(0, stats.totalKaryawan - stats.liburHariIni);
+  const hadirPercent =
+    stats.kehadiranHariIniRate > 0
+      ? stats.kehadiranHariIniRate
+      : wajibHadirHariIni > 0
+      ? Math.min(
+          Number(
+            (
+              ((stats.hadirHariIni + stats.cutiHariIni + stats.izinHariIni) * 100) /
+              wajibHadirHariIni
+            ).toFixed(1)
+          ),
+          100
+        )
+      : 0;
 
   return (
     <div ref={containerRef} className="p-8 font-sans min-h-screen space-y-6">
@@ -269,7 +313,7 @@ export default function DashboardAbsensiPage() {
               </span>
             </div>
             <p className="text-[11px] text-emerald-600 font-semibold mt-1 font-mono tabular-nums">
-              {stats.hadirHariIni} dari {stats.totalKaryawan} staf
+              {stats.tepatWaktuHariIni} Tepat • {stats.terlambatHariIni} Telat • {stats.cutiHariIni + stats.izinHariIni} Cuti/Izin
             </p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
@@ -277,17 +321,21 @@ export default function DashboardAbsensiPage() {
           </div>
         </div>
 
-        {/* Card 3: Terlambat Masuk */}
+        {/* Card 3: Tepat Waktu vs Terlambat Masuk */}
         <div className="dash-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Terlambat Masuk
+              Tepat Waktu vs Telat
             </p>
             <p className="text-2xl font-black text-amber-600 mt-0.5 font-mono tabular-nums">
-              {stats.terlambatHariIni}
-              <span className="text-xs font-semibold text-slate-500 ml-1.5 font-sans">Orang</span>
+              <span className="text-emerald-600">{stats.tepatWaktuHariIni}</span>
+              <span className="text-slate-300 mx-1.5">/</span>
+              <span>{stats.terlambatHariIni}</span>
+              <span className="text-xs font-semibold text-slate-500 ml-1.5 font-sans">Staf</span>
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">Melebihi toleransi shift</p>
+            <p className="text-[11px] text-slate-400 mt-1 font-mono tabular-nums">
+              Hijau: Tepat • Kuning: Terlambat
+            </p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
             <Clock size={20} />
@@ -298,13 +346,15 @@ export default function DashboardAbsensiPage() {
         <div className="dash-kpi-card bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Belum Presensi / Alpha
+              Alpha / Belum Presensi
             </p>
             <p className="text-2xl font-black text-rose-600 mt-0.5 font-mono tabular-nums">
               {stats.alphaHariIni}
               <span className="text-xs font-semibold text-slate-500 ml-1.5 font-sans">Orang</span>
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">Perlu tindak lanjut</p>
+            <p className="text-[11px] text-slate-400 mt-1 font-mono tabular-nums">
+              Libur Hari Ini: {stats.liburHariIni} Staf
+            </p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
             <AlertTriangle size={20} />
@@ -323,7 +373,7 @@ export default function DashboardAbsensiPage() {
                   Kedisiplinan Kehadiran Bulan Ini
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Akumulasi rasio kehadiran kerja sesuai cut-off resmi (26–25)
+                  Rumus: (Tepat Waktu + Terlambat + Cuti + Izin) × 100 / (Hari Kerja - Libur)
                 </p>
               </div>
               <span className="badge badge-sm font-bold bg-blue-50 text-[#0173b6] border-blue-200">
@@ -363,9 +413,9 @@ export default function DashboardAbsensiPage() {
               </div>
 
               {/* Textual Insight */}
-              <div className="space-y-2 flex-1">
+              <div className="space-y-2.5 flex-1 w-full">
                 <span className="badge badge-sm font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
-                  Status Evaluasi Unit
+                  Status Evaluasi Unit (Cut-Off 26–25)
                 </span>
                 <p className="text-xs font-semibold text-slate-700 leading-relaxed">
                   {Number(stats.kehadiranBulanIni) >= 90
@@ -374,8 +424,25 @@ export default function DashboardAbsensiPage() {
                     ? "Cukup Baik: Tingkat kehadiran operasional terpenuhi, namun perhatikan toleransi menit keterlambatan."
                     : "Peringatan: Tingkat kehadiran berada di bawah ambang minimum operasional. Diperlukan pembinaan kedisiplinan."}
                 </p>
-                <div className="pt-2 text-[11px] text-slate-400 font-medium">
-                  Berdasarkan kalkulasi log check-in GPS &amp; Face Recognition Avisena.
+
+                {/* Rincian Angka Komponen Rumus Cut-Off */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono tabular-nums text-[11px]">
+                  <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-lg px-2.5 py-1.5">
+                    <span className="block text-[9px] font-sans font-bold uppercase text-emerald-700">Tepat Waktu</span>
+                    <strong className="text-emerald-800">{stats.totalTepatWaktuCutOff} Hr</strong>
+                  </div>
+                  <div className="bg-amber-50/70 border border-amber-200/60 rounded-lg px-2.5 py-1.5">
+                    <span className="block text-[9px] font-sans font-bold uppercase text-amber-700">Terlambat</span>
+                    <strong className="text-amber-800">{stats.totalTelatCutOff} Hr</strong>
+                  </div>
+                  <div className="bg-indigo-50/70 border border-indigo-200/60 rounded-lg px-2.5 py-1.5">
+                    <span className="block text-[9px] font-sans font-bold uppercase text-indigo-700">Cuti &amp; Izin</span>
+                    <strong className="text-indigo-800">{stats.totalCutiCutOff + stats.totalIzinCutOff} Hr</strong>
+                  </div>
+                  <div className="bg-rose-50/70 border border-rose-200/60 rounded-lg px-2.5 py-1.5">
+                    <span className="block text-[9px] font-sans font-bold uppercase text-rose-700">Alpha</span>
+                    <strong className="text-rose-800">{stats.totalAlphaCutOff} Hr</strong>
+                  </div>
                 </div>
               </div>
             </div>

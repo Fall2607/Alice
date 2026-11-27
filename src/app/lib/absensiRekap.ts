@@ -381,19 +381,24 @@ export async function calculateAbsensiRekap(options: AbsensiRekapOptions): Promi
     }
 
     // Hitung persentase individual
-    // 1. Kehadiran Fisik (Dinas Aktif: Hadir vs Alpha. Cuti & Izin TIDAK mengurangi)
-    const activeDutyDays = totalHadir + totalAlpha;
+    // Rumus Baku: ((Tepat Waktu + Terlambat + Cuti + Izin) * 100) / (Total Hari Evaluasi - Libur/Day Off)
+    // Di mana:
+    // - Tepat Waktu + Terlambat = totalHadir
+    // - Total Hari Evaluasi (s/d hari ini) - Libur = totalHadir + totalCuti + totalIzin + totalAlpha
+    const hadirPlusCutiIzin = totalHadir + totalCuti + totalIzin;
+    const totalHariWajibNonLibur = hadirPlusCutiIzin + totalAlpha;
     const kehadiranFisik =
-      activeDutyDays > 0
-        ? Math.min(Number(((totalHadir / activeDutyDays) * 100).toFixed(1)), 100)
-        : totalCuti > 0 || totalIzin > 0 || totalLibur > 0
+      totalHariWajibNonLibur > 0
+        ? Math.min(Number(((hadirPlusCutiIzin * 100) / totalHariWajibNonLibur).toFixed(1)), 100)
+        : totalLibur > 0
         ? 100
         : 0;
 
-    // 2. Persentase Cuti & Izin terhadap total jadwal terencana (Dinas Aktif + Cuti + Izin)
-    const totalPlannedDays = activeDutyDays + totalCuti + totalIzin;
-    const cutiRate = totalPlannedDays > 0 ? Number(((totalCuti / totalPlannedDays) * 100).toFixed(1)) : 0;
-    const izinRate = totalPlannedDays > 0 ? Number(((totalIzin / totalPlannedDays) * 100).toFixed(1)) : 0;
+    // 2. Persentase Cuti & Izin terhadap total hari kerja wajib (Total Hari Evaluasi - Libur)
+    const cutiRate =
+      totalHariWajibNonLibur > 0 ? Number(((totalCuti * 100) / totalHariWajibNonLibur).toFixed(1)) : 0;
+    const izinRate =
+      totalHariWajibNonLibur > 0 ? Number(((totalIzin * 100) / totalHariWajibNonLibur).toFixed(1)) : 0;
 
     // Akumulasi summary
     groupHadir += totalHadir;
@@ -424,11 +429,19 @@ export async function calculateAbsensiRekap(options: AbsensiRekapOptions): Promi
     };
   });
 
-  const totalDinasAktif = groupHadir + groupAlpha;
-  const kehadiranRate = totalDinasAktif > 0 ? Math.min(Number(((groupHadir / totalDinasAktif) * 100).toFixed(1)), 100) : 100;
-  const totalJadwalTerencana = totalDinasAktif + groupCuti + groupIzin;
-  const cutiRate = totalJadwalTerencana > 0 ? Number(((groupCuti / totalJadwalTerencana) * 100).toFixed(1)) : 0;
-  const izinRate = totalJadwalTerencana > 0 ? Number(((groupIzin / totalJadwalTerencana) * 100).toFixed(1)) : 0;
+  const groupHadirPlusCutiIzin = groupHadir + groupCuti + groupIzin;
+  const totalJadwalTerencana = groupHadirPlusCutiIzin + groupAlpha; // (Total Hari Evaluasi Semua Karyawan - Total Libur)
+  const totalDinasAktif = totalJadwalTerencana;
+  const kehadiranRate =
+    totalJadwalTerencana > 0
+      ? Math.min(Number(((groupHadirPlusCutiIzin * 100) / totalJadwalTerencana).toFixed(1)), 100)
+      : groupLibur > 0
+      ? 100
+      : 0;
+  const cutiRate =
+    totalJadwalTerencana > 0 ? Number(((groupCuti * 100) / totalJadwalTerencana).toFixed(1)) : 0;
+  const izinRate =
+    totalJadwalTerencana > 0 ? Number(((groupIzin * 100) / totalJadwalTerencana).toFixed(1)) : 0;
 
   return {
     data,
